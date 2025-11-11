@@ -90,7 +90,7 @@ export default async function NarrativasPage() {
               : 'bg-gray-500/10 text-gray-700'
 
           const symbol = r.par
-          const href = `/narrativas/${symbol.replace('/', '')}`
+          const href = `/narrativas/${symbol.replace('/', '')}` as const
 
           if (isInvalid || Number.isNaN(corr_12m) || Number.isNaN(corr_3m)) {
             return (

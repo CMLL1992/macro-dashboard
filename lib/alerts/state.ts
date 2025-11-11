@@ -5,8 +5,8 @@
 
 import { getDB } from '@/lib/db/schema'
 
-type USDState = 'Fuerte' | 'Débil' | 'Neutral'
-type CorrelationLevel = 'Alta' | 'Media' | 'Baja'
+export type USDState = 'Fuerte' | 'Débil' | 'Neutral'
+export type CorrelationLevel = 'Alta' | 'Media' | 'Baja'
 
 interface AlertState {
   usdBias: USDState | null

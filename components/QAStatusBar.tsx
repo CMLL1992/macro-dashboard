@@ -11,7 +11,7 @@ export default function QAStatusBar({ counts, updatedAt, link, tooltip }: { coun
         {updatedLocal ? <span suppressHydrationWarning> · Última rev: {updatedLocal}</span> : null}
       </div>
       {link && (
-        <Link href={link} className="underline">Ver QA</Link>
+        <Link href={link as any} className="underline">Ver QA</Link>
       )}
     </div>
   )

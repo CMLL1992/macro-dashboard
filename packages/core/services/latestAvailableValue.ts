@@ -1,4 +1,9 @@
-import type { Observation } from "@macro-dashboard/types";
+import type { DataPoint } from "@/lib/types/macro";
+
+type Observation = DataPoint & {
+  released_at?: string;
+  source_url?: string;
+};
 
 export type Frequency = "D" | "W" | "M" | "Q";
 export type FreshnessStatus = "fresh" | "stale" | "old";
@@ -134,10 +139,10 @@ export function findLatestAvailableValue(
 
   return {
     observation: latestObs,
-    transformed_value: latestObs.value, // Se calculará transformación después si es necesario
+    transformed_value: latestObs.value ?? 0, // Se calculará transformación después si es necesario
     last_date: obsDate.toISOString().split("T")[0],
-    released_at: latestObs.released_at,
-    source_url: latestObs.source_url,
+    released_at: latestObs.released_at ?? '',
+    source_url: latestObs.source_url ?? '',
     freshness_status: freshnessStatus,
     age_days: ageDays,
   };
@@ -163,7 +168,7 @@ export function calculateYoYTransformation(
     return diff < 30 * 24 * 60 * 60 * 1000; // ~30 días de tolerancia
   });
 
-  if (!prevObs || prevObs.value <= 0) return null;
+  if (!prevObs || prevObs.value == null || prevObs.value <= 0) return null;
 
   return ((currentValue / prevObs.value) - 1) * 100;
 }
@@ -186,7 +191,7 @@ export function calculateMonthlyChange(
     return diff < 15 * 24 * 60 * 60 * 1000; // ~15 días de tolerancia
   });
 
-  if (!prevObs) return null;
+  if (!prevObs || prevObs.value == null) return null;
 
   return currentValue - prevObs.value;
 }

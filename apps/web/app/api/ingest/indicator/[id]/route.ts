@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ingestIndicator } from "@/lib/ingest";
+// TODO: Implement ingestIndicator or remove this route if not needed
+// import { ingestIndicator } from "../../../../../lib/ingest";
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    const result = await ingestIndicator(params.id);
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error("Error ingesting indicator:", error);
-    return NextResponse.json(
-      { success: false, count: 0, error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 },
-    );
-  }
+  // Stub implementation - route disabled until ingest module is implemented
+  return NextResponse.json(
+    { success: false, count: 0, error: "Ingest module not implemented" },
+    { status: 501 },
+  );
 }
 

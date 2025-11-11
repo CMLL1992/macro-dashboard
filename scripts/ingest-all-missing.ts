@@ -3,8 +3,9 @@
  * Script para ingerir datos de todos los indicadores que no tienen observaciones
  */
 
-import { ingestIndicator } from "../apps/web/lib/ingest";
-import { prisma } from "../apps/web/lib/prisma";
+// TODO: Re-implement when apps/web structure is complete
+// import { ingestIndicator } from "../apps/web/lib/ingest";
+// import { prisma } from "../apps/web/lib/prisma";
 
 const INDICATORS_WITHOUT_DATA = [
   "consumer_conf_cb",

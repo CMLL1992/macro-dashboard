@@ -132,7 +132,7 @@ export function detectRecentSurprise(items: any[], keys: string[]): 'pos' | 'neg
 
 function corrFromMap(par: string, corrMap: CorrMap): { corr12m: number | null; corr6m: number | null; corr3m: number | null; ref: string | undefined; mapped: boolean } {
   const keys = variants(par)
-  let c: { ref: string; c12: number | null; c6: number | null; c3: number | null } | undefined = null
+  let c: { ref: string; c12: number | null; c6: number | null; c3: number | null } | undefined = undefined
   let mapped = false
   for (const k of keys) {
     if (corrMap.has(k)) {

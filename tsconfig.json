@@ -36,6 +36,9 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "apps/web",
+    "scripts/ingest-all-missing.ts",
+    "scripts/test-missing-indicators.ts"
   ]
 }

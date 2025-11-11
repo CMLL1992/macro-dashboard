@@ -1,5 +1,20 @@
-import { httpGet } from "./http";
-import type { Observation } from "@macro-dashboard/types";
+import { fetchWithTimeout } from "@/lib/utils/http";
+import type { DataPoint } from "@/lib/types/macro";
+
+type Observation = DataPoint & {
+  released_at?: string;
+  source_url?: string;
+  indicator_id?: string;
+  revision?: boolean;
+};
+
+async function httpGet(url: string): Promise<any> {
+  const response = await fetchWithTimeout(url);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  return response.json();
+}
 
 const TE_BASE = "https://api.tradingeconomics.com";
 
@@ -126,8 +141,8 @@ function parseTradingEconomicsResponse(data: any, endpoint: string): Observation
     return [];
   }
   
-  const observations: Observation[] = series
-    .map((item: any) => {
+  const observations = series
+    .map((item: any): Observation | null => {
       // Trading Economics puede devolver diferentes formatos de campo
       const value = item.Value !== undefined ? item.Value : 
                    item.value !== undefined ? item.value :
@@ -187,7 +202,7 @@ function parseTradingEconomicsResponse(data: any, endpoint: string): Observation
         released_at: date.toISOString(),
       };
     })
-    .filter((o: Observation | null): o is Observation => o !== null);
+    .filter((o: Observation | null): o is Observation => o !== null) as Observation[];
   
   // Ordenar por fecha descendente (más reciente primero)
   observations.sort((a, b) => {

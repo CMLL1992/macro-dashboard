@@ -90,11 +90,10 @@ export function setNotificationSetting(
   const defaultSetting = DEFAULT_SETTINGS[key]
   
   // Validate range if provided
+  const min = min_value ?? defaultSetting?.min
+  const max = max_value ?? defaultSetting?.max
   const numValue = parseFloat(value)
   if (!isNaN(numValue)) {
-    const min = min_value ?? defaultSetting?.min
-    const max = max_value ?? defaultSetting?.max
-    
     if (min != null && numValue < min) {
       throw new Error(`Value ${value} is below minimum ${min}`)
     }

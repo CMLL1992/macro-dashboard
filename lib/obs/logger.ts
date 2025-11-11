@@ -17,7 +17,7 @@ export function log(level: LogLevel, message: string, meta?: Record<string, unkn
     level,
     message,
     timestamp: new Date().toISOString(),
-    ...(meta?.job && { job: meta.job }),
+    ...(meta?.job ? { job: String(meta.job) } : {}),
     meta,
   }
 

@@ -244,7 +244,7 @@ export async function computeCurrentAccountPctGDP(
     const dpB = alignedB[idx]
     if (!dpB || dpB.value === 0) return { date: dpA.date, value: null }
 
-    let value = (dpA.value! / dpB.value!) * 100
+    let value: number | null = (dpA.value! / dpB.value!) * 100
 
     if (!Number.isFinite(value) || isNaN(value)) {
       value = null

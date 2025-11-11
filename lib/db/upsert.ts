@@ -3,7 +3,8 @@
  */
 
 import { getDB } from './schema'
-import type { MacroSeries, MacroBias } from '@/lib/bias/types'
+import type { MacroSeries } from '@/lib/types/macro'
+import type { MacroBias } from '@/lib/bias/types'
 import type { BiasNarrative } from '@/lib/bias/explain'
 
 /**
