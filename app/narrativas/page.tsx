@@ -6,7 +6,8 @@ import { formatSignedTwoDecimals } from '@/lib/utils/format'
 import { logger } from '@/lib/obs/logger'
 import Link from 'next/link'
 
-export const revalidate = 10800 // 3h
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export default async function NarrativasPage() {
   // Obtener exactamente las mismas filas finales que usa el Mapa de sesgos

@@ -7,7 +7,8 @@ import { logger } from '@/lib/obs/logger'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-export const revalidate = 10800 // 3h
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export default async function NarrativeDetailPage({ params }: { params: { symbol: string } }) {
   // Obtener mismas filas finales que el Mapa de sesgos
