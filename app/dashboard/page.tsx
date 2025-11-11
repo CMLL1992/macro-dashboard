@@ -13,7 +13,8 @@ import { isStaleByFrequency, getFrequencyLabel, SLA_BY_FREQUENCY } from '@/lib/u
 import Link from 'next/link'
 import DateDisplay from '@/components/DateDisplay'
 
-export const revalidate = 10800
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 /**
  * Fetch bias data with validation and error handling
