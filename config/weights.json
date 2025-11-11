@@ -1,0 +1,23 @@
+{
+  "threshold": 0.30,
+  "description": "Pesos rebalanceados para 18 indicadores curados de alto impacto. Distribución: Crecimiento 30%, Inflación 35%, Laboral 20%, Política/Curva 10%, Riesgo 5%",
+  "weights": {
+    "CPIAUCSL": 0.10,
+    "CPILFESL": 0.10,
+    "PCEPI": 0.05,
+    "PCEPILFE": 0.07,
+    "PPIACO": 0.03,
+    "GDPC1": 0.22,
+    "INDPRO": 0.04,
+    "RSXFS": 0.04,
+    "PAYEMS": 0.10,
+    "UNRATE": 0.07,
+    "ICSA": 0.03,
+    "T10Y2Y": 0.06,
+    "FEDFUNDS": 0.04,
+    "VIX": 0.05
+  },
+  "note": "Pesos según matriz propuesta: Crecimiento/Actividad 30% (GDPC1 22% para QoQ+YoY, INDPRO 4%, RSXFS 4%), Precios/Inflación 35% (CPI 10%, Core CPI 10%, PCE 5%, Core PCE 7%, PPI 3%), Mercado Laboral 20% (PAYEMS 10%, UNRATE 7%, ICSA 3%), Política/Curva 10% (T10Y2Y 6%, FEDFUNDS 4%), Riesgo 5% (VIX 5%). Nota: GDPC1 se usa para ambos QoQ y YoY, peso combinado 0.22 (0.12+0.10)"
+}
+
+

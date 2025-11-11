@@ -1,0 +1,266 @@
+{
+  "sources": [
+    {
+      "indicator_id": "yield_10y_2y_spread",
+      "primary_api": "FRED",
+      "primary_endpoint": "T10Y2Y",
+      "fallback_api": null,
+      "fallback_endpoint": null,
+      "frequency": "D",
+      "notes": "Diferencia entre T10Y y DGS2 calculada directamente"
+    },
+    {
+      "indicator_id": "fed_funds_target",
+      "primary_api": "FRED",
+      "primary_endpoint": "FEDFUNDS",
+      "fallback_api": null,
+      "fallback_endpoint": null,
+      "frequency": "D",
+      "notes": "Publicado con frecuencia diaria o mensual según revisión"
+    },
+    {
+      "indicator_id": "financial_conditions",
+      "primary_api": "FRED",
+      "primary_endpoint": "NFCI",
+      "fallback_api": null,
+      "fallback_endpoint": null,
+      "frequency": "W",
+      "notes": "National Financial Conditions Index"
+    },
+    {
+      "indicator_id": "high_yield_spread",
+      "primary_api": "FRED",
+      "primary_endpoint": "BAMLH0A0HYM2",
+      "fallback_api": null,
+      "fallback_endpoint": null,
+      "frequency": "D",
+      "notes": "Serie oficial Bank of America / ICE"
+    },
+    {
+      "indicator_id": "breakeven_10y",
+      "primary_api": "FRED",
+      "primary_endpoint": "T10YIE",
+      "fallback_api": null,
+      "fallback_endpoint": null,
+      "frequency": "D",
+      "notes": "Disponible hasta ayer"
+    },
+    {
+      "indicator_id": "ism_manu_pmi",
+      "primary_api": "TRADING_ECONOMICS",
+      "primary_endpoint": "united-states/manufacturing-pmi",
+      "fallback_api": "ISM_ORG",
+      "fallback_endpoint": null,
+      "frequency": "M",
+      "notes": "Actualizado cada 1er día hábil de mes"
+    },
+    {
+      "indicator_id": "ism_serv_pmi",
+      "primary_api": "TRADING_ECONOMICS",
+      "primary_endpoint": "united-states/services-pmi",
+      "fallback_api": "ISM_ORG",
+      "fallback_endpoint": null,
+      "frequency": "M",
+      "notes": "Publicado 3 días después del manufacturero"
+    },
+    {
+      "indicator_id": "consumer_conf_cb",
+      "primary_api": "TRADING_ECONOMICS",
+      "primary_endpoint": "united-states/consumer-confidence",
+      "fallback_api": "CONFBOARD_ORG",
+      "fallback_endpoint": null,
+      "frequency": "M",
+      "notes": "Último martes del mes"
+    },
+    {
+      "indicator_id": "michigan_sentiment",
+      "primary_api": "FRED",
+      "primary_endpoint": "UMCSENT",
+      "fallback_api": "TRADING_ECONOMICS",
+      "fallback_endpoint": "united-states/michigan-consumer-sentiment",
+      "frequency": "M",
+      "notes": "Datos revisados a mitad y fin de mes"
+    },
+    {
+      "indicator_id": "building_permits",
+      "primary_api": "FRED",
+      "primary_endpoint": "PERMIT",
+      "fallback_api": "TRADING_ECONOMICS",
+      "fallback_endpoint": "united-states/building-permits",
+      "frequency": "M",
+      "notes": "Se calcula YoY %"
+    },
+    {
+      "indicator_id": "housing_starts",
+      "primary_api": "FRED",
+      "primary_endpoint": "HOUST",
+      "fallback_api": "TRADING_ECONOMICS",
+      "fallback_endpoint": "united-states/housing-starts",
+      "frequency": "M",
+      "notes": "Mismo día que permisos"
+    },
+    {
+      "indicator_id": "new_home_sales",
+      "primary_api": "FRED",
+      "primary_endpoint": "HSN1F",
+      "fallback_api": "TRADING_ECONOMICS",
+      "fallback_endpoint": "united-states/new-home-sales",
+      "frequency": "M",
+      "notes": "Publicado 25–28 días después del mes"
+    },
+    {
+      "indicator_id": "core_capex_orders",
+      "primary_api": "FRED",
+      "primary_endpoint": "DGORDER",
+      "fallback_api": "BEA",
+      "fallback_endpoint": null,
+      "frequency": "M",
+      "notes": "Durable Goods Orders (usando DGORDER como código válido)"
+    },
+    {
+      "indicator_id": "durable_goods_orders",
+      "primary_api": "FRED",
+      "primary_endpoint": "DGORDER",
+      "fallback_api": "TRADING_ECONOMICS",
+      "fallback_endpoint": "united-states/durable-goods-orders",
+      "frequency": "M",
+      "notes": "Nuevos pedidos bienes duraderos (MoM %)"
+    },
+    {
+      "indicator_id": "gdp_real_yoy",
+      "primary_api": "BEA",
+      "primary_endpoint": "NIPA:T10105",
+      "fallback_api": "FRED",
+      "fallback_endpoint": "A191RL1Q225SBEA",
+      "frequency": "Q",
+      "notes": "Real Gross Domestic Product"
+    },
+    {
+      "indicator_id": "retail_sales",
+      "primary_api": "FRED",
+      "primary_endpoint": "RSAFS",
+      "fallback_api": "TRADING_ECONOMICS",
+      "fallback_endpoint": "united-states/retail-sales",
+      "frequency": "M",
+      "notes": "Retail Sales Total ex Auto"
+    },
+    {
+      "indicator_id": "industrial_production",
+      "primary_api": "FRED",
+      "primary_endpoint": "INDPRO",
+      "fallback_api": "TRADING_ECONOMICS",
+      "fallback_endpoint": "united-states/industrial-production",
+      "frequency": "M",
+      "notes": "Calcular variación YoY"
+    },
+    {
+      "indicator_id": "capacity_utilization",
+      "primary_api": "FRED",
+      "primary_endpoint": "TCU",
+      "fallback_api": null,
+      "fallback_endpoint": null,
+      "frequency": "M",
+      "notes": "Total Industry Capacity Utilization"
+    },
+    {
+      "indicator_id": "nfp_change",
+      "primary_api": "FRED",
+      "primary_endpoint": "PAYEMS",
+      "fallback_api": "BLS",
+      "fallback_endpoint": "CES0000000001",
+      "frequency": "M",
+      "notes": "Calcular Δ mensual en miles"
+    },
+    {
+      "indicator_id": "initial_claims",
+      "primary_api": "FRED",
+      "primary_endpoint": "ICSA",
+      "fallback_api": "BLS",
+      "fallback_endpoint": null,
+      "frequency": "W",
+      "notes": "Último jueves"
+    },
+    {
+      "indicator_id": "jolts_openings",
+      "primary_api": "FRED",
+      "primary_endpoint": "JTSJOL",
+      "fallback_api": "BLS",
+      "fallback_endpoint": null,
+      "frequency": "M",
+      "notes": "Publicado con 1–2 meses de retraso"
+    },
+    {
+      "indicator_id": "pce_yoy",
+      "primary_api": "FRED",
+      "primary_endpoint": "PCEPI",
+      "fallback_api": "BEA",
+      "fallback_endpoint": null,
+      "frequency": "M",
+      "notes": "Calcular YoY % con serie mensual"
+    },
+    {
+      "indicator_id": "core_pce_yoy",
+      "primary_api": "FRED",
+      "primary_endpoint": "PCEPILFE",
+      "fallback_api": "BEA",
+      "fallback_endpoint": null,
+      "frequency": "M",
+      "notes": "Core PCE Price Index"
+    },
+    {
+      "indicator_id": "cpi_yoy",
+      "primary_api": "FRED",
+      "primary_endpoint": "CPIAUCSL",
+      "fallback_api": "BLS",
+      "fallback_endpoint": "CUSR0000SA0",
+      "frequency": "M",
+      "notes": "YoY % calculado sobre índice"
+    },
+    {
+      "indicator_id": "core_cpi_yoy",
+      "primary_api": "FRED",
+      "primary_endpoint": "CPILFESL",
+      "fallback_api": "BLS",
+      "fallback_endpoint": "CUSR0000SA0L1E",
+      "frequency": "M",
+      "notes": "Core CPI"
+    },
+    {
+      "indicator_id": "ppi_yoy",
+      "primary_api": "FRED",
+      "primary_endpoint": "PPIACO",
+      "fallback_api": "BLS",
+      "fallback_endpoint": "WPU",
+      "frequency": "M",
+      "notes": "Usar variación interanual"
+    },
+    {
+      "indicator_id": "unrate_u3",
+      "primary_api": "FRED",
+      "primary_endpoint": "UNRATE",
+      "fallback_api": "BLS",
+      "fallback_endpoint": "LNS14000000",
+      "frequency": "M",
+      "notes": "Unemployment Rate U3"
+    },
+    {
+      "indicator_id": "avg_hourly_earnings_yoy",
+      "primary_api": "FRED",
+      "primary_endpoint": "CES0500000003",
+      "fallback_api": "BLS",
+      "fallback_endpoint": null,
+      "frequency": "M",
+      "notes": "Δ interanual de Average Hourly Earnings"
+    },
+    {
+      "indicator_id": "vix_index",
+      "primary_api": "FRED",
+      "primary_endpoint": "VIXCLS",
+      "fallback_api": "CBOE",
+      "fallback_endpoint": null,
+      "frequency": "D",
+      "notes": "Último cierre"
+    }
+  ]
+}
+

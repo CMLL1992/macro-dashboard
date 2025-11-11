@@ -1,0 +1,83 @@
+name: Macro Dashboard Automation
+
+on:
+  schedule:
+    - cron: "5 5 * * *"   # 06:05 Madrid pipeline diario (UTC+1 invierno aprox)
+    - cron: "10 5 * * *"  # 06:10 Madrid QA report (después del pipeline)
+    - cron: "5 */4 * * *" # cada 4h H4
+  workflow_dispatch:
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ingest Macro Data
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_TOKEN }}" \
+            ${{ secrets.APP_URL }}/api/jobs/ingest/macro
+
+      - name: Compute Bias
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_TOKEN }}" \
+            ${{ secrets.APP_URL }}/api/jobs/compute/bias
+
+      - name: Compute Signals (Daily)
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_TOKEN }}" \
+            "${{ secrets.APP_URL }}/api/jobs/compute/signals?tf=D"
+
+      - name: Confirm Signals
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_TOKEN }}" \
+            ${{ secrets.APP_URL }}/api/jobs/confirm
+
+      - name: Emit Alerts
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_TOKEN }}" \
+            ${{ secrets.APP_URL }}/api/jobs/alerts/emit
+
+  qa-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send QA Report
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_TOKEN }}" \
+            ${{ secrets.APP_URL }}/api/jobs/qa/report
+
+  h4:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute Signals (H4)
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_TOKEN }}" \
+            "${{ secrets.APP_URL }}/api/jobs/compute/signals?tf=H4"
+
+      - name: Confirm Signals
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_TOKEN }}" \
+            ${{ secrets.APP_URL }}/api/jobs/confirm
+
+      - name: Emit Alerts
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_TOKEN }}" \
+            ${{ secrets.APP_URL }}/api/jobs/alerts/emit
+
+  weekly:
+    if: github.event.schedule == '5 5 * * 1' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Maintenance (VACUUM and cleanup)
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_TOKEN }}" \
+            "${{ secrets.APP_URL }}/api/jobs/maintenance"
+
