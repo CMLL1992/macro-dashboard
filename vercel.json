@@ -1,9 +1,6 @@
 {
   "framework": "nextjs",
   "installCommand": "pnpm install --frozen-lockfile",
-  "crons": [
-    { "path": "/api/warmup", "schedule": "0 */3 * * *" }
-  ]
 }
 
 
