@@ -1,3 +1,6 @@
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server'
 // Initialize notifications system on first health check
 import { ensureNotificationsInitialized } from '@/lib/notifications/init'
