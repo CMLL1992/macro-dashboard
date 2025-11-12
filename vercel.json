@@ -1,5 +1,5 @@
 {
-  "installCommand": "pnpm approve-builds esbuild better-sqlite3 unrs-resolver || true && pnpm install --frozen-lockfile",
+  "installCommand": "pnpm approve-builds esbuild better-sqlite3 unrs-resolver && pnpm install --frozen-lockfile",
   "buildCommand": "pnpm build",
   "framework": "nextjs",
   "crons": [
