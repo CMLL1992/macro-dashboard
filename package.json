@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "packageManager": "pnpm@10",
+  "packageManager": "pnpm@10.20.0",
   "pnpm": {
     "allowedBuiltDependencies": [
       "better-sqlite3",
@@ -15,7 +15,7 @@
     "node": "20.x"
   },
   "scripts": {
-    "preinstall": "npx -y @vercel/approve-builds esbuild better-sqlite3 unrs-resolver || true",
+    "preinstall": "pnpm approve-builds esbuild better-sqlite3 unrs-resolver || true",
     "postinstall": "cd node_modules/.pnpm/better-sqlite3@12.4.1/node_modules/better-sqlite3 && npm run build-release || true",
     "dev": "next dev -p 3000",
     "build": "next build",
