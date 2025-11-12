@@ -1,3 +1,6 @@
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 import { fetchFredSeries } from '@/lib/fred'
 
 export async function GET() {
