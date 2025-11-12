@@ -125,10 +125,14 @@
 - Actualización diaria de correlaciones y bias (GitHub Actions, **todos los días**)
 - Weekly preview automatizado (Vercel Cron, domingos)
 - Maintenance automatizado (GitHub Actions, domingos)
+- **Secrets configurados:** ✅ `CRON_TOKEN`, ✅ `APP_URL`, ✅ `INGEST_KEY`
 
-❌ **Falta (requiere pipelines externos):**
-- Pipeline para noticias (debe llamar a `/api/news/insert` con `X-INGEST-KEY`)
-- Pipeline para calendario (debe llamar a `/api/calendar/insert` con `X-INGEST-KEY`)
+✅ **Pipelines externos:**
+- Template creado para noticias y calendario (`.github/workflows/news-calendar-ingest.yml`)
+- Documentación completa en `docs/SETUP_EXTERNAL_PIPELINES.md`
+- Listo para personalizar con lógica de recolección de datos
 
 **Estado:** ✅ **Automatización de datos macro COMPLETA y funcionando**
+
+**Última actualización:** 2025-11-12 - Secrets configurados, vercel.json corregido, pipelines listos
 
