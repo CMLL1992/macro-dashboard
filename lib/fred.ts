@@ -72,6 +72,49 @@ const FredResponseSchema = z.object({
 
 const isServer = typeof window === 'undefined'
 
+// Rate limiting: FRED allows 120 requests per minute
+let lastRequestTime = 0
+const MIN_REQUEST_INTERVAL_MS = 500 // ~120 requests per minute
+
+async function rateLimitedFetch(url: string, retries: number = 2): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    // Rate limiting: ensure minimum interval between requests
+    const now = Date.now()
+    const timeSinceLastRequest = now - lastRequestTime
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL_MS) {
+      await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL_MS - timeSinceLastRequest))
+    }
+    lastRequestTime = Date.now()
+
+    const res = await fetch(url, { 
+      next: { revalidate: 0 },
+    })
+
+    // Handle rate limit (429)
+    if (res.status === 429) {
+      if (attempt < retries) {
+        const retryAfter = parseInt(res.headers.get('Retry-After') || '60', 10)
+        await new Promise(resolve => setTimeout(resolve, retryAfter * 1000))
+        continue
+      }
+      throw new Error(`FRED rate limit exceeded for ${url}`)
+    }
+
+    if (!res.ok) {
+      if (attempt < retries && res.status >= 500) {
+        // Retry on server errors with exponential backoff
+        const delay = Math.min(300 * Math.pow(2, attempt), 2000)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+      throw new Error(`FRED ${url} ${res.status}`)
+    }
+
+    return res
+  }
+  throw new Error(`FRED fetch failed after ${retries} retries`)
+}
+
 export async function fetchFredSeries(
   seriesId: string,
   params?: { observation_start?: string; observation_end?: string; frequency?: 'd' | 'm' | 'q'; units?: string }
@@ -91,12 +134,8 @@ export async function fetchFredSeries(
     url = `/api/fred/${seriesId}?${qs.toString()}`
   }
 
-  // Forzar fetch fresco siempre para obtener datos actualizados
-  // Usar revalidate: 0 en lugar de cache: 'no-store' para evitar conflicto con dynamic = 'force-dynamic'
-  const res = await fetch(url, { 
-    next: { revalidate: 0 }, // Forzar fetch fresco siempre
-  })
-  if (!res.ok) throw new Error(`FRED ${seriesId} ${res.status}`)
+  // Fetch with rate limiting and retries
+  const res = await rateLimitedFetch(url)
   const json = await res.json()
   const parsed = FredResponseSchema.parse(json)
 

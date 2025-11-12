@@ -198,4 +198,85 @@ export function upsertIndicatorHistory(params: {
   )
 }
 
+/**
+ * Save ingest history for tracking and auditing
+ */
+export function saveIngestHistory(params: {
+  jobType: string
+  updatedSeriesCount: number
+  errorsCount: number
+  durationMs: number
+  errors?: Array<{ seriesId?: string; error: string }>
+  finishedAt: string
+}): void {
+  const db = getDB()
+
+  const stmt = db.prepare(`
+    INSERT INTO ingest_history (job_type, updated_series_count, errors_count, duration_ms, errors_json, finished_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `)
+
+  stmt.run(
+    params.jobType,
+    params.updatedSeriesCount,
+    params.errorsCount,
+    params.durationMs,
+    params.errors ? JSON.stringify(params.errors) : null,
+    params.finishedAt
+  )
+}
+
+/**
+ * Get last ingest timestamp
+ */
+export function getLastIngestAt(jobType: string = 'warmup'): string | null {
+  const db = getDB()
+
+  const stmt = db.prepare(`
+    SELECT finished_at FROM ingest_history
+    WHERE job_type = ?
+    ORDER BY finished_at DESC
+    LIMIT 1
+  `)
+
+  const result = stmt.get(jobType) as { finished_at: string } | undefined
+  return result?.finished_at || null
+}
+
+/**
+ * Get last warmup result summary
+ */
+export function getLastWarmupResult(): {
+  updatedSeriesCount: number
+  errorsCount: number
+  durationMs: number
+  finishedAt: string | null
+} | null {
+  const db = getDB()
+
+  const stmt = db.prepare(`
+    SELECT updated_series_count, errors_count, duration_ms, finished_at
+    FROM ingest_history
+    WHERE job_type = 'warmup'
+    ORDER BY finished_at DESC
+    LIMIT 1
+  `)
+
+  const result = stmt.get() as {
+    updated_series_count: number
+    errors_count: number
+    duration_ms: number
+    finished_at: string
+  } | undefined
+
+  if (!result) return null
+
+  return {
+    updatedSeriesCount: result.updated_series_count,
+    errorsCount: result.errors_count,
+    durationMs: result.duration_ms,
+    finishedAt: result.finished_at,
+  }
+}
+
 

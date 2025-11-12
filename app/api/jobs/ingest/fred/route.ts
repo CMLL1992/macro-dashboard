@@ -13,7 +13,7 @@ import { validateCronToken, unauthorizedResponse } from '@/lib/security/token'
 import { logger } from '@/lib/obs/logger'
 import { fetchFredSeries } from '@/lib/fred'
 import { getDB } from '@/lib/db/schema'
-import { upsertMacroSeries } from '@/lib/db/upsert'
+import { upsertMacroSeries, saveIngestHistory } from '@/lib/db/upsert'
 import type { MacroSeries } from '@/lib/types/macro'
 import { checkMacroReleases } from '@/lib/alerts/triggers'
 import { getAllIndicatorHistories } from '@/lib/db/read'
@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
 
     let ingested = 0
     let errors = 0
+    const ingestErrors: Array<{ seriesId?: string; error: string }> = []
 
     for (const series of FRED_SERIES) {
       try {
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
           lastUpdated: observations[observations.length - 1]?.date || undefined,
         }
 
-        // Upsert to database
+        // Upsert to database (idempotent - no duplicates)
         upsertMacroSeries(macroSeries)
         ingested++
 
@@ -92,21 +93,39 @@ export async function POST(request: NextRequest) {
         })
       } catch (error) {
         errors++
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        ingestErrors.push({ seriesId: series.id, error: errorMsg })
         logger.error(`Failed to ingest ${series.id}`, {
           job: jobId,
           series_id: series.id,
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMsg,
         })
       }
     }
 
     const finishedAt = new Date().toISOString()
+    const durationMs = new Date(finishedAt).getTime() - new Date(startedAt).getTime()
 
     logger.info('FRED ingestion completed', {
       job: jobId,
       ingested,
       errors,
+      durationMs,
     })
+
+    // Save ingest history
+    try {
+      saveIngestHistory({
+        jobType: 'ingest_fred',
+        updatedSeriesCount: ingested,
+        errorsCount: errors,
+        durationMs,
+        errors: ingestErrors.length > 0 ? ingestErrors : undefined,
+        finishedAt,
+      })
+    } catch (error) {
+      logger.error('Failed to save ingest history', { job: jobId, error })
+    }
 
     // Check macro release alerts (Trigger C)
     try {
@@ -148,7 +167,8 @@ export async function POST(request: NextRequest) {
       success: true,
       ingested,
       errors,
-      duration_ms: new Date(finishedAt).getTime() - new Date(startedAt).getTime(),
+      duration_ms: durationMs,
+      finishedAt,
     })
   } catch (error) {
     const finishedAt = new Date().toISOString()

@@ -201,11 +201,68 @@ gyp info ok
 
 ### Log Filter Recomendado en Vercel
 
-Para monitorear problemas relacionados con la compilación nativa, filtrar por:
+Para monitorear problemas relacionados con la compilación nativa y el sistema de actualización automática, filtrar por:
 
 ```
-["bindings file", "better-sqlite3", "no-store", "revalidate", "node-v115", "node-v127"]
+["bindings file", "better-sqlite3", "no-store", "revalidate", "node-v115", "node-v127", "warmup", "ingest"]
 ```
 
 **Nota:** `node-v115` indica Node 20 (correcto), `node-v127` indica Node 22 (incorrecto).
+
+**Logs de warmup esperados:**
+- `[warmup] start` - Inicio de ejecución
+- `[warmup] ingesting FRED data...` - Inicio de ingesta
+- `[warmup] ingested <series_id> (<points> points)` - Serie ingerida exitosamente
+- `[warmup] updating notifications status...` - Actualización de estado
+- `[warmup] done` - Finalización con resumen (updatedSeriesCount, durationMs, errorsCount)
+
+---
+
+## ⏰ Configuración del Cron Job
+
+### Frecuencia Actual
+
+El cron job está configurado para ejecutarse **una vez al día** (medianoche UTC):
+
+```json
+{
+  "crons": [
+    { "path": "/api/warmup", "schedule": "0 0 * * *" }
+  ]
+}
+```
+
+**Razón:** Compatible con el plan Hobby de Vercel (limitado a 1 ejecución diaria).
+
+### Cambiar a Frecuencia Horaria
+
+Si necesitas actualizaciones más frecuentes (requiere plan Pro):
+
+1. **Edita `vercel.json`:**
+   ```json
+   {
+     "crons": [
+       { "path": "/api/warmup", "schedule": "0 * * * *" }
+     ]
+   }
+   ```
+
+2. **Impacto:**
+   - ✅ **Ventajas:** Datos más frescos (actualización cada hora)
+   - ⚠️ **Consideraciones:**
+     - Requiere plan Pro de Vercel
+     - Más llamadas a la API de FRED (14 series × 24 horas = 336 requests/día)
+     - Mayor uso de recursos (CPU, tiempo de ejecución)
+     - FRED API permite 120 requests/minuto, así que es seguro
+
+3. **Verificación:**
+   - Después del cambio, verifica en Vercel Dashboard → Cron Jobs que el schedule se actualizó
+   - Monitorea los logs para confirmar ejecuciones horarias
+   - Revisa `lastIngestAt` en `/api/diag` para confirmar actualizaciones frecuentes
+
+### Otras Frecuencias Recomendadas
+
+- **Cada 6 horas:** `"0 */6 * * *"` (4 veces al día)
+- **Cada 12 horas:** `"0 */12 * * *"` (2 veces al día)
+- **Cada 3 horas:** `"0 */3 * * *"` (requiere plan Pro, 8 veces al día)
 

@@ -222,6 +222,20 @@ function initializeSchema(database: Database.Database) {
       )
     `)
 
+    // Ingest history tracking
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS ingest_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_type TEXT NOT NULL,
+        updated_series_count INTEGER NOT NULL DEFAULT 0,
+        errors_count INTEGER NOT NULL DEFAULT 0,
+        duration_ms INTEGER NOT NULL,
+        errors_json TEXT,
+        finished_at TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+
   // Indexes for performance
   database.exec(`
     CREATE INDEX IF NOT EXISTS idx_observations_series_date ON macro_observations(series_id, date);
@@ -235,6 +249,8 @@ function initializeSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_calendar_importancia ON macro_calendar(importancia);
     CREATE INDEX IF NOT EXISTS idx_notification_tipo ON notification_history(tipo);
     CREATE INDEX IF NOT EXISTS idx_notification_sent_at ON notification_history(sent_at);
+    CREATE INDEX IF NOT EXISTS idx_ingest_history_finished_at ON ingest_history(finished_at);
+    CREATE INDEX IF NOT EXISTS idx_ingest_history_job_type ON ingest_history(job_type);
   `)
 }
 
