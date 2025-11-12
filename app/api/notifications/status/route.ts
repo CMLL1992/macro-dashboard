@@ -3,6 +3,8 @@
  * GET /api/notifications/status
  */
 
+export const runtime = 'nodejs'
+
 import { NextResponse } from 'next/server'
 import { getInitializationStatus, ensureNotificationsInitialized } from '@/lib/notifications/init'
 import { getCurrentNarrative } from '@/lib/notifications/narrative'

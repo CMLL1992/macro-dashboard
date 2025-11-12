@@ -4,6 +4,8 @@
  * Protected by CRON_TOKEN
  */
 
+export const runtime = 'nodejs'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { validateCronToken, unauthorizedResponse } from '@/lib/security/token'
 import { getDB } from '@/lib/db/schema'

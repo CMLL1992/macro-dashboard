@@ -3,6 +3,8 @@
  * Using SQLite with better-sqlite3
  */
 
+import 'server-only'
+
 import Database from 'better-sqlite3'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'

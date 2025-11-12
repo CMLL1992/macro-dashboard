@@ -6,6 +6,8 @@
  * Ingests all FRED indicators used by the dashboard into macro_observations
  */
 
+export const runtime = 'nodejs'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { validateCronToken, unauthorizedResponse } from '@/lib/security/token'
 import { logger } from '@/lib/obs/logger'

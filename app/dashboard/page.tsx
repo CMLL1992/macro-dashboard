@@ -27,7 +27,6 @@ async function fetchBias() {
   try {
     const res = await fetch(endpoint, {
       cache: 'no-store',
-      next: { revalidate: 0 },
     })
 
     const duration = Date.now() - startTime

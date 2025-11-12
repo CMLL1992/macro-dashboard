@@ -1,9 +1,10 @@
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 import { getCorrelations } from "@/domain/corr-dashboard";
 import CorrelationTooltip from "@/components/CorrelationTooltip";
 import { usdBias } from "@/domain/bias";
 import { getAllLatest } from "@/lib/fred";
-
-export const revalidate = 10800; // 3h
 
 export default async function CorrelationsPage() {
   const rows = await getCorrelations().catch((e) => {

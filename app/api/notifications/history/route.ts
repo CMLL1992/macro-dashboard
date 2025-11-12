@@ -3,6 +3,8 @@
  * Get notification history with filters and pagination
  */
 
+export const runtime = 'nodejs'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getDB } from '@/lib/db/schema'
 import { toZonedTime } from 'date-fns-tz'

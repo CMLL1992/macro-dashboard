@@ -1,3 +1,6 @@
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 import { getCorrMap } from '@/domain/corr-bridge'
 import { variants, norm } from '@/lib/symbols'
 

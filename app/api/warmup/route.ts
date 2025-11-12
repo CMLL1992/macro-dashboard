@@ -1,3 +1,6 @@
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 import { getMacroDiagnosis } from '@/domain/diagnostic'
 import { getCorrelations } from '@/domain/corr-dashboard'
 

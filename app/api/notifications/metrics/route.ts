@@ -3,6 +3,8 @@
  * Returns notification metrics (counters)
  */
 
+export const runtime = 'nodejs'
+
 import { NextResponse } from 'next/server'
 import { getAllMetrics, getAggregatedMetrics } from '@/lib/notifications/metrics'
 import { getDB } from '@/lib/db/schema'

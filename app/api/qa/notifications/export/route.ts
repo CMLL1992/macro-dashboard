@@ -3,6 +3,8 @@
  * GET /api/qa/notifications/export?from=YYYY-MM-DD
  */
 
+export const runtime = 'nodejs'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getDB } from '@/lib/db/schema'
 

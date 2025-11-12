@@ -1,5 +1,5 @@
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 import { getMacroDiagnosis } from '@/domain/diagnostic'
 import { usdBias, macroQuadrant, getBiasTable } from '@/domain/bias'
