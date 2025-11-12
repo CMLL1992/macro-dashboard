@@ -3,7 +3,7 @@
   "buildCommand": "pnpm build",
   "framework": "nextjs",
   "crons": [
-    { "path": "/api/warmup", "schedule": "0 */3 * * *" }
+    { "path": "/api/warmup", "schedule": "0 0 * * *" }
   ]
 }
 
