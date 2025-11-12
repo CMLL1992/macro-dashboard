@@ -40,8 +40,13 @@ export async function POST(request: NextRequest) {
 
     // 3. Daily backup (if backup directory exists)
     try {
-      const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'macro.db')
-      const backupDir = path.join(process.cwd(), 'backups')
+      // Usar la misma lógica que lib/db/schema.ts
+      const dbPath = process.env.DATABASE_PATH || (
+        process.env.VERCEL === '1' 
+          ? '/tmp/macro.db'
+          : path.join(process.cwd(), 'data', 'macro.db')
+      )
+      const backupDir = process.env.VERCEL === '1' ? '/tmp/backups' : path.join(process.cwd(), 'backups')
       
       if (fs.existsSync(backupDir)) {
         const backupPath = path.join(backupDir, `macro_${new Date().toISOString().split('T')[0]}.db`)
