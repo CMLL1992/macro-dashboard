@@ -32,9 +32,19 @@ let db: Database.Database | null = null
 
 export function getDB(): Database.Database {
   if (!db) {
-    db = new Database(DB_PATH)
-    db.pragma('journal_mode = WAL')
-    initializeSchema(db)
+    try {
+      // En Vercel, asegurar que el directorio /tmp existe (aunque debería existir)
+      if (isVercel && !DB_PATH.startsWith('/tmp')) {
+        console.warn('[db] Warning: Expected /tmp path in Vercel, got:', DB_PATH)
+      }
+      db = new Database(DB_PATH)
+      db.pragma('journal_mode = WAL')
+      initializeSchema(db)
+    } catch (error) {
+      console.error('[db] Error opening database at', DB_PATH, ':', error)
+      console.error('[db] isVercel:', isVercel, 'VERCEL:', process.env.VERCEL, 'VERCEL_ENV:', process.env.VERCEL_ENV, 'VERCEL_URL:', process.env.VERCEL_URL)
+      throw error
+    }
   }
   return db
 }
