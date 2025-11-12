@@ -1,5 +1,5 @@
 {
-  "installCommand": "pnpm install --frozen-lockfile",
+  "installCommand": "npm_config_build_from_source=true pnpm install --frozen-lockfile",
   "buildCommand": "pnpm build",
   "framework": "nextjs",
   "crons": [
