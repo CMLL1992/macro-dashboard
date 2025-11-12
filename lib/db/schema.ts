@@ -9,12 +9,20 @@ import Database from 'better-sqlite3'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
 
-const DB_PATH = process.env.DATABASE_PATH || join(process.cwd(), 'data', 'macro.db')
+// En Vercel, usar /tmp (único directorio escribible)
+// En local, usar data/ (o DATABASE_PATH si está definido)
+const DB_PATH = process.env.DATABASE_PATH || (
+  process.env.VERCEL === '1' 
+    ? '/tmp/macro.db'
+    : join(process.cwd(), 'data', 'macro.db')
+)
 
-// Ensure data directory exists
-const dbDir = join(process.cwd(), 'data')
-if (!existsSync(dbDir)) {
-  mkdirSync(dbDir, { recursive: true })
+// Ensure data directory exists (solo en local)
+if (!process.env.VERCEL) {
+  const dbDir = join(process.cwd(), 'data')
+  if (!existsSync(dbDir)) {
+    mkdirSync(dbDir, { recursive: true })
+  }
 }
 
 let db: Database.Database | null = null
