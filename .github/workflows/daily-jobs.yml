@@ -4,7 +4,7 @@ on:
   schedule:
     # Actualización completa: FRED + Correlaciones + Bias
     # Todos los días a las 06:00 UTC (07:00 Madrid invierno, 08:00 verano)
-    - cron: "0 6 * * *"   # Diario 06:00 UTC
+    - cron: "0 6 * * *"
   workflow_dispatch: {}
 
 jobs:
@@ -37,21 +37,6 @@ jobs:
           curl -sS -X POST \
             -H "Authorization: Bearer $CRON_TOKEN" \
             "${APP_URL}/api/jobs/compute/bias" | jq '{ok}' || echo "Error en bias"
-        env:
-          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
-          APP_URL: ${{ secrets.APP_URL }}
-
-  maintenance:
-    runs-on: ubuntu-latest
-    # Ejecutar maintenance semanalmente los domingos a las 02:00 UTC (03:00 Madrid)
-    if: github.event.schedule == '0 6 * * 0' || github.event_name == 'workflow_dispatch'
-    steps:
-      - name: Maintenance (VACUUM and cleanup)
-        run: |
-          echo "🔧 Ejecutando maintenance..."
-          curl -sS -X POST \
-            -H "Authorization: Bearer $CRON_TOKEN" \
-            "${APP_URL}/api/jobs/maintenance" | jq '{ok}' || echo "Error en maintenance"
         env:
           CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
           APP_URL: ${{ secrets.APP_URL }}
