@@ -95,7 +95,6 @@ export async function fetchFredSeries(
   // No usar caché para asegurar datos recientes
   const res = await fetch(url, { 
     cache: 'no-store', // Forzar fetch fresco siempre
-    next: { revalidate: 0 } // No cachear
   })
   if (!res.ok) throw new Error(`FRED ${seriesId} ${res.status}`)
   const json = await res.json()

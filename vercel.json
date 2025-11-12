@@ -1,6 +1,6 @@
 {
-  "buildCommand": "pnpm approve-builds esbuild better-sqlite3 unrs-resolver || true && pnpm build",
-  "installCommand": "pnpm install --frozen-lockfile",
+  "installCommand": "pnpm approve-builds esbuild better-sqlite3 unrs-resolver || true && pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm build",
   "framework": "nextjs",
   "crons": [
     { "path": "/api/warmup", "schedule": "0 */3 * * *" }
