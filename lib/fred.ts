@@ -92,9 +92,9 @@ export async function fetchFredSeries(
   }
 
   // Forzar fetch fresco siempre para obtener datos actualizados
-  // No usar caché para asegurar datos recientes
+  // Usar revalidate: 0 en lugar de cache: 'no-store' para evitar conflicto con dynamic = 'force-dynamic'
   const res = await fetch(url, { 
-    cache: 'no-store', // Forzar fetch fresco siempre
+    next: { revalidate: 0 }, // Forzar fetch fresco siempre
   })
   if (!res.ok) throw new Error(`FRED ${seriesId} ${res.status}`)
   const json = await res.json()
