@@ -3,15 +3,13 @@
   "buildCommand": "pnpm build",
   "framework": "nextjs",
   "crons": [
-    { 
-      "path": "/api/warmup", 
-      "schedule": "0 0 * * *",
-      "comment": "Actualización diaria de datos FRED a las 00:00 UTC (01:00 Madrid)"
+    {
+      "path": "/api/warmup",
+      "schedule": "0 0 * * *"
     },
-    { 
-      "path": "/api/jobs/weekly", 
-      "schedule": "0 17 * * 0",
-      "comment": "Previa semanal los domingos a las 17:00 UTC (18:00 Madrid)"
+    {
+      "path": "/api/jobs/weekly",
+      "schedule": "0 17 * * 0"
     }
   ]
 }

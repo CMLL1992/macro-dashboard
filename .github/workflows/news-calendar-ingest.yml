@@ -1,0 +1,75 @@
+name: News & Calendar Ingest
+
+# Este workflow es un TEMPLATE para pipelines externos de noticias y calendario
+# Requiere configuración de fuentes de datos externas (BLS, TradingEconomics, etc.)
+
+on:
+  schedule:
+    # Ejecutar cada hora para verificar nuevas noticias
+    - cron: "0 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ingest-news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (opcional, solo si necesitas código)
+        uses: actions/checkout@v4
+        if: false  # Desactivado por defecto
+
+      - name: Ingest News from External Source
+        run: |
+          # TODO: Reemplazar con tu lógica de recolección de noticias
+          # Ejemplo: llamar a API de BLS, TradingEconomics, etc.
+          
+          # Ejemplo de estructura de noticia:
+          NEWS_DATA='{
+            "id_fuente": "bls_2025-11_cpi_mom",
+            "fuente": "BLS",
+            "pais": "US",
+            "tema": "Inflación",
+            "titulo": "CPI m/m (oct)",
+            "impacto": "high",
+            "published_at": "2025-11-10T13:30:00Z",
+            "valor_publicado": 0.5,
+            "valor_esperado": 0.3,
+            "resumen": "Lectura por encima del consenso."
+          }'
+          
+          # Enviar a tu dashboard
+          curl -X POST "${{ secrets.APP_URL }}/api/news/insert" \
+            -H "Content-Type: application/json" \
+            -H "X-INGEST-KEY: ${{ secrets.INGEST_KEY }}" \
+            -d "$NEWS_DATA" || echo "No hay noticias nuevas o error en ingesta"
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          INGEST_KEY: ${{ secrets.INGEST_KEY }}
+
+  ingest-calendar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ingest Calendar Events from External Source
+        run: |
+          # TODO: Reemplazar con tu lógica de recolección de calendario
+          # Ejemplo: llamar a API de TradingEconomics, Investing.com, etc.
+          
+          # Ejemplo de estructura de evento:
+          CALENDAR_DATA='{
+            "fecha": "2025-11-20",
+            "hora_local": "14:30",
+            "pais": "US",
+            "tema": "Inflación",
+            "evento": "CPI m/m",
+            "importancia": "high",
+            "consenso": "0.3%"
+          }'
+          
+          # Enviar a tu dashboard
+          curl -X POST "${{ secrets.APP_URL }}/api/calendar/insert" \
+            -H "Content-Type: application/json" \
+            -H "X-INGEST-KEY: ${{ secrets.INGEST_KEY }}" \
+            -d "$CALENDAR_DATA" || echo "No hay eventos nuevos o error en ingesta"
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          INGEST_KEY: ${{ secrets.INGEST_KEY }}
+
