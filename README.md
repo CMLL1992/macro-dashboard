@@ -1,5 +1,7 @@
 # Macro Dashboard
 
+<!-- Trigger deployment with latest fixes -->
+
 ## Vercel Runtime & Build Stability
 
 - **Node.js runtime:** 20.x (node-v115)
