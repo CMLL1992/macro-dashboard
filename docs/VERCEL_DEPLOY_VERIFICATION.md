@@ -165,5 +165,47 @@ Si hubo que aplicar correcciones adicionales:
 
 ---
 
-**Última actualización:** 2025-11-11
+**Última actualización:** 2025-11-12
+
+---
+
+## ✅ Resultados Reales de Verificación (Producción)
+
+**Fecha de verificación:** 2025-11-12  
+**URL de producción:** `https://macro-dashboard-seven.vercel.app`  
+**Último commit:** `5cc238c`
+
+### Verificaciones Completadas
+
+✅ **Node.js 20.x** — Correcto (node-v115)  
+✅ **better-sqlite3 compilado nativamente** — Compilado desde fuente con node-gyp  
+✅ **Sin errores de bindings** — No aparece "Could not locate the bindings file"  
+✅ **Sin conflictos de caché** — No hay avisos de `cache: 'no-store'` con `revalidate: 0`  
+✅ **Cron diario OK** — Configurado para ejecutarse una vez al día (Hobby plan compatible)  
+✅ **Endpoints verificados:**
+- `/api/notifications/status` → JSON válido, sin errores
+- `/api/ping-fred` → Responde con 15 indicadores macro
+- `/api/diag` → Responde correctamente
+- `/correlations` → HTTP 200, renderiza correctamente
+
+### Extracto de Build Logs (Final Exitoso)
+
+```
+gyp info using node@20.19.4 | linux | x64
+gyp info spawn make
+COPY Release/better_sqlite3.node
+gyp info ok
+✓ Build Completed in /vercel/output [2m]
+✓ Deployment completed
+```
+
+### Log Filter Recomendado en Vercel
+
+Para monitorear problemas relacionados con la compilación nativa, filtrar por:
+
+```
+["bindings file", "better-sqlite3", "no-store", "revalidate", "node-v115", "node-v127"]
+```
+
+**Nota:** `node-v115` indica Node 20 (correcto), `node-v127` indica Node 22 (incorrecto).
 

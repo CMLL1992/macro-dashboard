@@ -1,8 +1,9 @@
 # Macro Dashboard
 
-// trigger deployment
-// force deploy
-// redeploy
-// redeploy from root
-chore: trigger vercel
-// chore(vercel): trigger clean build with Node 20 runtime
+## Vercel Runtime & Build Stability
+
+- **Node.js runtime:** 20.x (node-v115)
+- **better-sqlite3:** compiled from source (no prebuilt binaries)
+- **pnpm:** v10 (lockfile v9)
+- **npm_config_build_from_source:** true (environment variable)
+- **Aprobación de binarios:** automática en preinstall
