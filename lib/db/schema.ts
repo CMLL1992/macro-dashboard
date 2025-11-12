@@ -33,15 +33,44 @@ let db: Database.Database | null = null
 export function getDB(): Database.Database {
   if (!db) {
     try {
-      // En Vercel, asegurar que el directorio /tmp existe (aunque debería existir)
-      if (isVercel && !DB_PATH.startsWith('/tmp')) {
-        console.warn('[db] Warning: Expected /tmp path in Vercel, got:', DB_PATH)
+      // Log para debugging
+      console.log('[db] Initializing database at:', DB_PATH)
+      console.log('[db] isVercel:', isVercel, 'VERCEL:', process.env.VERCEL, 'VERCEL_ENV:', process.env.VERCEL_ENV)
+      
+      // En Vercel, verificar que /tmp existe y es accesible
+      if (isVercel) {
+        if (!DB_PATH.startsWith('/tmp')) {
+          console.warn('[db] Warning: Expected /tmp path in Vercel, got:', DB_PATH)
+        }
+        // Verificar que /tmp existe (debería existir siempre en Vercel)
+        if (!existsSync('/tmp')) {
+          console.error('[db] ERROR: /tmp does not exist in Vercel environment!')
+          throw new Error('Cannot access /tmp directory in Vercel')
+        }
       }
-      db = new Database(DB_PATH)
-      db.pragma('journal_mode = WAL')
+      
+      // Intentar crear la base de datos
+      // En Vercel, usar opciones que funcionen mejor en serverless
+      const options = isVercel ? { 
+        // En serverless, no usar WAL mode ya que puede causar problemas
+        // mejor-sqlite3 creará el archivo automáticamente si no existe
+      } : {}
+      
+      db = new Database(DB_PATH, options)
+      
+      // Solo usar WAL mode en local (no en Vercel serverless)
+      if (!isVercel) {
+        db.pragma('journal_mode = WAL')
+      } else {
+        // En Vercel, usar DELETE mode (más compatible con serverless)
+        db.pragma('journal_mode = DELETE')
+      }
+      
       initializeSchema(db)
-    } catch (error) {
-      console.error('[db] Error opening database at', DB_PATH, ':', error)
+      console.log('[db] Database initialized successfully')
+    } catch (error: any) {
+      console.error('[db] Error opening database at', DB_PATH)
+      console.error('[db] Error details:', error?.message, error?.code)
       console.error('[db] isVercel:', isVercel, 'VERCEL:', process.env.VERCEL, 'VERCEL_ENV:', process.env.VERCEL_ENV, 'VERCEL_URL:', process.env.VERCEL_URL)
       throw error
     }
