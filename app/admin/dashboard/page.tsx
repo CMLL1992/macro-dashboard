@@ -165,28 +165,28 @@ export default function AdminDashboardPage() {
             href="/admin/dashboard"
             className="p-4 rounded-lg border bg-card hover:bg-accent transition-colors"
           >
-            <h3 className="font-semibold mb-1">📊 Dashboard</h3>
+            <h3 className="font-semibold mb-1">Dashboard</h3>
             <p className="text-xs text-muted-foreground">Vista general</p>
           </Link>
           <Link
             href="/admin/news"
             className="p-4 rounded-lg border bg-card hover:bg-accent transition-colors"
           >
-            <h3 className="font-semibold mb-1">📰 Noticias</h3>
+            <h3 className="font-semibold mb-1">Noticias</h3>
             <p className="text-xs text-muted-foreground">Gestionar noticias</p>
           </Link>
           <Link
             href="/admin/calendar"
             className="p-4 rounded-lg border bg-card hover:bg-accent transition-colors"
           >
-            <h3 className="font-semibold mb-1">📅 Calendario</h3>
+            <h3 className="font-semibold mb-1">Calendario</h3>
             <p className="text-xs text-muted-foreground">Gestionar eventos</p>
           </Link>
           <Link
             href="/admin/notifications"
             className="p-4 rounded-lg border bg-card hover:bg-accent transition-colors"
           >
-            <h3 className="font-semibold mb-1">🔔 Notificaciones</h3>
+            <h3 className="font-semibold mb-1">Notificaciones</h3>
             <p className="text-xs text-muted-foreground">Historial y estado</p>
           </Link>
         </div>
@@ -196,19 +196,19 @@ export default function AdminDashboardPage() {
           <div className="rounded-lg border bg-card p-4">
             <div className="text-sm text-muted-foreground mb-1">Bot Telegram</div>
             <div className={`text-2xl font-bold ${status?.bot_ok ? 'text-green-600' : 'text-red-600'}`}>
-              {status?.bot_ok ? '✅ OK' : '❌ Error'}
+              {status?.bot_ok ? 'OK' : 'Error'}
             </div>
           </div>
           <div className="rounded-lg border bg-card p-4">
             <div className="text-sm text-muted-foreground mb-1">Chat</div>
             <div className={`text-2xl font-bold ${status?.chat_ok ? 'text-green-600' : 'text-red-600'}`}>
-              {status?.chat_ok ? '✅ OK' : '❌ Error'}
+              {status?.chat_ok ? 'OK' : 'Error'}
             </div>
           </div>
           <div className="rounded-lg border bg-card p-4">
             <div className="text-sm text-muted-foreground mb-1">Notificaciones</div>
             <div className={`text-2xl font-bold ${status?.enabled ? 'text-green-600' : 'text-yellow-600'}`}>
-              {status?.enabled ? '✅ Activas' : '⚠️ Inactivas'}
+              {status?.enabled ? 'Activas' : 'Inactivas'}
             </div>
           </div>
           <div className="rounded-lg border bg-card p-4">
@@ -294,13 +294,13 @@ export default function AdminDashboardPage() {
               href="/admin/news"
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
             >
-              ➕ Insertar Noticia
+              Insertar Noticia
             </Link>
             <Link
               href="/admin/calendar"
               className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
             >
-              ➕ Insertar Evento
+              Insertar Evento
             </Link>
             <button
               onClick={handleWeekly}
@@ -308,23 +308,23 @@ export default function AdminDashboardPage() {
               className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
             >
               {weeklyStatus === 'sending' ? 'Enviando...' :
-               weeklyStatus === 'success' ? '✅ Enviado' :
-               weeklyStatus === 'error' ? '❌ Error' :
-               '📅 Enviar Weekly'}
+               weeklyStatus === 'success' ? 'Enviado' :
+               weeklyStatus === 'error' ? 'Error' :
+               'Enviar Weekly'}
             </button>
             <Link
               href="/api/notifications/verify"
               target="_blank"
               className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
             >
-              🔍 Verificar Sistema
+              Verificar Sistema
             </Link>
             <Link
               href="/api/metrics/prometheus"
               target="_blank"
               className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
             >
-              📊 Métricas Prometheus
+              Métricas Prometheus
             </Link>
           </div>
         </div>
@@ -364,9 +364,9 @@ export default function AdminDashboardPage() {
                       {news.impacto}
                     </span>
                     {news.notificado_at ? (
-                      <span className="text-green-600 text-xs">✅</span>
+                      <span className="text-green-600 text-xs">Enviado</span>
                     ) : (
-                      <span className="text-gray-400 text-xs">⏳</span>
+                      <span className="text-gray-400 text-xs">Pendiente</span>
                     )}
                   </div>
                 </div>

@@ -39,7 +39,7 @@ export default function CalendarAdminPage() {
       const data = await res.json()
       if (res.ok && data.success) {
         setStatus('success')
-        setResult('✅ Evento insertado correctamente')
+        setResult('Evento insertado correctamente')
         // Reset form
         setFormData({
           fecha: new Date().toISOString().split('T')[0],
@@ -53,12 +53,12 @@ export default function CalendarAdminPage() {
         setTimeout(() => setStatus('idle'), 3000)
       } else {
         setStatus('error')
-        setResult(`❌ Error: ${data.error || 'Unknown'}`)
+        setResult(`Error: ${data.error || 'Unknown'}`)
         setTimeout(() => setStatus('idle'), 5000)
       }
     } catch (error) {
       setStatus('error')
-      setResult(`❌ Excepción: ${error instanceof Error ? error.message : String(error)}`)
+      setResult(`Excepción: ${error instanceof Error ? error.message : String(error)}`)
       setTimeout(() => setStatus('idle'), 5000)
     }
   }
@@ -169,8 +169,8 @@ export default function CalendarAdminPage() {
             className="w-full px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
           >
             {status === 'sending' ? 'Insertando...' : 
-             status === 'success' ? '✅ Insertado' :
-             status === 'error' ? '❌ Error' :
+             status === 'success' ? 'Insertado' :
+             status === 'error' ? 'Error' :
              'Insertar Evento'}
           </button>
 

@@ -48,7 +48,7 @@ export default function NewsAdminPage() {
       const data = await res.json()
       if (res.ok && data.success) {
         setStatus('success')
-        setResult(`✅ Noticia insertada. Notificada: ${data.notified ? 'Sí' : 'No'}`)
+        setResult(`Noticia insertada. Notificada: ${data.notified ? 'Sí' : 'No'}`)
         // Reset form
         setFormData({
           id_fuente: '',
@@ -65,12 +65,12 @@ export default function NewsAdminPage() {
         setTimeout(() => setStatus('idle'), 3000)
       } else {
         setStatus('error')
-        setResult(`❌ Error: ${data.error || 'Unknown'}`)
+        setResult(`Error: ${data.error || 'Unknown'}`)
         setTimeout(() => setStatus('idle'), 5000)
       }
     } catch (error) {
       setStatus('error')
-      setResult(`❌ Excepción: ${error instanceof Error ? error.message : String(error)}`)
+      setResult(`Excepción: ${error instanceof Error ? error.message : String(error)}`)
       setTimeout(() => setStatus('idle'), 5000)
     }
   }
@@ -220,8 +220,8 @@ export default function NewsAdminPage() {
             className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
           >
             {status === 'sending' ? 'Insertando...' : 
-             status === 'success' ? '✅ Insertado' :
-             status === 'error' ? '❌ Error' :
+             status === 'success' ? 'Insertado' :
+             status === 'error' ? 'Error' :
              'Insertar Noticia'}
           </button>
 

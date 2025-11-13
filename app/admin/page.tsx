@@ -24,7 +24,7 @@ export default async function AdminPage() {
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Configuración General */}
         <Link href="/admin" className="rounded-lg border bg-card p-6 hover:shadow-md transition-shadow">
-          <h2 className="text-xl font-semibold mb-2">⚙️ Configuración General</h2>
+          <h2 className="text-xl font-semibold mb-2">Configuración General</h2>
           <p className="text-sm text-muted-foreground mb-4">
             Variables de entorno, configuración del sistema y estado general
           </p>
@@ -35,7 +35,7 @@ export default async function AdminPage() {
 
         {/* Notificaciones Telegram */}
         <Link href="/admin/notifications" className="rounded-lg border bg-card p-6 hover:shadow-md transition-shadow">
-          <h2 className="text-xl font-semibold mb-2">📱 Notificaciones Telegram</h2>
+          <h2 className="text-xl font-semibold mb-2">Notificaciones Telegram</h2>
           <p className="text-sm text-muted-foreground mb-4">
             Configurar bot de Telegram, chats, y sistema de notificaciones
           </p>
@@ -46,7 +46,7 @@ export default async function AdminPage() {
 
         {/* Calendario Macroeconómico */}
         <Link href="/admin/calendar" className="rounded-lg border bg-card p-6 hover:shadow-md transition-shadow">
-          <h2 className="text-xl font-semibold mb-2">📅 Calendario Macroeconómico</h2>
+          <h2 className="text-xl font-semibold mb-2">Calendario Macroeconómico</h2>
           <p className="text-sm text-muted-foreground mb-4">
             Gestionar eventos del calendario económico y previsiones
           </p>
@@ -57,7 +57,7 @@ export default async function AdminPage() {
 
         {/* Noticias */}
         <Link href="/admin/news" className="rounded-lg border bg-card p-6 hover:shadow-md transition-shadow">
-          <h2 className="text-xl font-semibold mb-2">📰 Noticias</h2>
+          <h2 className="text-xl font-semibold mb-2">Noticias</h2>
           <p className="text-sm text-muted-foreground mb-4">
             Gestionar noticias y eventos económicos publicados
           </p>
@@ -68,7 +68,7 @@ export default async function AdminPage() {
 
         {/* Dashboard */}
         <Link href="/admin/dashboard" className="rounded-lg border bg-card p-6 hover:shadow-md transition-shadow">
-          <h2 className="text-xl font-semibold mb-2">📊 Dashboard</h2>
+          <h2 className="text-xl font-semibold mb-2">Dashboard</h2>
           <p className="text-sm text-muted-foreground mb-4">
             Configuración del dashboard principal y visualizaciones
           </p>
@@ -79,7 +79,7 @@ export default async function AdminPage() {
 
         {/* Base de Datos */}
         <div className="rounded-lg border bg-card p-6">
-          <h2 className="text-xl font-semibold mb-2">💾 Base de Datos</h2>
+          <h2 className="text-xl font-semibold mb-2">Base de Datos</h2>
           <p className="text-sm text-muted-foreground mb-4">
             Estado de la base de datos y operaciones de mantenimiento
           </p>
@@ -153,7 +153,7 @@ export default async function AdminPage() {
 
       {/* Información de Seguridad */}
       <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-6">
-        <h2 className="text-lg font-semibold text-yellow-900 mb-2">🔒 Seguridad</h2>
+        <h2 className="text-lg font-semibold text-yellow-900 mb-2">Seguridad</h2>
         <p className="text-sm text-yellow-800 mb-2">
           Este panel está protegido con contraseña. Solo usuarios autorizados pueden acceder.
         </p>

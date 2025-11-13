@@ -197,16 +197,16 @@ export default function NotificationsAdminPage() {
       const data = await res.json()
       if (res.ok && data.success) {
         setTestStatus('success')
-        showToast('✅ Mensaje de prueba enviado', 'success')
+        showToast('Mensaje de prueba enviado', 'success')
         setTimeout(() => setTestStatus('idle'), 2000)
       } else {
         setTestStatus('error')
-        showToast(`❌ Error: ${data.error || 'Unknown'}`, 'error')
+        showToast(`Error: ${data.error || 'Unknown'}`, 'error')
         setTimeout(() => setTestStatus('idle'), 3000)
       }
     } catch (error) {
       setTestStatus('error')
-      showToast(`❌ Excepción: ${error instanceof Error ? error.message : String(error)}`, 'error')
+        showToast(`Excepción: ${error instanceof Error ? error.message : String(error)}`, 'error')
       setTimeout(() => setTestStatus('idle'), 3000)
     }
   }
@@ -221,17 +221,17 @@ export default function NotificationsAdminPage() {
       const data = await res.json()
       if (res.ok && data.success) {
         setWeeklyStatus('success')
-        showToast('✅ Weekly enviado', 'success')
+        showToast('Weekly enviado', 'success')
         loadAll()
         setTimeout(() => setWeeklyStatus('idle'), 2000)
       } else {
         setWeeklyStatus('error')
-        showToast(`❌ Error: ${data.error || 'Unknown'}`, 'error')
+        showToast(`Error: ${data.error || 'Unknown'}`, 'error')
         setTimeout(() => setWeeklyStatus('idle'), 3000)
       }
     } catch (error) {
       setWeeklyStatus('error')
-      showToast(`❌ Excepción: ${error instanceof Error ? error.message : String(error)}`, 'error')
+        showToast(`Excepción: ${error instanceof Error ? error.message : String(error)}`, 'error')
       setTimeout(() => setWeeklyStatus('idle'), 3000)
     }
   }
@@ -246,17 +246,17 @@ export default function NotificationsAdminPage() {
       const data = await res.json()
       if (res.ok && data.success) {
         setDigestStatus('success')
-        showToast('✅ Digest enviado', 'success')
+        showToast('Digest enviado', 'success')
         loadAll()
         setTimeout(() => setDigestStatus('idle'), 2000)
       } else {
         setDigestStatus('error')
-        showToast(`⚠️ ${data.error || 'Unknown'}`, 'error')
+        showToast(`${data.error || 'Unknown'}`, 'error')
         setTimeout(() => setDigestStatus('idle'), 3000)
       }
     } catch (error) {
       setDigestStatus('error')
-      showToast(`❌ Excepción: ${error instanceof Error ? error.message : String(error)}`, 'error')
+        showToast(`Excepción: ${error instanceof Error ? error.message : String(error)}`, 'error')
       setTimeout(() => setDigestStatus('idle'), 3000)
     }
   }
@@ -281,10 +281,10 @@ export default function NotificationsAdminPage() {
         }
       }
 
-      showToast('✅ Parámetros guardados', 'success')
+      showToast('Parámetros guardados', 'success')
       loadSettings()
     } catch (error) {
-      showToast(`❌ Error: ${error instanceof Error ? error.message : String(error)}`, 'error')
+      showToast(`Error: ${error instanceof Error ? error.message : String(error)}`, 'error')
     }
   }
 
@@ -326,10 +326,10 @@ export default function NotificationsAdminPage() {
 
         {/* Estado Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatusCard title="Bot" value={status.bot_ok ? '✅ OK' : '❌ Error'} />
-          <StatusCard title="Chat" value={status.chat_ok ? '✅ OK' : '❌ Error'} />
-          <StatusCard title="Notificaciones" value={status.enabled ? '✅ Activadas' : '⚠️ Desactivadas'} />
-          <StatusCard title="INGEST_KEY" value={status.ingest_key_loaded ? '✅ Cargado' : '❌ Faltante'} />
+          <StatusCard title="Bot" value={status.bot_ok ? 'OK' : 'Error'} />
+          <StatusCard title="Chat" value={status.chat_ok ? 'OK' : 'Error'} />
+          <StatusCard title="Notificaciones" value={status.enabled ? 'Activadas' : 'Desactivadas'} />
+          <StatusCard title="INGEST_KEY" value={status.ingest_key_loaded ? 'Cargado' : 'Faltante'} />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -385,14 +385,14 @@ export default function NotificationsAdminPage() {
               disabled={weeklyStatus === 'sending'}
               className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
             >
-              {weeklyStatus === 'sending' ? 'Enviando...' : weeklyStatus === 'success' ? '✅ Enviado' : 'Enviar Weekly'}
+              {weeklyStatus === 'sending' ? 'Enviando...' : weeklyStatus === 'success' ? 'Enviado' : 'Enviar Weekly'}
             </button>
             <button
               onClick={handleDigest}
               disabled={digestStatus === 'sending'}
               className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
             >
-              {digestStatus === 'sending' ? 'Enviando...' : digestStatus === 'success' ? '✅ Enviado' : 'Enviar Digest'}
+              {digestStatus === 'sending' ? 'Enviando...' : digestStatus === 'success' ? 'Enviado' : 'Enviar Digest'}
             </button>
           </div>
         </div>

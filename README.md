@@ -1,4 +1,4 @@
-# Macro Dashboard
+# CM11 Trading
 
 <!-- Trigger deployment with latest fixes -->
 
