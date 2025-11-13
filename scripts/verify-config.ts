@@ -120,21 +120,6 @@ async function main() {
     console.log(`❌ /api/health: Error de conexión - ${error instanceof Error ? error.message : String(error)}`)
     issues.push(`/api/health no es accesible`)
   }
-  if (healthResult.ok) {
-    try {
-      const healthData = await fetch(`${APP_URL}/api/health`).then(r => r.json())
-      console.log(`✅ /api/health: OK`)
-      console.log(`   Observaciones macro: ${healthData.observationCount || 0}`)
-      console.log(`   Bias registros: ${healthData.biasCount || 0}`)
-      console.log(`   Correlaciones: ${healthData.correlationCount || 0}`)
-      console.log(`   Última fecha: ${healthData.latestDate || 'N/A'}`)
-    } catch (e) {
-      console.log(`✅ /api/health: OK (pero no se pudo parsear JSON)`)
-    }
-  } else {
-    console.log(`❌ /api/health: ${healthResult.status} - ${healthResult.message}`)
-    issues.push(`/api/health no responde correctamente`)
-  }
 
   // Verificar /api/jobs/ingest/fred (requiere CRON_TOKEN)
   console.log('\n📊 Verificando /api/jobs/ingest/fred (solo verificación de autenticación)...')
