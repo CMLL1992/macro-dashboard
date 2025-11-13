@@ -239,6 +239,15 @@ function initializeSchema(database: Database.Database) {
       )
     `)
 
+    // User notification preferences
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS user_notification_preferences (
+        chat_id TEXT PRIMARY KEY,
+        preferences_json TEXT NOT NULL,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+
     // Notification settings (adjustable parameters)
     database.exec(`
       CREATE TABLE IF NOT EXISTS notification_settings (

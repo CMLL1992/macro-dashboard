@@ -61,11 +61,12 @@ export async function POST(request: NextRequest) {
       consenso: body.consenso,
     }
 
-    insertCalendarEvent(event)
+    const result = insertCalendarEvent(event)
 
     return NextResponse.json({
       success: true,
-      message: 'Calendar event inserted',
+      inserted: result.inserted,
+      message: result.inserted ? 'Calendar event inserted' : 'Calendar event already exists (updated)',
     })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)

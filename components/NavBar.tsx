@@ -20,12 +20,14 @@ export default function NavBar() {
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">
         <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 text-sm font-medium">
           <div className="flex items-center gap-6">
-            <span className="text-base font-semibold tracking-tight">🦅 Macro Dashboard</span>
+            <span className="text-base font-semibold tracking-tight">CM11 Trading</span>
             <div className="hidden md:flex items-center gap-4">
-              <span className="text-muted-foreground">📊 Dashboard</span>
-              <span className="text-muted-foreground">🔗 Correlaciones</span>
-              <span className="text-muted-foreground">📝 Narrativas</span>
-              <span className="text-muted-foreground">❓ Ayuda</span>
+              <span className="text-muted-foreground">Dashboard</span>
+              <span className="text-muted-foreground">Correlaciones</span>
+              <span className="text-muted-foreground">Narrativas</span>
+              <span className="text-muted-foreground">Noticias</span>
+              <span className="text-muted-foreground">Notificaciones</span>
+              <span className="text-muted-foreground">Ayuda</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -39,10 +41,12 @@ export default function NavBar() {
 
   // After hydration, render the actual navigation
   const baseNavItems = [
-    { href: '/dashboard', label: '📊 Dashboard' },
-    { href: '/correlations', label: '🔗 Correlaciones' },
-    { href: '/narrativas', label: '📝 Narrativas' },
-    { href: '/ayuda', label: '❓ Ayuda' },
+    { href: '/dashboard', label: 'Dashboard' },
+    { href: '/correlations', label: 'Correlaciones' },
+    { href: '/narrativas', label: 'Narrativas' },
+    { href: '/noticias', label: 'Noticias' },
+    { href: '/notificaciones', label: 'Notificaciones' },
+    { href: '/ayuda', label: 'Ayuda' },
   ] as const
 
   // Build nav items dynamically (client-side only, after mount)
@@ -50,7 +54,7 @@ export default function NavBar() {
   
   // Only check test flag in client after mount (we're already in client here)
   if (process.env.NEXT_PUBLIC_ENABLE_TELEGRAM_TESTS === 'true') {
-    navItems.push({ href: '/admin', label: '⚙️ Admin' })
+    navItems.push({ href: '/admin', label: 'Admin' })
     // Notificaciones, Noticias y Calendario se gestionan automáticamente, no se muestran en NavBar
   }
 
@@ -59,7 +63,7 @@ export default function NavBar() {
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 text-sm font-medium">
         <div className="flex items-center gap-6">
           <Link href="/" className="text-base font-semibold tracking-tight hover:text-primary">
-            🦅 Macro Dashboard
+            CM11 Trading
           </Link>
           <div className="hidden md:flex items-center gap-4">
             {navItems.map((item) => {

@@ -29,10 +29,39 @@ export interface CalendarEvent {
 }
 
 /**
- * Insert calendar event
+ * Insert calendar event (with deduplication)
+ * Returns true if inserted, false if duplicate
  */
-export function insertCalendarEvent(event: CalendarEvent): void {
+export function insertCalendarEvent(event: CalendarEvent): { inserted: boolean } {
   const db = getDB()
+  
+  // Check if event already exists (same fecha, tema, evento)
+  const existing = db.prepare(`
+    SELECT id FROM macro_calendar
+    WHERE fecha = ? AND tema = ? AND evento = ?
+  `).get(event.fecha, event.tema, event.evento) as { id: number } | undefined
+  
+  if (existing) {
+    // Update existing event (in case consenso or hora_local changed)
+    db.prepare(`
+      UPDATE macro_calendar
+      SET hora_local = ?,
+          pais = ?,
+          importancia = ?,
+          consenso = ?,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(
+      event.hora_local || null,
+      event.pais || null,
+      event.importancia,
+      event.consenso || null,
+      existing.id
+    )
+    return { inserted: false }
+  }
+  
+  // Insert new event
   db.prepare(`
     INSERT INTO macro_calendar (fecha, hora_local, pais, tema, evento, importancia, consenso)
     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -45,6 +74,8 @@ export function insertCalendarEvent(event: CalendarEvent): void {
     event.importancia,
     event.consenso || null
   )
+  
+  return { inserted: true }
 }
 
 /**

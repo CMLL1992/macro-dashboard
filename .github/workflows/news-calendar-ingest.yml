@@ -1,75 +1,80 @@
 name: News & Calendar Ingest
 
-# Este workflow es un TEMPLATE para pipelines externos de noticias y calendario
-# Requiere configuración de fuentes de datos externas (BLS, TradingEconomics, etc.)
+# Pipeline automático para ingerir noticias y eventos del calendario económico
+# Se ejecuta automáticamente cada 6 horas y puede ejecutarse manualmente
 
 on:
   schedule:
-    # Ejecutar cada hora para verificar nuevas noticias
-    - cron: "0 * * * *"
+    # Ejecutar cada 6 horas para verificar nuevas noticias y eventos
+    - cron: "0 */6 * * *"
   workflow_dispatch: {}
 
 jobs:
   ingest-news:
+    name: Ingest News from RSS
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (opcional, solo si necesitas código)
+      - name: Checkout code
         uses: actions/checkout@v4
-        if: false  # Desactivado por defecto
 
-      - name: Ingest News from External Source
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run news ingestion script
         run: |
-          # TODO: Reemplazar con tu lógica de recolección de noticias
-          # Ejemplo: llamar a API de BLS, TradingEconomics, etc.
-          
-          # Ejemplo de estructura de noticia:
-          NEWS_DATA='{
-            "id_fuente": "bls_2025-11_cpi_mom",
-            "fuente": "BLS",
-            "pais": "US",
-            "tema": "Inflación",
-            "titulo": "CPI m/m (oct)",
-            "impacto": "high",
-            "published_at": "2025-11-10T13:30:00Z",
-            "valor_publicado": 0.5,
-            "valor_esperado": 0.3,
-            "resumen": "Lectura por encima del consenso."
-          }'
-          
-          # Enviar a tu dashboard
-          curl -X POST "${{ secrets.APP_URL }}/api/news/insert" \
-            -H "Content-Type: application/json" \
-            -H "X-INGEST-KEY: ${{ secrets.INGEST_KEY }}" \
-            -d "$NEWS_DATA" || echo "No hay noticias nuevas o error en ingesta"
+          echo "🔄 Ingestando noticias desde RSS feeds..."
+          pnpm tsx scripts/ingest-news-rss.ts
         env:
           APP_URL: ${{ secrets.APP_URL }}
           INGEST_KEY: ${{ secrets.INGEST_KEY }}
+
+      - name: Report results
+        if: always()
+        run: |
+          echo "✅ News ingestion job completed"
 
   ingest-calendar:
+    name: Ingest Calendar from FRED
     runs-on: ubuntu-latest
     steps:
-      - name: Ingest Calendar Events from External Source
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run calendar ingestion script
         run: |
-          # TODO: Reemplazar con tu lógica de recolección de calendario
-          # Ejemplo: llamar a API de TradingEconomics, Investing.com, etc.
-          
-          # Ejemplo de estructura de evento:
-          CALENDAR_DATA='{
-            "fecha": "2025-11-20",
-            "hora_local": "14:30",
-            "pais": "US",
-            "tema": "Inflación",
-            "evento": "CPI m/m",
-            "importancia": "high",
-            "consenso": "0.3%"
-          }'
-          
-          # Enviar a tu dashboard
-          curl -X POST "${{ secrets.APP_URL }}/api/calendar/insert" \
-            -H "Content-Type: application/json" \
-            -H "X-INGEST-KEY: ${{ secrets.INGEST_KEY }}" \
-            -d "$CALENDAR_DATA" || echo "No hay eventos nuevos o error en ingesta"
+          echo "🔄 Ingestando eventos del calendario desde FRED..."
+          pnpm tsx scripts/ingest-calendar-fred.ts
         env:
           APP_URL: ${{ secrets.APP_URL }}
           INGEST_KEY: ${{ secrets.INGEST_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
+      - name: Report results
+        if: always()
+        run: |
+          echo "✅ Calendar ingestion job completed"
