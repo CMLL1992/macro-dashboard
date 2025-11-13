@@ -28,6 +28,7 @@ export default function NavBar() {
               <span className="text-muted-foreground">Noticias</span>
               <span className="text-muted-foreground">Notificaciones</span>
               <span className="text-muted-foreground">Ayuda</span>
+              <span className="text-muted-foreground">Admin</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -47,16 +48,11 @@ export default function NavBar() {
     { href: '/noticias', label: 'Noticias' },
     { href: '/notificaciones', label: 'Notificaciones' },
     { href: '/ayuda', label: 'Ayuda' },
+    { href: '/admin', label: 'Admin' },
   ] as const
 
   // Build nav items dynamically (client-side only, after mount)
   const navItems: Array<{ href: string; label: string }> = [...baseNavItems]
-  
-  // Only check test flag in client after mount (we're already in client here)
-  if (process.env.NEXT_PUBLIC_ENABLE_TELEGRAM_TESTS === 'true') {
-    navItems.push({ href: '/admin', label: 'Admin' })
-    // Notificaciones, Noticias y Calendario se gestionan automáticamente, no se muestran en NavBar
-  }
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">
