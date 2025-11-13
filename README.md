@@ -9,3 +9,4 @@
 - **pnpm:** v10 (lockfile v9)
 - **npm_config_build_from_source:** true (environment variable)
 - **Aprobación de binarios:** automática en preinstall
+# Deployment trigger Thu Nov 13 17:59:15 CET 2025
