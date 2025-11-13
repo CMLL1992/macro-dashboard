@@ -20,7 +20,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 10.20.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -46,7 +46,12 @@ jobs:
       - name: Run news ingestion script
         run: |
           echo "🔄 Ingestando noticias desde RSS feeds..."
-          pnpm tsx scripts/ingest-news-rss.ts 2>&1
+          echo "APP_URL: ${APP_URL:0:50}..."
+          echo "INGEST_KEY: ${INGEST_KEY:0:20}..."
+          pnpm exec tsx scripts/ingest-news-rss.ts 2>&1 || {
+            echo "❌ Script falló con código: $?"
+            exit 1
+          }
         env:
           APP_URL: ${{ secrets.APP_URL }}
           INGEST_KEY: ${{ secrets.INGEST_KEY }}
@@ -66,7 +71,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 10.20.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -94,7 +99,13 @@ jobs:
       - name: Run calendar ingestion script
         run: |
           echo "🔄 Ingestando eventos del calendario desde FRED..."
-          pnpm tsx scripts/ingest-calendar-fred.ts 2>&1
+          echo "APP_URL: ${APP_URL:0:50}..."
+          echo "INGEST_KEY: ${INGEST_KEY:0:20}..."
+          echo "FRED_API_KEY: ${FRED_API_KEY:0:20}..."
+          pnpm exec tsx scripts/ingest-calendar-fred.ts 2>&1 || {
+            echo "❌ Script falló con código: $?"
+            exit 1
+          }
         env:
           APP_URL: ${{ secrets.APP_URL }}
           INGEST_KEY: ${{ secrets.INGEST_KEY }}
