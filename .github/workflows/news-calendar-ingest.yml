@@ -1,6 +1,7 @@
-name: News & Calendar Ingest
+name: News & Calendar Ingest (All Sources)
 
 # Pipeline automático para ingerir noticias y eventos del calendario económico
+# Desde múltiples fuentes: RSS, Forex Factory, FMP, Finnhub, Trading Economics, NewsAPI
 # Se ejecuta automáticamente cada 6 horas y puede ejecutarse manualmente
 
 on:
@@ -10,67 +11,8 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  ingest-news:
-    name: Ingest News from RSS
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 10.20.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Verify installation
-        run: |
-          echo "🔍 Verificando instalación..."
-          pnpm --version
-          node --version
-          which tsx || echo "tsx no encontrado en PATH"
-          pnpm list tsx || echo "tsx no instalado"
-
-      - name: Debug environment
-        run: |
-          echo "🔍 Verificando variables de entorno..."
-          echo "APP_URL is set: $([ -n "$APP_URL" ] && echo 'YES' || echo 'NO')"
-          echo "INGEST_KEY is set: $([ -n "$INGEST_KEY" ] && echo 'YES' || echo 'NO')"
-          if [ -n "$APP_URL" ]; then
-            echo "APP_URL value: ${APP_URL:0:30}..." 
-          fi
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
-          INGEST_KEY: ${{ secrets.INGEST_KEY }}
-
-      - name: Run news ingestion script
-        run: |
-          echo "🔄 Ingestando noticias desde RSS feeds..."
-          echo "APP_URL: ${APP_URL:0:50}..."
-          echo "INGEST_KEY: ${INGEST_KEY:0:20}..."
-          pnpm exec tsx scripts/ingest-news-rss.ts 2>&1 || {
-            echo "❌ Script falló con código: $?"
-            exit 1
-          }
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
-          INGEST_KEY: ${{ secrets.INGEST_KEY }}
-
-      - name: Report results
-        if: always()
-        run: |
-          echo "✅ News ingestion job completed"
-
-  ingest-calendar:
-    name: Ingest Calendar from FRED
+  ingest-all-sources:
+    name: Ingest from All Sources
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -104,6 +46,10 @@ jobs:
           echo "APP_URL is set: $([ -n "$APP_URL" ] && echo 'YES' || echo 'NO')"
           echo "INGEST_KEY is set: $([ -n "$INGEST_KEY" ] && echo 'YES' || echo 'NO')"
           echo "FRED_API_KEY is set: $([ -n "$FRED_API_KEY" ] && echo 'YES' || echo 'NO')"
+          echo "FMP_API_KEY is set: $([ -n "$FMP_API_KEY" ] && echo 'YES' || echo 'NO')"
+          echo "FINNHUB_API_KEY is set: $([ -n "$FINNHUB_API_KEY" ] && echo 'YES' || echo 'NO')"
+          echo "NEWSAPI_KEY is set: $([ -n "$NEWSAPI_KEY" ] && echo 'YES' || echo 'NO')"
+          echo "TRADING_ECONOMICS_API_KEY is set: $([ -n "$TRADING_ECONOMICS_API_KEY" ] && echo 'YES' || echo 'NO')"
           if [ -n "$APP_URL" ]; then
             echo "APP_URL value: ${APP_URL:0:30}..." 
           fi
@@ -111,14 +57,27 @@ jobs:
           APP_URL: ${{ secrets.APP_URL }}
           INGEST_KEY: ${{ secrets.INGEST_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+          TRADING_ECONOMICS_API_KEY: ${{ secrets.TRADING_ECONOMICS_API_KEY }}
 
-      - name: Run calendar ingestion script
+      - name: Run all sources ingestion script
         run: |
-          echo "🔄 Ingestando eventos del calendario desde FRED..."
+          echo "🔄 Ingestando desde TODAS las fuentes..."
           echo "APP_URL: ${APP_URL:0:50}..."
           echo "INGEST_KEY: ${INGEST_KEY:0:20}..."
-          echo "FRED_API_KEY: ${FRED_API_KEY:0:20}..."
-          pnpm exec tsx scripts/ingest-calendar-fred.ts 2>&1 || {
+          echo ""
+          echo "Fuentes disponibles:"
+          echo "  ✅ RSS News (Bloomberg, Reuters, Financial Times)"
+          echo "  ✅ FRED Calendar"
+          echo "  ✅ Forex Factory Calendar"
+          [ -n "$FMP_API_KEY" ] && echo "  ✅ Financial Modeling Prep" || echo "  ⏭️  Financial Modeling Prep (no API key)"
+          [ -n "$FINNHUB_API_KEY" ] && echo "  ✅ Finnhub" || echo "  ⏭️  Finnhub (no API key)"
+          [ -n "$NEWSAPI_KEY" ] && echo "  ✅ NewsAPI" || echo "  ⏭️  NewsAPI (no API key)"
+          echo "  ✅ Trading Economics (guest access)"
+          echo ""
+          pnpm exec tsx scripts/ingest-all-sources.ts 2>&1 || {
             echo "❌ Script falló con código: $?"
             exit 1
           }
@@ -126,8 +85,12 @@ jobs:
           APP_URL: ${{ secrets.APP_URL }}
           INGEST_KEY: ${{ secrets.INGEST_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+          TRADING_ECONOMICS_API_KEY: ${{ secrets.TRADING_ECONOMICS_API_KEY }}
 
       - name: Report results
         if: always()
         run: |
-          echo "✅ Calendar ingestion job completed"
+          echo "✅ All sources ingestion job completed"
