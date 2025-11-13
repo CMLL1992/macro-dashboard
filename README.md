@@ -1,6 +1,6 @@
 # CM11 Trading
 
-<!-- Trigger deployment with latest fixes -->
+<!-- Trigger deployment: forzar redeploy para detectar segundo cron job -->
 
 ## Vercel Runtime & Build Stability
 
