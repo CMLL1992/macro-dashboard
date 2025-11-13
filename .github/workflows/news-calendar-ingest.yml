@@ -31,10 +31,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Debug environment
+        run: |
+          echo "🔍 Verificando variables de entorno..."
+          echo "APP_URL is set: $([ -n "$APP_URL" ] && echo 'YES' || echo 'NO')"
+          echo "INGEST_KEY is set: $([ -n "$INGEST_KEY" ] && echo 'YES' || echo 'NO')"
+          if [ -n "$APP_URL" ]; then
+            echo "APP_URL value: ${APP_URL:0:30}..." 
+          fi
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          INGEST_KEY: ${{ secrets.INGEST_KEY }}
+
       - name: Run news ingestion script
         run: |
           echo "🔄 Ingestando noticias desde RSS feeds..."
-          pnpm tsx scripts/ingest-news-rss.ts
+          pnpm tsx scripts/ingest-news-rss.ts 2>&1
         env:
           APP_URL: ${{ secrets.APP_URL }}
           INGEST_KEY: ${{ secrets.INGEST_KEY }}
@@ -65,10 +77,24 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Debug environment
+        run: |
+          echo "🔍 Verificando variables de entorno..."
+          echo "APP_URL is set: $([ -n "$APP_URL" ] && echo 'YES' || echo 'NO')"
+          echo "INGEST_KEY is set: $([ -n "$INGEST_KEY" ] && echo 'YES' || echo 'NO')"
+          echo "FRED_API_KEY is set: $([ -n "$FRED_API_KEY" ] && echo 'YES' || echo 'NO')"
+          if [ -n "$APP_URL" ]; then
+            echo "APP_URL value: ${APP_URL:0:30}..." 
+          fi
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          INGEST_KEY: ${{ secrets.INGEST_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
       - name: Run calendar ingestion script
         run: |
           echo "🔄 Ingestando eventos del calendario desde FRED..."
-          pnpm tsx scripts/ingest-calendar-fred.ts
+          pnpm tsx scripts/ingest-calendar-fred.ts 2>&1
         env:
           APP_URL: ${{ secrets.APP_URL }}
           INGEST_KEY: ${{ secrets.INGEST_KEY }}
