@@ -1,28 +1,51 @@
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+/**
+ * Health check endpoint
+ * Returns the current state of data in the database
+ */
 
-import { NextRequest, NextResponse } from 'next/server'
-// Initialize notifications system on first health check
-import { ensureNotificationsInitialized } from '@/lib/notifications/init'
-import { checkMacroDataHealth } from '@/lib/db/read-macro'
-import { isDbReady, getBootstrapTimestamp, getBootstrapStartedAt, isBootstrapLocked, getFallbackCount } from '@/lib/runtime/state'
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
-  // Force notifications initialization
-  await ensureNotificationsInitialized()
-  const health = checkMacroDataHealth()
-  const ready = health.hasObservations && health.hasBias && isDbReady()
-  
-  return NextResponse.json({
-    ready,
-    observationCount: health.observationCount,
-    biasCount: health.biasCount,
-    correlationCount: health.correlationCount,
-    latestDate: health.latestDate,
-    db_ready: isDbReady(),
-    bootstrap_timestamp: getBootstrapTimestamp(),
-    bootstrap_locked: isBootstrapLocked(),
-    bootstrap_started_at: getBootstrapStartedAt(),
-    fallback_count: getFallbackCount(),
-  })
+import { getDB } from '@/lib/db/schema'
+import { checkMacroDataHealth, getLatestObservationDate } from '@/lib/db/read-macro'
+
+export async function GET() {
+  try {
+    const db = getDB()
+    
+    // Get counts
+    const obsCount = db.prepare('SELECT COUNT(1) as c FROM macro_observations').get() as { c: number }
+    const biasCount = db.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number }
+    const corrCount = db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number }
+    
+    // Get latest observation date
+    const latestDate = getLatestObservationDate()
+    
+    // Check health
+    const health = checkMacroDataHealth()
+    
+    return Response.json({
+      hasData: health.hasObservations && health.hasBias,
+      observationCount: obsCount.c,
+      biasCount: biasCount.c,
+      correlationCount: corrCount.c,
+      latestDate: latestDate,
+      health: {
+        hasObservations: health.hasObservations,
+        hasBias: health.hasBias,
+        observationCount: health.observationCount,
+        biasCount: health.biasCount,
+        correlationCount: health.correlationCount,
+      },
+    })
+  } catch (error) {
+    console.error('[api/health] Error:', error)
+    return Response.json(
+      {
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    )
+  }
 }
