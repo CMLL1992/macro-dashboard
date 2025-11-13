@@ -5,7 +5,9 @@
 
 ---
 
-## ✅ Automatización Completa
+## ✅ Automatización Completa - ACTUALIZADO 2025-11-13
+
+**Estado:** ✅ Todo funcionando correctamente
 
 ### 1. **Vercel Cron Jobs** (Ejecutados en Vercel, no requieren PC local)
 
@@ -50,7 +52,7 @@
 - **Ubicación:** `.github/workflows/news-calendar-ingest.yml`
 - **Requisitos:**
   - Secrets en GitHub: `APP_URL`, `INGEST_KEY`, `FRED_API_KEY`
-  - ⚠️ **Verificar que estos secrets estén configurados**
+  - ✅ **Configurado y funcionando** (última ejecución exitosa: #28)
 
 ---
 
