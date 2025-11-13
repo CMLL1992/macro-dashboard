@@ -51,10 +51,11 @@ async function ingestFred() {
 
   for (const series of FRED_SERIES) {
     try {
+      // No usar observation_end para obtener los datos más recientes disponibles
       const observations = await fetchFredSeries(series.id, {
         frequency: series.frequency as 'd' | 'm' | 'q',
         observation_start: '2010-01-01',
-        observation_end: new Date().toISOString().slice(0, 10),
+        // No especificar observation_end para obtener datos hasta la fecha más reciente disponible
       })
 
       if (observations.length === 0) {
