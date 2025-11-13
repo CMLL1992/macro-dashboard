@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Plain text without Markdown for test
-    const testText = 'OK desde Macro Dashboard'
+    const testText = 'OK desde CM11 Trading'
 
     // Extra debug (test only)
     console.log('[API/TEST] ENV debug:', {
