@@ -31,6 +31,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify installation
+        run: |
+          echo "🔍 Verificando instalación..."
+          pnpm --version
+          node --version
+          which tsx || echo "tsx no encontrado en PATH"
+          pnpm list tsx || echo "tsx no instalado"
+
       - name: Debug environment
         run: |
           echo "🔍 Verificando variables de entorno..."
@@ -81,6 +89,14 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Verify installation
+        run: |
+          echo "🔍 Verificando instalación..."
+          pnpm --version
+          node --version
+          which tsx || echo "tsx no encontrado en PATH"
+          pnpm list tsx || echo "tsx no instalado"
 
       - name: Debug environment
         run: |
