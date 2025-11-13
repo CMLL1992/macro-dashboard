@@ -3,8 +3,8 @@ import NavBar from '@/components/NavBar'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Macro Dashboard',
-  description: 'Dashboard macroeconómico',
+  title: 'CM11 Trading',
+  description: 'Dashboard macroeconómico CM11 Trading',
 }
 
 export default function RootLayout({
