@@ -1,10 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Force dynamic rendering to avoid caching issues
-  experimental: {
-    // Disable static optimization for better cache control
-  },
-  // Headers to prevent caching
+  // Disable static page generation completely
+  output: 'standalone',
+  // Headers to prevent all caching
   async headers() {
     return [
       {
@@ -12,11 +10,23 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            value: 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          },
+          {
+            key: 'Pragma',
+            value: 'no-cache',
+          },
+          {
+            key: 'Expires',
+            value: '0',
           },
         ],
       },
     ]
+  },
+  // Disable static optimization
+  experimental: {
+    dynamicIO: true,
   },
 }
 
