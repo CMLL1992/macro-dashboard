@@ -97,7 +97,29 @@ async function main() {
 
   // Verificar /api/health
   console.log('\n📊 Verificando /api/health...')
-  const healthResult = await verifyAPIEndpoint(APP_URL, '', '/api/health', '')
+  try {
+    const healthResponse = await fetch(`${APP_URL}/api/health`, {
+      cache: 'no-store',
+    })
+    if (healthResponse.ok) {
+      try {
+        const healthData = await healthResponse.json()
+        console.log(`✅ /api/health: OK`)
+        console.log(`   Observaciones macro: ${healthData.observationCount || 0}`)
+        console.log(`   Bias registros: ${healthData.biasCount || 0}`)
+        console.log(`   Correlaciones: ${healthData.correlationCount || 0}`)
+        console.log(`   Última fecha: ${healthData.latestDate || healthData.health?.latestDate || 'N/A'}`)
+      } catch (e) {
+        console.log(`✅ /api/health: OK (pero no se pudo parsear JSON)`)
+      }
+    } else {
+      console.log(`❌ /api/health: ${healthResponse.status} - ${await healthResponse.text().catch(() => 'Unknown error')}`)
+      issues.push(`/api/health no responde correctamente (${healthResponse.status})`)
+    }
+  } catch (error) {
+    console.log(`❌ /api/health: Error de conexión - ${error instanceof Error ? error.message : String(error)}`)
+    issues.push(`/api/health no es accesible`)
+  }
   if (healthResult.ok) {
     try {
       const healthData = await fetch(`${APP_URL}/api/health`).then(r => r.json())
@@ -123,7 +145,7 @@ async function main() {
     console.log(`❌ /api/jobs/ingest/fred: 401 Unauthorized - CRON_TOKEN incorrecto`)
     issues.push(`CRON_TOKEN no es válido para /api/jobs/ingest/fred`)
   } else {
-    console.log(`⚠️  /api/jobs/ingest/fred: ${fredResult.status} - ${healthResult.message}`)
+    console.log(`⚠️  /api/jobs/ingest/fred: ${fredResult.status} - ${fredResult.message}`)
   }
 
   // Verificar /api/news/insert (requiere INGEST_KEY)
