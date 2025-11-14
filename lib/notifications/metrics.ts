@@ -94,4 +94,25 @@ export function getAggregatedMetrics(): {
   }
 }
 
+/**
+ * Export metrics in Prometheus format
+ */
+export function exportPrometheusMetrics(): string {
+  const metrics = getAllMetrics()
+  let output = ''
+
+  // Add header
+  output += '# HELP notification_metric Counter for notification metrics\n'
+  output += '# TYPE notification_metric counter\n'
+
+  // Add each metric
+  for (const metric of metrics) {
+    const labels = metric.labels ? JSON.stringify(metric.labels) : ''
+    const labelStr = labels ? `{${Object.entries(metric.labels || {}).map(([k, v]) => `${k}="${v}"`).join(',')}}` : ''
+    output += `notification_metric{metric_name="${metric.metric_name}"${labelStr ? ',' + labelStr.slice(1, -1) : ''}} ${metric.metric_value}\n`
+  }
+
+  return output
+}
+
 
