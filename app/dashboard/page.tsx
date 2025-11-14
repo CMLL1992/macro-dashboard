@@ -214,6 +214,16 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   const apiBiasItems = Array.isArray(apiBias?.items) ? apiBias.items : []
   const items: NormalizedBiasRow[] = apiBiasItems.map(normalizeBiasItem)
   
+  // Debug crítico: verificar que los items se están normalizando
+  console.log('[Dashboard] CRITICAL DEBUG - items normalization', {
+    apiBiasItemsLength: apiBiasItems.length,
+    normalizedItemsLength: items.length,
+    apiBiasFirstItem: apiBiasItems[0] || null,
+    normalizedFirstItem: items[0] || null,
+    allNormalizedCategories: items.map(i => i.category),
+    uniqueCategories: [...new Set(items.map(i => i.category))],
+  })
+  
   // Log para debugging
   console.log('[Dashboard] items normalizados', {
     count: items.length,
@@ -510,9 +520,26 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
               </thead>
               <tbody>
                 {CATEGORY_ORDER.map(cat => {
-                  const rows = items.filter((row: NormalizedBiasRow) => row.category === cat)
+                  // Debug: verificar el filtro por categoría
+                  const allMatching = items.filter((row: NormalizedBiasRow) => {
+                    const matches = row.category === cat
+                    if (matches && items.length > 0) {
+                      console.log('[Dashboard] MATCH FOUND', { cat, rowCategory: row.category, rowKey: row.key, rowLabel: row.label })
+                    }
+                    return matches
+                  })
+                  const rows = allMatching
+                  
                   // SIEMPRE renderizar la categoría, aunque esté vacía
                   if (!rows.length) {
+                    // Debug: ver por qué no hay matches
+                    if (items.length > 0) {
+                      console.log('[Dashboard] NO MATCHES for category', {
+                        category: cat,
+                        availableCategories: [...new Set(items.map(i => i.category))],
+                        sampleItemCategories: items.slice(0, 3).map(i => ({ key: i.key, category: i.category })),
+                      })
+                    }
                     return (
                       <Fragment key={cat}>
                         <tr className="bg-muted/50 border-t">
