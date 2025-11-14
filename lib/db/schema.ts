@@ -23,9 +23,7 @@ const DB_PATH = process.env.DATABASE_PATH || (
     : join(process.cwd(), 'macro.db')
 )
 
-// Log para debugging
-console.log('[db] DB_PATH:', DB_PATH, 'NODE_ENV:', process.env.NODE_ENV, 'isVercel:', isVercel, 'isProduction:', isProduction)
-console.log('[db] VERCEL:', process.env.VERCEL, 'VERCEL_ENV:', process.env.VERCEL_ENV, 'VERCEL_URL:', process.env.VERCEL_URL)
+// NOTA: Los logs se hacen dentro de getDB() para evitar ejecución durante el build
 
 let db: Database.Database | null = null
 
