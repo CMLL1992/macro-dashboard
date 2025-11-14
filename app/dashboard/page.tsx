@@ -455,40 +455,62 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
 
 
         <div className="rounded-lg border bg-card">
+          <div className="p-4 border-b">
+            <h2 className="font-semibold">Indicadores macro</h2>
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/30">
-                <tr>
-                  <th className="px-3 py-2 text-left">Variable</th>
-                  <th className="px-3 py-2 text-left">Dato anterior</th>
-                  <th className="px-3 py-2 text-left">Dato actual</th>
-                  <th className="px-3 py-2 text-left" title="Comparación entre el último dato y el anterior. Interpretación basada en el criterio macroeconómico del indicador.">Evolución</th>
-                  <th className="px-3 py-2 text-left">Postura</th>
-                  <th className="px-3 py-2 text-left">Peso</th>
-                  <th className="px-3 py-2 text-left">Fecha</th>
-                </tr>
-              </thead>
-              <tbody>
-                {CATEGORY_ORDER.map(cat => {
-                  const rows = items.filter((row: NormalizedBiasRow) => row.category === cat)
-                  if (!rows.length) return null
-                  return (
-                    <Fragment key={cat}>
-                      <tr className="bg-muted/50 border-t">
-                        <td colSpan={7} className="text-sm font-semibold uppercase tracking-wide py-2 px-3">{cat}</td>
-                      </tr>
-                      {rows
-                        // Deduplicación defensiva por clave única (seriesId/key)
-                        .filter((() => {
-                          const seen = new Set<string>()
-                          return (x: NormalizedBiasRow) => {
-                            const k = String(x.seriesId || x.key)
-                            if (seen.has(k)) return false
-                            seen.add(k)
-                            return true
-                          }
-                        })())
-                        .map((row: NormalizedBiasRow) => {
+            {items.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground">
+                <p>No hay datos de indicadores todavía.</p>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-muted/30">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Variable</th>
+                    <th className="px-3 py-2 text-left">Dato anterior</th>
+                    <th className="px-3 py-2 text-left">Dato actual</th>
+                    <th className="px-3 py-2 text-left" title="Comparación entre el último dato y el anterior. Interpretación basada en el criterio macroeconómico del indicador.">Evolución</th>
+                    <th className="px-3 py-2 text-left">Postura</th>
+                    <th className="px-3 py-2 text-left">Peso</th>
+                    <th className="px-3 py-2 text-left">Fecha</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {CATEGORY_ORDER.map(cat => {
+                    const rows = items.filter((row: NormalizedBiasRow) => row.category === cat)
+                    // SIEMPRE renderizar la categoría, aunque esté vacía
+                    if (!rows.length) {
+                      return (
+                        <Fragment key={cat}>
+                          <tr className="bg-muted/50 border-t">
+                            <td colSpan={7} className="text-sm font-semibold uppercase tracking-wide py-2 px-3">{cat}</td>
+                          </tr>
+                          <tr className="border-t">
+                            <td colSpan={7} className="px-3 py-2 text-center text-muted-foreground text-sm">
+                              No hay indicadores en esta categoría
+                            </td>
+                          </tr>
+                        </Fragment>
+                      )
+                    }
+                    return (
+                      <Fragment key={cat}>
+                        <tr className="bg-muted/50 border-t">
+                          <td colSpan={7} className="text-sm font-semibold uppercase tracking-wide py-2 px-3">{cat}</td>
+                        </tr>
+                        {rows
+                          // Deduplicación defensiva por clave única (seriesId/key)
+                          .filter((() => {
+                            const seen = new Set<string>()
+                            return (x: NormalizedBiasRow) => {
+                              const k = String(x.seriesId || x.key)
+                              if (seen.has(k)) return false
+                              seen.add(k)
+                              return true
+                            }
+                          })())
+                          .map((row: NormalizedBiasRow) => {
                         const isPayemsDelta = typeof row.label === 'string' && row.label.includes('Payrolls Δ')
                         const formatValue = (v: number | null) => {
                           if (v == null) return '—'
@@ -546,9 +568,10 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                       })}
                     </Fragment>
                   )
-                })}
-              </tbody>
-            </table>
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 
