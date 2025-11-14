@@ -99,31 +99,24 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
 
   // Normalizar apiBias
   if (!apiBias || typeof apiBias !== 'object') {
-    apiBias = { items: [], health: { hasData: false, hasObservations: false, hasBias: false, hasCorrelations: false, observationCount: 0, biasCount: 0, correlationCount: 0 } }
+    apiBias = { items: [], health: { hasData: false, observationCount: 0, biasCount: 0, correlationCount: 0 } }
   }
   if (!Array.isArray(apiBias.items)) {
     apiBias.items = []
   }
   if (!apiBias.health || typeof apiBias.health !== 'object') {
-    apiBias.health = { hasData: false, hasObservations: false, hasBias: false, hasCorrelations: false, observationCount: 0, biasCount: 0, correlationCount: 0 }
+    apiBias.health = { hasData: false, observationCount: 0, biasCount: 0, correlationCount: 0 }
   }
-
-  // Guardrails: check minimum data requirements
-  const itemsCount = Array.isArray(apiBias.items) ? apiBias.items.length : 0
-  const correlationCount = apiBias.health?.correlationCount || 0
-  const observationCount = apiBias.health?.observationCount || 0
 
   // Verificar que los datos están listos usando la estructura correcta
   const health = apiBias?.health
-  const hasData = health?.hasData === true
-  
-  const ready =
-    hasData &&
-    health?.hasObservations &&
-    health?.hasBias &&
-    health?.hasCorrelations
+  const hasData =
+    health?.hasData === true ||
+    (health?.biasCount ?? 0) > 0 ||
+    (health?.observationCount ?? 0) > 0 ||
+    (apiBias?.items ?? []).length > 0
 
-  if (!ready) {
+  if (!hasData) {
     return <DashboardInitializing />
   }
 
@@ -171,7 +164,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   const CONFIDENCE_TOOLTIP = `\nConfianza = probabilidad de que el activo se mueva según el sesgo macro actual.\n\n• Alta: ~70–80% (correlación fuerte y régimen claro)\n• Media: ~50–60%\n• Baja: <50%\n\nEjemplo: Si el USD está fuerte y EUR/USD tiene confianza Alta, hay alta probabilidad de que EUR/USD caiga.\n`
   const showKeys = (safeSearchParams?.showKeys ?? '') === '1'
   
-  // Normalizar items
+  // Normalizar items (usar items de data, no de apiBias)
   const items = Array.isArray(data.items) ? data.items : []
   
   // 3. Calcular usd, quad, biasRows - pueden fallar, envolver en try-catch
