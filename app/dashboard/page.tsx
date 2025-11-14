@@ -210,15 +210,24 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     }
   }
   
-  // Usar SOLO apiBias.items como fuente de datos para la tabla
+  // Usar apiBias.items como fuente principal, pero si está vacío, usar data.items como fallback
   const apiBiasItems = Array.isArray(apiBias?.items) ? apiBias.items : []
-  const items: NormalizedBiasRow[] = apiBiasItems.map(normalizeBiasItem)
+  const dataItems = Array.isArray(data?.items) ? data.items : []
+  
+  // Preferir apiBias.items, pero si está vacío, usar data.items
+  const sourceItems = apiBiasItems.length > 0 ? apiBiasItems : dataItems
+  
+  const items: NormalizedBiasRow[] = sourceItems.map(normalizeBiasItem)
   
   // Debug crítico: verificar que los items se están normalizando
   console.log('[Dashboard] CRITICAL DEBUG - items normalization', {
     apiBiasItemsLength: apiBiasItems.length,
+    dataItemsLength: dataItems.length,
+    sourceItemsLength: sourceItems.length,
     normalizedItemsLength: items.length,
+    source: apiBiasItems.length > 0 ? 'apiBias' : 'data',
     apiBiasFirstItem: apiBiasItems[0] || null,
+    dataFirstItem: dataItems[0] || null,
     normalizedFirstItem: items[0] || null,
     allNormalizedCategories: items.map(i => i.category),
     uniqueCategories: [...new Set(items.map(i => i.category))],
