@@ -8,7 +8,6 @@ import { getCorrelations } from '@/domain/corr-dashboard'
 import { CATEGORY_ORDER } from '@/domain/categories'
 import { Fragment } from 'react'
 import { detectScenarios } from '@/domain/scenarios'
-import DashboardInitializing from '@/components/DashboardInitializing'
 import { isStaleByFrequency, getFrequencyLabel, SLA_BY_FREQUENCY } from '@/lib/utils/freshness'
 import Link from 'next/link'
 import DateDisplay from '@/components/DateDisplay'
@@ -86,15 +85,15 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   // Normalizar searchParams
   const safeSearchParams = searchParams || {}
   
-  // 1. Fetch bias data - NO lanzar error, retornar null si falla
+  // 1. Fetch bias data - NO lanzar error, usar valores por defecto si falla
   let apiBias: any = null
   try {
     apiBias = await fetchBias()
   } catch (error) {
-    console.error('[Dashboard] fetchBias failed, showing initializing state', {
+    console.error('[Dashboard] fetchBias failed, using defaults', {
       error: error instanceof Error ? error.message : String(error),
     })
-    return <DashboardInitializing />
+    apiBias = { items: [], health: { hasData: false, observationCount: 0, biasCount: 0, correlationCount: 0 } }
   }
 
   // Normalizar apiBias
@@ -108,33 +107,21 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     apiBias.health = { hasData: false, observationCount: 0, biasCount: 0, correlationCount: 0 }
   }
 
-  // Verificar que los datos están listos usando la estructura correcta
-  const health = apiBias?.health
-  const hasData =
-    health?.hasData === true ||
-    (health?.biasCount ?? 0) > 0 ||
-    (health?.observationCount ?? 0) > 0 ||
-    (apiBias?.items ?? []).length > 0
-
-  if (!hasData) {
-    return <DashboardInitializing />
-  }
-
-  // 2. Get macro diagnosis - NO lanzar error
+  // 2. Get macro diagnosis - NO lanzar error, usar valores por defecto si falla
   let data: any = null
   try {
     data = await getMacroDiagnosisWithDelta()
   } catch (error) {
-    console.error('[Dashboard] getMacroDiagnosisWithDelta failed', {
+    console.error('[Dashboard] getMacroDiagnosisWithDelta failed, using defaults', {
       error: error instanceof Error ? error.message : String(error),
     })
-    return <DashboardInitializing />
+    data = { items: [], regime: 'Neutral', score: 0, threshold: 0.3, counts: { total: 0, withValue: 0, nulls: 0 }, improving: 0, deteriorating: 0, categoryCounts: {} }
   }
 
   // Normalizar data
   if (!data || typeof data !== 'object') {
-    console.warn('[Dashboard] Invalid data structure from getMacroDiagnosisWithDelta')
-    return <DashboardInitializing />
+    console.warn('[Dashboard] Invalid data structure from getMacroDiagnosisWithDelta, using defaults')
+    data = { items: [], regime: 'Neutral', score: 0, threshold: 0.3, counts: { total: 0, withValue: 0, nulls: 0 }, improving: 0, deteriorating: 0, categoryCounts: {} }
   }
   if (!Array.isArray(data.items)) {
     data.items = []
@@ -250,9 +237,32 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   if (!Array.isArray(corrs)) {
     corrs = []
   }
+
+  // Calcular si está inicializando (para mostrar aviso, no para bloquear)
+  const health = apiBias?.health
+  const isInitializing =
+    !health?.hasData &&
+    (health?.biasCount ?? 0) === 0 &&
+    (health?.observationCount ?? 0) === 0 &&
+    (apiBias?.items ?? []).length === 0 &&
+    items.length === 0
+
   return (
     <main className="p-6">
       <div className="max-w-5xl mx-auto space-y-6">
+        {isInitializing && (
+          <div className="rounded-lg border bg-yellow-50 p-6 text-yellow-900">
+            <h2 className="text-lg font-semibold">Inicializando datos…</h2>
+            <p className="mt-2 text-sm">
+              Estamos preparando la base de datos y recalculando correlaciones y sesgos. 
+              El dashboard se actualizará automáticamente cuando los datos estén listos.
+            </p>
+            <div className="mt-4 flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse"></div>
+              <span className="text-xs">Verificando estado del sistema...</span>
+            </div>
+          </div>
+        )}
         <div className="rounded-lg border bg-card p-6">
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold tracking-tight">Régimen actual del mercado</h1>
