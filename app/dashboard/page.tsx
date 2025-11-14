@@ -21,8 +21,9 @@ export const revalidate = 0
  */
 async function fetchBias() {
   const startTime = Date.now()
-  const base = process.env.APP_URL || 'http://localhost:3000'
-  const endpoint = `${base}/api/bias`
+  // Usar URL relativa (funciona tanto en desarrollo como en producción)
+  // En server-side, fetch() con URL relativa se resuelve automáticamente
+  const endpoint = '/api/bias'
 
   try {
     const res = await fetch(endpoint, {
@@ -112,20 +113,51 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     console.error('[Dashboard] getMacroDiagnosisWithDelta failed', {
       error: error instanceof Error ? error.message : String(error),
     })
-    throw new Error(`Failed to get macro diagnosis: ${error instanceof Error ? error.message : String(error)}`)
+    // Si falla, retornar estado de inicialización en lugar de lanzar error
+    return <DashboardInitializing />
   }
+
+  // Validar que data tiene la estructura esperada
+  if (!data || !Array.isArray(data.items)) {
+    console.warn('[Dashboard] Invalid data structure from getMacroDiagnosisWithDelta')
+    return <DashboardInitializing />
+  }
+
   const CONFIDENCE_TOOLTIP = `\nConfianza = probabilidad de que el activo se mueva según el sesgo macro actual.\n\n• Alta: ~70–80% (correlación fuerte y régimen claro)\n• Media: ~50–60%\n• Baja: <50%\n\nEjemplo: Si el USD está fuerte y EUR/USD tiene confianza Alta, hay alta probabilidad de que EUR/USD caiga.\n`
   const showKeys = (searchParams?.showKeys ?? '') === '1'
-  const usd = usdBias(data.items)
-  const quad = macroQuadrant(data.items)
-  const biasRows = getBiasTable(data.regime, usd, quad)
-  const corrMap = await getCorrMap()
-  const tacticalRows = await getBiasTableTactical(data.items as any[], data.regime, usd, data.score, [], corrMap)
+  
+  // Manejar datos vacíos de forma segura
+  const items = Array.isArray(data.items) ? data.items : []
+  const usd = usdBias(items)
+  const quad = macroQuadrant(items)
+  const biasRows = getBiasTable(data.regime || 'Neutral', usd, quad)
+  
+  // Manejar errores en getCorrMap y getCorrelations
+  let corrMap
+  try {
+    corrMap = await getCorrMap()
+  } catch (error) {
+    console.warn('[Dashboard] getCorrMap failed, using empty map', error)
+    corrMap = new Map()
+  }
+  
+  const tacticalRows = await getBiasTableTactical(items, data.regime || 'Neutral', usd, data.score || 0, [], corrMap)
   const color = data.regime === 'RISK ON' ? 'text-green-600' : data.regime === 'RISK OFF' ? 'text-red-600' : 'text-gray-600'
   const SHOW_CORR_ON_DASH = false
   const strongCorr: string[] = []
-  const scenarios = detectScenarios(data.items as any[], data.regime)
-  const corrs = await getCorrelations()
+  const scenarios = detectScenarios(items, data.regime || 'Neutral')
+  
+  // getCorrelations puede tardar mucho o fallar, manejarlo de forma segura
+  let corrs = []
+  try {
+    corrs = await Promise.race([
+      getCorrelations(),
+      new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 10000)) // Timeout de 10s
+    ])
+  } catch (error) {
+    console.warn('[Dashboard] getCorrelations failed, continuing without correlations', error)
+    corrs = []
+  }
   return (
     <main className="p-6">
       <div className="max-w-5xl mx-auto space-y-6">
@@ -138,12 +170,12 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
             </Link>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 ${color}`}>Régimen: <strong>{data.regime}</strong> ({data.score.toFixed(2)})</span>
+            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 ${color}`}>Régimen: <strong>{data.regime || 'Neutral'}</strong> ({(data.score || 0).toFixed(2)})</span>
             <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">USD: <strong>{usd}</strong></span>
             <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">Cuadrante: <strong>{quad}</strong></span>
           </div>
           <div className="mt-2 text-xs text-muted-foreground">
-            Score: {data.score.toFixed(2)} | Umbral: {data.threshold.toFixed(2)} | Activos: {data.counts?.withValue ?? 0}/{data.counts?.total ?? 0} | Mejoran: {data.improving ?? 0} | Empeoran: {data.deteriorating ?? 0}
+            Score: {(data.score || 0).toFixed(2)} | Umbral: {(data.threshold || 0.3).toFixed(2)} | Activos: {data.counts?.withValue ?? 0}/{data.counts?.total ?? 0} | Mejoran: {data.improving ?? 0} | Empeoran: {data.deteriorating ?? 0}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
             <span className="inline-flex items-center gap-2 rounded-full border px-2 py-0.5">
@@ -191,7 +223,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
         <div className="rounded-lg border bg-card p-6">
           <h2 className="font-semibold mb-2">Insights</h2>
           <ul className="list-disc pl-5 text-sm space-y-1">
-            <li>Régimen: <strong>{data.regime}</strong> (score {data.score.toFixed(2)})</li>
+            <li>Régimen: <strong>{data.regime || 'Neutral'}</strong> (score {(data.score || 0).toFixed(2)})</li>
             <li>USD: <strong>{usd}</strong></li>
             {SHOW_CORR_ON_DASH && (
               <li>Correlación 12m fuerte: {strongCorr.length ? strongCorr.join(', ') : '—'}</li>
@@ -254,7 +286,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
               </thead>
               <tbody>
                 {CATEGORY_ORDER.map(cat => {
-                  const rows = (data.items as any[]).filter(i => i.category === cat)
+                  const rows = items.filter(i => i.category === cat)
                   if (!rows.length) return null
                   return (
                     <Fragment key={cat}>
@@ -288,8 +320,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                         return (
                           <tr key={String(i.seriesId || i.key)} className="border-t">
                             <td className="px-3 py-2">{i.label}{showKeys ? <span className="text-muted-foreground text-xs"> {' ' }[{i.key}]</span> : null}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{valPrevious}{i.value_previous != null && i.unit ? ` ${i.unit}` : ''}</td>
-                            <td className="px-3 py-2">{valCurrent}{i.value != null && i.unit ? ` ${i.unit}` : ''}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{valPrevious}{i.value_previous != null && (i as any).unit ? ` ${(i as any).unit}` : ''}</td>
+                            <td className="px-3 py-2">{valCurrent}{i.value != null && (i as any).unit ? ` ${(i as any).unit}` : ''}</td>
                             <td className="px-3 py-2">
                               {trend ? (
                                 <span className={`inline-flex rounded-full px-2 py-0.5 text-xs ${trendBadge}`}>
