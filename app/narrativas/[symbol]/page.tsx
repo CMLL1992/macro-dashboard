@@ -243,7 +243,7 @@ export default async function NarrativeDetailPage({ params }: { params: { symbol
             </p>
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Contexto macroeconómico actual:</strong> El mercado se encuentra en un entorno de USD {usd.toLowerCase()} y cuadrante {quad}. Esta combinación de factores fundamentales está impulsando la narrativa {trend_final.toLowerCase()} para este activo.
+                <strong>Contexto macroeconómico actual:</strong> El mercado se encuentra en un entorno de USD {usd.toLowerCase()} y cuadrante {quad}. Esta combinación de factores fundamentales está impulsando la narrativa {trend_final?.toLowerCase() || 'neutral'} para este activo.
               </p>
             </div>
           </div>
