@@ -209,13 +209,17 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     // IMPORTANTE: Preservar la categoría exacta que viene de /api/bias
     const category = root.category ?? ''
     
+    // Preservar valores numéricos (incluyendo 0)
+    const value = root.value !== undefined && root.value !== null ? root.value : null
+    const previous = root.value_previous !== undefined && root.value_previous !== null ? root.value_previous : null
+    
     return {
       key: root.key ?? root.seriesId ?? root.originalKey ?? '',
       seriesId: root.seriesId ?? root.key ?? root.originalKey ?? '',
       label: root.label ?? '',
       category: category, // Preservar la categoría exacta
-      value: root.value ?? null,
-      previous: root.value_previous ?? null,
+      value: value,
+      previous: previous,
       date: root.date ?? null,
       date_previous: root.date_previous ?? null,
       trend: root.trend ?? null,
@@ -596,8 +600,9 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                         })())
                         .map((row: NormalizedBiasRow) => {
                         const isPayemsDelta = typeof row.label === 'string' && row.label.includes('Payrolls Δ')
-                        const formatValue = (v: number | null) => {
-                          if (v == null) return '—'
+                        const formatValue = (v: number | null | undefined) => {
+                          // Verificar explícitamente null y undefined
+                          if (v === null || v === undefined) return '—'
                           if (!Number.isFinite(v)) return String(v)
                           return isPayemsDelta ? Math.round(v).toString() : v.toFixed(2)
                         }
@@ -605,6 +610,20 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                         const valPrevious = formatValue(row.previous)
                         const p = row.posture ?? (row.value == null ? 'Neutral' : 'Neutral')
                         const trend = row.trend
+                        
+                        // Debug: log de valores para cada fila
+                        if (row.value !== null && row.value !== undefined) {
+                          console.log('[Dashboard] ROW DATA', {
+                            key: row.key,
+                            label: row.label,
+                            value: row.value,
+                            previous: row.previous,
+                            date: row.date,
+                            trend: row.trend,
+                            formattedCurrent: valCurrent,
+                            formattedPrevious: valPrevious,
+                          })
+                        }
                         const trendColor = trend === 'Mejora' ? 'text-green-600' : trend === 'Empeora' ? 'text-red-600' : trend === 'Estable' ? 'text-gray-500' : 'text-muted-foreground'
                         const trendBadge = trend === 'Mejora' ? 'bg-green-600/10 text-green-700' : trend === 'Empeora' ? 'bg-red-600/10 text-red-700' : trend === 'Estable' ? 'bg-gray-500/10 text-gray-700' : 'bg-gray-500/10 text-gray-500'
                         return (
