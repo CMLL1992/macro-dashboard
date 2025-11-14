@@ -327,7 +327,7 @@ export default async function NarrativeDetailPage({ params }: { params: { symbol
               <div className="bg-muted/30 rounded-lg p-4">
                 <h3 className="font-semibold mb-2">Gestión de Riesgo</h3>
                 <p className="text-foreground leading-relaxed">
-                  Con una confianza {confidence_level.toLowerCase()}, es importante gestionar el riesgo adecuadamente. Si la confianza es alta, puedes considerar posiciones más grandes, pero siempre con stop-loss. Si la confianza es media o baja, reduce el tamaño de la posición y espera confirmación con price action.
+                  Con una confianza {confidence_level?.toLowerCase() || 'media'}, es importante gestionar el riesgo adecuadamente. Si la confianza es alta, puedes considerar posiciones más grandes, pero siempre con stop-loss. Si la confianza es media o baja, reduce el tamaño de la posición y espera confirmación con price action.
                 </p>
               </div>
 
