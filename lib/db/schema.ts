@@ -15,13 +15,30 @@ import { existsSync, mkdirSync } from 'fs'
 const isVercel = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_URL)
 const isProduction = process.env.NODE_ENV === 'production' || isVercel
 
-// En Vercel (producción/preview): SIEMPRE usar /tmp/macro.db (único directorio escribible)
-// En desarrollo local: usar ./macro.db (en la raíz del proyecto)
-const DB_PATH = process.env.DATABASE_PATH || (
-  isVercel
-    ? '/tmp/macro.db'
-    : join(process.cwd(), 'macro.db')
-)
+// Función para detectar si estamos en un entorno serverless (Vercel) por el path de process.cwd()
+// En Vercel, process.cwd() es /var/task, que es de solo lectura
+function detectServerless(): boolean {
+  try {
+    const cwd = process.cwd()
+    return cwd === '/var/task' || cwd.startsWith('/var/task')
+  } catch {
+    return false
+  }
+}
+
+// Función para obtener el path de la BD
+function getDBPath(): string {
+  if (process.env.DATABASE_PATH) {
+    return process.env.DATABASE_PATH
+  }
+  
+  const isServerless = detectServerless()
+  if (isVercel || isServerless) {
+    return '/tmp/macro.db'
+  }
+  
+  return join(process.cwd(), 'macro.db')
+}
 
 // NOTA: Los logs se hacen dentro de getDB() para evitar ejecución durante el build
 
@@ -30,12 +47,17 @@ let db: Database.Database | null = null
 export function getDB(): Database.Database {
   if (!db) {
     try {
+      // Calcular path y detección de serverless en runtime
+      const isServerless = detectServerless()
+      const DB_PATH = getDBPath()
+      
       // Log detallado ANTES de intentar abrir la BD
       console.log('[db] ========================================')
       console.log('[db] Opening database at:', DB_PATH)
       console.log('[db] DATABASE_PATH env:', process.env.DATABASE_PATH || 'NOT SET')
       console.log('[db] NODE_ENV:', process.env.NODE_ENV || 'NOT SET')
       console.log('[db] isVercel:', isVercel)
+      console.log('[db] isServerless:', isServerless)
       console.log('[db] isProduction:', isProduction)
       console.log('[db] VERCEL:', process.env.VERCEL || 'NOT SET')
       console.log('[db] VERCEL_ENV:', process.env.VERCEL_ENV || 'NOT SET')
@@ -43,16 +65,16 @@ export function getDB(): Database.Database {
       console.log('[db] process.cwd():', process.cwd())
       console.log('[db] ========================================')
       
-      // En Vercel, verificar que /tmp existe y es accesible
-      if (isVercel) {
+      // En Vercel/serverless, verificar que /tmp existe y es accesible
+      if (isVercel || isServerless) {
         if (!DB_PATH.startsWith('/tmp')) {
-          console.error('[db] ERROR: In Vercel, DB_PATH must be in /tmp, got:', DB_PATH)
-          throw new Error(`In Vercel, database must be in /tmp, but got: ${DB_PATH}`)
+          console.error('[db] ERROR: In Vercel/serverless, DB_PATH must be in /tmp, got:', DB_PATH)
+          throw new Error(`In Vercel/serverless, database must be in /tmp, but got: ${DB_PATH}`)
         }
         // Verificar que /tmp existe (debería existir siempre en Vercel)
         if (!existsSync('/tmp')) {
-          console.error('[db] ERROR: /tmp does not exist in Vercel environment!')
-          throw new Error('Cannot access /tmp directory in Vercel')
+          console.error('[db] ERROR: /tmp does not exist in Vercel/serverless environment!')
+          throw new Error('Cannot access /tmp directory in Vercel/serverless')
         }
         console.log('[db] Verified /tmp exists and is accessible')
       }
@@ -64,7 +86,7 @@ export function getDB(): Database.Database {
       // Intentar crear la base de datos
       // better-sqlite3 creará el archivo automáticamente si no existe
       // En Vercel (serverless), usar opciones que funcionen mejor
-      const options = isVercel ? { 
+      const options = (isVercel || isServerless) ? { 
         // En serverless, no usar WAL mode ya que puede causar problemas
       } : {}
       
@@ -73,10 +95,10 @@ export function getDB(): Database.Database {
       console.log('[db] Database opened successfully')
       
       // Solo usar WAL mode en desarrollo local (no en Vercel/serverless)
-      if (!isVercel) {
+      if (!isVercel && !isServerless) {
         db.pragma('journal_mode = WAL')
       } else {
-        // En Vercel, usar DELETE mode (más compatible con serverless)
+        // En Vercel/serverless, usar DELETE mode (más compatible con serverless)
         db.pragma('journal_mode = DELETE')
       }
       
@@ -91,6 +113,7 @@ export function getDB(): Database.Database {
       console.error('[db] DATABASE_PATH env:', process.env.DATABASE_PATH || 'NOT SET')
       console.error('[db] NODE_ENV:', process.env.NODE_ENV || 'NOT SET')
       console.error('[db] isVercel:', isVercel)
+      console.error('[db] isServerless:', isServerless)
       console.error('[db] isProduction:', isProduction)
       console.error('[db] VERCEL:', process.env.VERCEL || 'NOT SET')
       console.error('[db] VERCEL_ENV:', process.env.VERCEL_ENV || 'NOT SET')
