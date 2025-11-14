@@ -151,10 +151,20 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   const CONFIDENCE_TOOLTIP = `\nConfianza = probabilidad de que el activo se mueva según el sesgo macro actual.\n\n• Alta: ~70–80% (correlación fuerte y régimen claro)\n• Media: ~50–60%\n• Baja: <50%\n\nEjemplo: Si el USD está fuerte y EUR/USD tiene confianza Alta, hay alta probabilidad de que EUR/USD caiga.\n`
   const showKeys = (safeSearchParams?.showKeys ?? '') === '1'
   
-  // Normalizar items (usar items de data, no de apiBias)
-  const items = Array.isArray(data.items) ? data.items : []
+  // Usar items de apiBias (que viene de /api/bias) como fuente principal para la tabla
+  // Si apiBias.items está vacío o no tiene datos, usar data.items como fallback
+  const apiBiasItems = Array.isArray(apiBias?.items) ? apiBias.items : []
+  const dataItems = Array.isArray(data?.items) ? data.items : []
+  
+  // Preferir apiBias.items si tiene datos, sino usar data.items
+  const items = apiBiasItems.length > 0 ? apiBiasItems : dataItems
+  
+  // Calcular regime y score una sola vez para usar en múltiples lugares
+  const regime = apiBias?.regime || data?.regime || 'Neutral'
+  const score = apiBias?.score ?? data?.score ?? 0
   
   // 3. Calcular usd, quad, biasRows - pueden fallar, envolver en try-catch
+  // Usar items para cálculos (pueden venir de apiBias o data)
   let usd: 'Fuerte' | 'Débil' | 'Neutral' = 'Neutral'
   let quad = 'expansion'
   let biasRows: any[] = []
@@ -162,7 +172,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   try {
     usd = usdBias(items)
     quad = macroQuadrant(items)
-    biasRows = getBiasTable(data.regime || 'Neutral', usd, quad)
+    biasRows = getBiasTable(regime, usd, quad)
   } catch (error) {
     console.warn('[Dashboard] Error calculating usd/quad/biasRows, using defaults', error)
     usd = 'Neutral'
@@ -192,7 +202,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   // 5. Get tactical rows - puede fallar
   let tacticalRows: any[] = []
   try {
-    tacticalRows = await getBiasTableTactical(items, data.regime || 'Neutral', usd, data.score || 0, [], corrMap)
+    tacticalRows = await getBiasTableTactical(items, regime, usd, score, [], corrMap)
   } catch (error) {
     console.warn('[Dashboard] getBiasTableTactical failed, using empty array', error)
     tacticalRows = []
@@ -203,14 +213,14 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     tacticalRows = []
   }
   
-  const color = data.regime === 'RISK ON' ? 'text-green-600' : data.regime === 'RISK OFF' ? 'text-red-600' : 'text-gray-600'
+  const color = regime === 'RISK ON' ? 'text-green-600' : regime === 'RISK OFF' ? 'text-red-600' : 'text-gray-600'
   const SHOW_CORR_ON_DASH = false
   const strongCorr: string[] = []
   
   // 6. Detect scenarios - puede fallar
   let scenarios: any[] = []
   try {
-    scenarios = detectScenarios(items, data.regime || 'Neutral')
+    scenarios = detectScenarios(items, regime)
   } catch (error) {
     console.warn('[Dashboard] detectScenarios failed, using empty array', error)
     scenarios = []
@@ -272,12 +282,12 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
             </Link>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 ${color}`}>Régimen: <strong>{data.regime || 'Neutral'}</strong> ({(data.score || 0).toFixed(2)})</span>
+            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 ${color}`}>Régimen: <strong>{regime}</strong> ({score.toFixed(2)})</span>
             <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">USD: <strong>{usd}</strong></span>
             <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">Cuadrante: <strong>{quad}</strong></span>
           </div>
           <div className="mt-2 text-xs text-muted-foreground">
-            Score: {(data.score || 0).toFixed(2)} | Umbral: {(data.threshold || 0.3).toFixed(2)} | Activos: {data.counts?.withValue ?? 0}/{data.counts?.total ?? 0} | Mejoran: {data.improving ?? 0} | Empeoran: {data.deteriorating ?? 0}
+            Score: {score.toFixed(2)} | Umbral: {(data?.threshold ?? 0.3).toFixed(2)} | Activos: {data?.counts?.withValue ?? 0}/{data?.counts?.total ?? 0} | Mejoran: {data?.improving ?? 0} | Empeoran: {data?.deteriorating ?? 0}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
             <span className="inline-flex items-center gap-2 rounded-full border px-2 py-0.5">
@@ -325,7 +335,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
         <div className="rounded-lg border bg-card p-6">
           <h2 className="font-semibold mb-2">Insights</h2>
           <ul className="list-disc pl-5 text-sm space-y-1">
-            <li>Régimen: <strong>{data.regime || 'Neutral'}</strong> (score {(data.score || 0).toFixed(2)})</li>
+            <li>Régimen: <strong>{regime}</strong> (score {score.toFixed(2)})</li>
             <li>USD: <strong>{usd}</strong></li>
             {SHOW_CORR_ON_DASH && (
               <li>Correlación 12m fuerte: {strongCorr.length ? strongCorr.join(', ') : '—'}</li>
