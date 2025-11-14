@@ -89,6 +89,11 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   let apiBias: any = null
   try {
     apiBias = await fetchBias()
+    console.log('[Dashboard] fetchBias success', {
+      itemsCount: Array.isArray(apiBias?.items) ? apiBias.items.length : 0,
+      hasHealth: !!apiBias?.health,
+      firstItem: apiBias?.items?.[0] || null,
+    })
   } catch (error) {
     console.error('[Dashboard] fetchBias failed, using defaults', {
       error: error instanceof Error ? error.message : String(error),
@@ -98,14 +103,25 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
 
   // Normalizar apiBias
   if (!apiBias || typeof apiBias !== 'object') {
+    console.warn('[Dashboard] apiBias is not an object, using defaults')
     apiBias = { items: [], health: { hasData: false, observationCount: 0, biasCount: 0, correlationCount: 0 } }
   }
   if (!Array.isArray(apiBias.items)) {
+    console.warn('[Dashboard] apiBias.items is not an array, setting to empty array', {
+      type: typeof apiBias.items,
+      value: apiBias.items,
+    })
     apiBias.items = []
   }
   if (!apiBias.health || typeof apiBias.health !== 'object') {
     apiBias.health = { hasData: false, observationCount: 0, biasCount: 0, correlationCount: 0 }
   }
+  
+  console.log('[Dashboard] apiBias after normalization', {
+    itemsCount: apiBias.items.length,
+    itemsIsArray: Array.isArray(apiBias.items),
+    firstItemCategory: apiBias.items[0]?.category || 'N/A',
+  })
 
   // 2. Get macro diagnosis - NO lanzar error, usar valores por defecto si falla
   let data: any = null
