@@ -20,13 +20,26 @@ export const revalidate = 0
  */
 async function fetchBias() {
   const startTime = Date.now()
-  // Usar URL relativa (funciona tanto en desarrollo como en producción)
-  // En server-side, fetch() con URL relativa se resuelve automáticamente
-  const endpoint = '/api/bias'
+  // En server components de Next.js, necesitamos usar URL absoluta
+  // Construir la URL base desde las variables de entorno o usar localhost en desarrollo
+  const baseUrl = process.env.APP_URL || process.env.VERCEL_URL 
+    ? `https://${process.env.VERCEL_URL || process.env.APP_URL?.replace(/^https?:\/\//, '')}`
+    : 'http://localhost:3000'
+  const endpoint = `${baseUrl}/api/bias`
+  
+  console.log('[Dashboard] fetchBias - using endpoint', {
+    endpoint,
+    hasAppUrl: !!process.env.APP_URL,
+    hasVercelUrl: !!process.env.VERCEL_URL,
+    nodeEnv: process.env.NODE_ENV,
+  })
 
   try {
     const res = await fetch(endpoint, {
       cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+      },
     })
 
     const duration = Date.now() - startTime
