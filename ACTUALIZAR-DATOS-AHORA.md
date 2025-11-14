@@ -91,3 +91,5 @@ Una vez actualizado manualmente, el sistema se actualizará automáticamente:
 
 **Última actualización:** 13/11/2025
 
+
+

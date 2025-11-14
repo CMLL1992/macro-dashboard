@@ -21,7 +21,7 @@ interface CalendarEvent {
   consenso?: string
 }
 
-const APP_URL = process.env.APP_URL || 'http://localhost:3000'
+const BASE_URL = process.env.APP_URL || 'http://localhost:3000'
 const INGEST_KEY = process.env.INGEST_KEY
 const TRADING_ECONOMICS_API_KEY = process.env.TRADING_ECONOMICS_API_KEY
 
@@ -142,11 +142,11 @@ async function ingestFromTradingEconomics() {
     for (const event of events) {
       try {
         // Send to API endpoint (API handles deduplication)
-        const response = await fetch(`${APP_URL}/api/calendar/insert`, {
+        const response = await fetch(`${BASE_URL}/api/calendar/insert`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-INGEST-KEY': INGEST_KEY,
+            'X-INGEST-KEY': INGEST_KEY || '',
           },
           body: JSON.stringify(event),
         })
@@ -198,3 +198,7 @@ if (import.meta.url === `file://${process.argv[1]}` || import.meta.url.endsWith(
 
 export { ingestFromTradingEconomics }
 
+
+
+
+export {}

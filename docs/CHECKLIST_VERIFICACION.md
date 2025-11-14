@@ -232,3 +232,5 @@ Si `bot_ok` o `chat_ok` cambian a `false`:
 *Última actualización: Enero 2025*
 
 
+
+

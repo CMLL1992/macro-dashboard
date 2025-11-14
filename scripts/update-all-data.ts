@@ -16,14 +16,14 @@
  *   pnpm tsx scripts/update-all-data.ts
  */
 
-const APP_URL = process.env.APP_URL || 'https://macro-dashboard-seven.vercel.app'
+const BASE_URL = process.env.APP_URL || 'https://macro-dashboard-seven.vercel.app'
 const CRON_TOKEN = process.env.CRON_TOKEN || ''
 const INGEST_KEY = process.env.INGEST_KEY || ''
 const FRED_API_KEY = process.env.FRED_API_KEY || ''
 
 async function callAPI(endpoint: string, method: string = 'POST', headers: Record<string, string> = {}, body?: any) {
   try {
-    const response = await fetch(`${APP_URL}${endpoint}`, {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
       method,
       headers: {
         'Content-Type': 'application/json',
@@ -116,7 +116,7 @@ async function updateCalendar() {
 
 async function main() {
   console.log('🔄 Actualizando todos los datos hasta hoy (13/11/2025)...\n')
-  console.log(`📍 URL: ${APP_URL}`)
+  console.log(`📍 URL: ${BASE_URL}`)
   console.log(`📅 Fecha: ${new Date().toLocaleDateString('es-ES')}\n`)
 
   if (!CRON_TOKEN) {
@@ -129,7 +129,13 @@ async function main() {
     console.warn('⚠️  FRED_API_KEY no configurado, calendario puede fallar')
   }
 
-  const results = {
+  const results: {
+    fred: any
+    correlations: any
+    bias: any
+    news: any
+    calendar: any
+  } = {
     fred: null,
     correlations: null,
     bias: null,
@@ -178,3 +184,7 @@ main().catch(error => {
   process.exit(1)
 })
 
+
+
+
+export {}

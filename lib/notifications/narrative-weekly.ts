@@ -745,7 +745,7 @@ export async function sendWeeklyNarrativeSummary(): Promise<{ success: boolean; 
       
       // Weekly summary has normal priority
       enqueueMessage(message, chatId, 'normal', 'weekly')
-      incrementMetric('notification_sent_total', { type: 'narrative_weekly', status: 'queued' })
+      incrementMetric('notification_sent_total', JSON.stringify({ type: 'narrative_weekly', status: 'queued' }))
       console.log(`[narrative-weekly] queued changeCount=${changes.length}`)
       return { success: true, changeCount: changes.length }
     } else {
@@ -771,11 +771,11 @@ export async function sendWeeklyNarrativeSummary(): Promise<{ success: boolean; 
       }
       
       if (result.success) {
-        incrementMetric('notification_sent_total', { type: 'narrative_weekly', status: 'sent' })
+        incrementMetric('notification_sent_total', JSON.stringify({ type: 'narrative_weekly', status: 'sent' }))
         console.log(`[narrative-weekly] sent changeCount=${changes.length}`)
         return { success: true, changeCount: changes.length }
       } else {
-        incrementMetric('notification_sent_total', { type: 'narrative_weekly', status: 'failed' })
+        incrementMetric('notification_sent_total', JSON.stringify({ type: 'narrative_weekly', status: 'failed' }))
         console.error(`[narrative-weekly] failed reason=${result.error || 'unknown'}`)
         return { success: false, error: result.error }
       }

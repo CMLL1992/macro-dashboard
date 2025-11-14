@@ -657,21 +657,22 @@ function buildMacroDriversSection(
   
   // Get top drivers
   const topDrivers = items
-    .filter((i: any) => i.value != null && i.posture !== 'Neutral')
+    .filter((i: any) => i.value != null && (i as any).posture !== 'Neutral')
     .sort((a: any, b: any) => {
       const aWeight = Math.abs(a.value || 0)
       const bWeight = Math.abs(b.value || 0)
       return bWeight - aWeight
     })
-    .slice(0, 5)
+    .slice(0, 5) as Array<LatestPoint & { posture?: string; trend?: string }>
   
   if (topDrivers.length > 0) {
     section += `Los principales drivers macroeconómicos que afectan a ${par} son:\n\n`
     
     for (const driver of topDrivers) {
-      section += `- **${driver.label}:** ${driver.value?.toFixed(2)} (Postura: ${driver.posture})\n`
-      if (driver.trend) {
-        section += `  - Tendencia: ${driver.trend}\n`
+      const posture = (driver as any).posture || 'Neutral'
+      section += `- **${driver.label}:** ${driver.value?.toFixed(2)} (Postura: ${posture})\n`
+      if ((driver as any).trend) {
+        section += `  - Tendencia: ${(driver as any).trend}\n`
       }
     }
     section += `\n`

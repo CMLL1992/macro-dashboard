@@ -132,3 +132,5 @@ Para verificar que todo funciona:
 **Última actualización:** 2025-11-13  
 **Estado:** ✅ Resuelto y funcionando
 
+
+

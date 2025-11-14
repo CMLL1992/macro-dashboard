@@ -88,3 +88,5 @@ Deja que FRED determine automáticamente cuál es la fecha más reciente disponi
 **Fecha de la solución:** 13/11/2025  
 **Commit:** `52bb7cb` - "fix: remover observation_end para obtener datos más recientes de FRED"
 
+
+

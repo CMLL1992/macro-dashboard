@@ -263,3 +263,5 @@ FRED_API_KEY = ccc90330e6a50afa217fb55ac48c4d28 (MISMO VALOR)
 
 **Última actualización:** 13/11/2025
 
+
+

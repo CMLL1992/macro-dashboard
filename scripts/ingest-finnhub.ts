@@ -35,7 +35,7 @@ interface NewsItem {
   valor_esperado?: number
 }
 
-const APP_URL = process.env.APP_URL || 'http://localhost:3000'
+const BASE_URL = process.env.APP_URL || 'http://localhost:3000'
 const INGEST_KEY = process.env.INGEST_KEY
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY
 
@@ -231,11 +231,11 @@ async function ingestFromFinnhub() {
     
     for (const event of calendarEvents) {
       try {
-        const response = await fetch(`${APP_URL}/api/calendar/insert`, {
+        const response = await fetch(`${BASE_URL}/api/calendar/insert`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-INGEST-KEY': INGEST_KEY,
+            'X-INGEST-KEY': INGEST_KEY || '',
           },
           body: JSON.stringify(event),
         })
@@ -263,11 +263,11 @@ async function ingestFromFinnhub() {
     
     for (const news of newsItems) {
       try {
-        const response = await fetch(`${APP_URL}/api/news/insert`, {
+        const response = await fetch(`${BASE_URL}/api/news/insert`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-INGEST-KEY': INGEST_KEY,
+            'X-INGEST-KEY': INGEST_KEY || '',
           },
           body: JSON.stringify(news),
         })
@@ -317,3 +317,7 @@ if (import.meta.url === `file://${process.argv[1]}` || import.meta.url.endsWith(
 
 export { ingestFromFinnhub }
 
+
+
+
+export {}

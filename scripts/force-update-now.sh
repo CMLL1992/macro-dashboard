@@ -65,3 +65,5 @@ echo ""
 echo "📅 Verifica el dashboard en: $APP_URL/dashboard"
 echo "   El timestamp 'Actualizado' debería mostrar la fecha/hora actual"
 
+
+

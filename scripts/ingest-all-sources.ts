@@ -14,7 +14,7 @@
  *   pnpm tsx scripts/ingest-all-sources.ts
  */
 
-const APP_URL = process.env.APP_URL || 'http://localhost:3000'
+const BASE_URL = process.env.APP_URL || 'http://localhost:3000'
 const INGEST_KEY = process.env.INGEST_KEY
 
 if (!INGEST_KEY) {
@@ -53,7 +53,7 @@ async function runIngest(source: string, fn: () => Promise<any>): Promise<Ingest
 
 async function main() {
   console.log('🚀 Starting ingestion from ALL sources...')
-  console.log(`📍 APP_URL: ${APP_URL}`)
+  console.log(`📍 BASE_URL: ${BASE_URL}`)
   console.log(`📅 Date: ${new Date().toLocaleDateString('es-ES')}\n`)
 
   const results: IngestResult[] = []
@@ -168,3 +168,7 @@ main().catch(error => {
   process.exit(1)
 })
 
+
+
+
+export {}

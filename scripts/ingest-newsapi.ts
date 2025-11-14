@@ -24,7 +24,7 @@ interface NewsItem {
   valor_esperado?: number
 }
 
-const APP_URL = process.env.APP_URL || 'http://localhost:3000'
+const BASE_URL = process.env.APP_URL || 'http://localhost:3000'
 const INGEST_KEY = process.env.INGEST_KEY
 const NEWSAPI_KEY = process.env.NEWSAPI_KEY
 
@@ -173,11 +173,11 @@ async function ingestFromNewsAPI() {
     
     for (const news of newsItems) {
       try {
-        const response = await fetch(`${APP_URL}/api/news/insert`, {
+        const response = await fetch(`${BASE_URL}/api/news/insert`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-INGEST-KEY': INGEST_KEY,
+            'X-INGEST-KEY': INGEST_KEY || '',
           },
           body: JSON.stringify(news),
         })
@@ -222,3 +222,7 @@ if (import.meta.url === `file://${process.argv[1]}` || import.meta.url.endsWith(
 
 export { ingestFromNewsAPI }
 
+
+
+
+export {}

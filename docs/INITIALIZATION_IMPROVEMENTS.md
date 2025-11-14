@@ -154,3 +154,5 @@ Next.js no recarga variables de entorno en caliente. Debes reiniciar el proceso.
 *Última actualización: Enero 2025*
 
 
+
+

@@ -88,3 +88,5 @@ main()
     await prisma.$disconnect();
   });
 
+
+export {}

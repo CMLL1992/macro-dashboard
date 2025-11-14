@@ -242,7 +242,7 @@ export default async function NoticiasPage() {
                             {/* Previsión (Consenso) */}
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                               <div className="text-xs text-blue-700 mb-1 font-medium">Previsión (Consenso)</div>
-                              {consenso.value != null ? (
+                              {typeof consenso === 'object' && consenso?.value != null ? (
                                 <div>
                                   <div className="text-lg font-semibold text-blue-900">
                                     {consenso.value > 0 ? '+' : ''}{consenso.value.toLocaleString('es-ES', {
@@ -266,7 +266,7 @@ export default async function NoticiasPage() {
                             {/* Análisis */}
                             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                               <div className="text-xs text-green-700 mb-1 font-medium">Análisis</div>
-                              {history?.value_previous != null && consenso.value != null ? (
+                              {history?.value_previous != null && typeof consenso === 'object' && consenso?.value != null ? (
                                 <div className="text-sm text-green-800">
                                   {consenso.value > history.value_previous ? (
                                     <span className="font-semibold">Esperado mejor que anterior</span>
@@ -285,7 +285,7 @@ export default async function NoticiasPage() {
                           </div>
 
                           {/* Información adicional */}
-                          {eventWithHistory.indicatorKey && (
+                          {'indicatorKey' in eventWithHistory && eventWithHistory.indicatorKey && (
                             <div className="mt-4 pt-4 border-t text-xs text-muted-foreground">
                               Indicador relacionado: <code className="bg-muted px-1 rounded">{eventWithHistory.indicatorKey}</code>
                             </div>

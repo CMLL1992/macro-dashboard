@@ -3,14 +3,14 @@
  * Llama a /api/health y muestra un resumen detallado
  */
 
-const APP_URL = process.env.APP_URL || 'https://macro-dashboard-seven.vercel.app'
+const BASE_URL = process.env.APP_URL || 'https://macro-dashboard-seven.vercel.app'
 
 async function checkHealth() {
   try {
     console.log('🔍 Verificando estado de los datos...\n')
-    console.log(`📍 URL: ${APP_URL}\n`)
+    console.log(`📍 URL: ${BASE_URL}\n`)
 
-    const response = await fetch(`${APP_URL}/api/health`, {
+    const response = await fetch(`${BASE_URL}/api/health`, {
       cache: 'no-store',
     })
 
@@ -77,3 +77,7 @@ async function checkHealth() {
 
 checkHealth()
 
+
+
+
+export {}

@@ -91,3 +91,5 @@ https://macro-dashboard-seven.vercel.app/api/health
 - `GUIA-DEBUGGING-COMPLETA.md` - Guía detallada
 - `COMO-REVISAR-LOGS-WORKFLOWS.md` - Cómo interpretar los logs
 
+
+
