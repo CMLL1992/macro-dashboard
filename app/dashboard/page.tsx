@@ -329,6 +329,16 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     (apiBias?.items ?? []).length === 0 &&
     items.length === 0
 
+  // Debug: Log de items para la tabla (justo antes del render)
+  console.log('[Dashboard] items para la tabla', {
+    length: items.length,
+    sample: items[0] || null,
+    itemsByCategory: CATEGORY_ORDER.map(cat => ({
+      category: cat,
+      count: items.filter((row: NormalizedBiasRow) => row.category === cat).length,
+    })),
+  })
+
   return (
     <main className="p-6">
       <div className="max-w-5xl mx-auto space-y-6">
