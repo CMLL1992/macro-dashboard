@@ -99,13 +99,13 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
 
   // Normalizar apiBias
   if (!apiBias || typeof apiBias !== 'object') {
-    apiBias = { items: [], hasData: false, health: { hasObservations: false, hasBias: false, hasCorrelations: false, observationCount: 0, biasCount: 0, correlationCount: 0 } }
+    apiBias = { items: [], health: { hasData: false, hasObservations: false, hasBias: false, hasCorrelations: false, observationCount: 0, biasCount: 0, correlationCount: 0 } }
   }
   if (!Array.isArray(apiBias.items)) {
     apiBias.items = []
   }
   if (!apiBias.health || typeof apiBias.health !== 'object') {
-    apiBias.health = { hasObservations: false, hasBias: false, hasCorrelations: false, observationCount: 0, biasCount: 0, correlationCount: 0 }
+    apiBias.health = { hasData: false, hasObservations: false, hasBias: false, hasCorrelations: false, observationCount: 0, biasCount: 0, correlationCount: 0 }
   }
 
   // Guardrails: check minimum data requirements
@@ -114,8 +114,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   const observationCount = apiBias.health?.observationCount || 0
 
   // Verificar que los datos están listos usando la estructura correcta
-  const hasData = apiBias?.hasData === true
   const health = apiBias?.health
+  const hasData = health?.hasData === true
   
   const ready =
     hasData &&
