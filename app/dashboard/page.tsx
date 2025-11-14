@@ -22,9 +22,12 @@ async function fetchBias() {
   const startTime = Date.now()
   // En server components de Next.js, necesitamos usar URL absoluta
   // Construir la URL base desde las variables de entorno o usar localhost en desarrollo
-  const baseUrl = process.env.APP_URL || process.env.VERCEL_URL 
-    ? `https://${process.env.VERCEL_URL || process.env.APP_URL?.replace(/^https?:\/\//, '')}`
-    : 'http://localhost:3000'
+  let baseUrl = 'http://localhost:3000'
+  if (process.env.APP_URL) {
+    baseUrl = process.env.APP_URL
+  } else if (process.env.VERCEL_URL) {
+    baseUrl = `https://${process.env.VERCEL_URL}`
+  }
   const endpoint = `${baseUrl}/api/bias`
   
   console.log('[Dashboard] fetchBias - using endpoint', {
