@@ -30,10 +30,18 @@ let db: Database.Database | null = null
 export function getDB(): Database.Database {
   if (!db) {
     try {
-      // Log para debugging
-      console.log('[db] Initializing database at:', DB_PATH)
-      console.log('[db] NODE_ENV:', process.env.NODE_ENV, 'isVercel:', isVercel, 'isProduction:', isProduction)
-      console.log('[db] VERCEL:', process.env.VERCEL, 'VERCEL_ENV:', process.env.VERCEL_ENV, 'VERCEL_URL:', process.env.VERCEL_URL)
+      // Log detallado ANTES de intentar abrir la BD
+      console.log('[db] ========================================')
+      console.log('[db] Opening database at:', DB_PATH)
+      console.log('[db] DATABASE_PATH env:', process.env.DATABASE_PATH || 'NOT SET')
+      console.log('[db] NODE_ENV:', process.env.NODE_ENV || 'NOT SET')
+      console.log('[db] isVercel:', isVercel)
+      console.log('[db] isProduction:', isProduction)
+      console.log('[db] VERCEL:', process.env.VERCEL || 'NOT SET')
+      console.log('[db] VERCEL_ENV:', process.env.VERCEL_ENV || 'NOT SET')
+      console.log('[db] VERCEL_URL:', process.env.VERCEL_URL || 'NOT SET')
+      console.log('[db] process.cwd():', process.cwd())
+      console.log('[db] ========================================')
       
       // En Vercel, verificar que /tmp existe y es accesible
       if (isVercel) {
@@ -46,7 +54,12 @@ export function getDB(): Database.Database {
           console.error('[db] ERROR: /tmp does not exist in Vercel environment!')
           throw new Error('Cannot access /tmp directory in Vercel')
         }
+        console.log('[db] Verified /tmp exists and is accessible')
       }
+      
+      // Verificar si el archivo ya existe
+      const dbExists = existsSync(DB_PATH)
+      console.log('[db] Database file exists:', dbExists, 'at:', DB_PATH)
       
       // Intentar crear la base de datos
       // better-sqlite3 creará el archivo automáticamente si no existe
@@ -55,7 +68,9 @@ export function getDB(): Database.Database {
         // En serverless, no usar WAL mode ya que puede causar problemas
       } : {}
       
+      console.log('[db] Attempting to open database with options:', JSON.stringify(options))
       db = new Database(DB_PATH, options)
+      console.log('[db] Database opened successfully')
       
       // Solo usar WAL mode en desarrollo local (no en Vercel/serverless)
       if (!isVercel) {
@@ -69,10 +84,19 @@ export function getDB(): Database.Database {
       initializeSchema(db)
       console.log('[db] Database initialized successfully at:', DB_PATH)
     } catch (error: any) {
-      console.error('[db] Error opening database at', DB_PATH)
-      console.error('[db] Error details:', error?.message, error?.code)
-      console.error('[db] NODE_ENV:', process.env.NODE_ENV, 'isVercel:', isVercel, 'isProduction:', isProduction)
-      console.error('[db] VERCEL:', process.env.VERCEL, 'VERCEL_ENV:', process.env.VERCEL_ENV, 'VERCEL_URL:', process.env.VERCEL_URL)
+      console.error('[db] ========================================')
+      console.error('[db] ERROR opening database at:', DB_PATH)
+      console.error('[db] Error message:', error?.message)
+      console.error('[db] Error code:', error?.code)
+      console.error('[db] DATABASE_PATH env:', process.env.DATABASE_PATH || 'NOT SET')
+      console.error('[db] NODE_ENV:', process.env.NODE_ENV || 'NOT SET')
+      console.error('[db] isVercel:', isVercel)
+      console.error('[db] isProduction:', isProduction)
+      console.error('[db] VERCEL:', process.env.VERCEL || 'NOT SET')
+      console.error('[db] VERCEL_ENV:', process.env.VERCEL_ENV || 'NOT SET')
+      console.error('[db] VERCEL_URL:', process.env.VERCEL_URL || 'NOT SET')
+      console.error('[db] process.cwd():', process.cwd())
+      console.error('[db] ========================================')
       throw error
     }
   }
