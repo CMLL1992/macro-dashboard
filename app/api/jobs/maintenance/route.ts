@@ -41,13 +41,13 @@ export async function POST(request: NextRequest) {
     // 3. Daily backup (if backup directory exists)
     try {
       // Usar la misma lógica que lib/db/schema.ts
-      const isProduction = process.env.NODE_ENV === 'production'
+      const isVercel = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_URL)
       const dbPath = process.env.DATABASE_PATH || (
-        isProduction
+        isVercel
           ? '/tmp/macro.db'
           : path.join(process.cwd(), 'macro.db')
       )
-      const backupDir = isProduction ? '/tmp/backups' : path.join(process.cwd(), 'backups')
+      const backupDir = isVercel ? '/tmp/backups' : path.join(process.cwd(), 'backups')
       
       if (fs.existsSync(backupDir)) {
         const backupPath = path.join(backupDir, `macro_${new Date().toISOString().split('T')[0]}.db`)

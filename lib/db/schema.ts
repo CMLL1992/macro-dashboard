@@ -9,20 +9,23 @@ import Database from 'better-sqlite3'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
 
-// Detectar producción: en producción (Vercel) usar /tmp, en desarrollo usar ./macro.db
-// Vercel solo permite escribir en /tmp, no en /var/task o .next
-const isProduction = process.env.NODE_ENV === 'production'
+// Detectar Vercel de forma robusta: Vercel siempre proporciona VERCEL, VERCEL_ENV o VERCEL_URL
+// En Vercel (producción/preview): usar /tmp (único directorio escribible)
+// En desarrollo local: usar ./macro.db
+const isVercel = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_URL)
+const isProduction = process.env.NODE_ENV === 'production' || isVercel
 
-// En producción: SIEMPRE usar /tmp/macro.db (único directorio escribible en Vercel)
-// En desarrollo: usar ./macro.db (en la raíz del proyecto)
+// En Vercel (producción/preview): SIEMPRE usar /tmp/macro.db (único directorio escribible)
+// En desarrollo local: usar ./macro.db (en la raíz del proyecto)
 const DB_PATH = process.env.DATABASE_PATH || (
-  isProduction
+  isVercel
     ? '/tmp/macro.db'
     : join(process.cwd(), 'macro.db')
 )
 
 // Log para debugging
-console.log('[db] DB_PATH:', DB_PATH, 'NODE_ENV:', process.env.NODE_ENV, 'isProduction:', isProduction)
+console.log('[db] DB_PATH:', DB_PATH, 'NODE_ENV:', process.env.NODE_ENV, 'isVercel:', isVercel, 'isProduction:', isProduction)
+console.log('[db] VERCEL:', process.env.VERCEL, 'VERCEL_ENV:', process.env.VERCEL_ENV, 'VERCEL_URL:', process.env.VERCEL_URL)
 
 let db: Database.Database | null = null
 
@@ -31,35 +34,36 @@ export function getDB(): Database.Database {
     try {
       // Log para debugging
       console.log('[db] Initializing database at:', DB_PATH)
-      console.log('[db] NODE_ENV:', process.env.NODE_ENV, 'isProduction:', isProduction)
+      console.log('[db] NODE_ENV:', process.env.NODE_ENV, 'isVercel:', isVercel, 'isProduction:', isProduction)
+      console.log('[db] VERCEL:', process.env.VERCEL, 'VERCEL_ENV:', process.env.VERCEL_ENV, 'VERCEL_URL:', process.env.VERCEL_URL)
       
-      // En producción, verificar que /tmp existe y es accesible
-      if (isProduction) {
+      // En Vercel, verificar que /tmp existe y es accesible
+      if (isVercel) {
         if (!DB_PATH.startsWith('/tmp')) {
-          console.error('[db] ERROR: In production, DB_PATH must be in /tmp, got:', DB_PATH)
-          throw new Error(`In production, database must be in /tmp, but got: ${DB_PATH}`)
+          console.error('[db] ERROR: In Vercel, DB_PATH must be in /tmp, got:', DB_PATH)
+          throw new Error(`In Vercel, database must be in /tmp, but got: ${DB_PATH}`)
         }
         // Verificar que /tmp existe (debería existir siempre en Vercel)
         if (!existsSync('/tmp')) {
-          console.error('[db] ERROR: /tmp does not exist in production environment!')
-          throw new Error('Cannot access /tmp directory in production')
+          console.error('[db] ERROR: /tmp does not exist in Vercel environment!')
+          throw new Error('Cannot access /tmp directory in Vercel')
         }
       }
       
       // Intentar crear la base de datos
       // better-sqlite3 creará el archivo automáticamente si no existe
-      // En producción (Vercel), usar opciones que funcionen mejor en serverless
-      const options = isProduction ? { 
+      // En Vercel (serverless), usar opciones que funcionen mejor
+      const options = isVercel ? { 
         // En serverless, no usar WAL mode ya que puede causar problemas
       } : {}
       
       db = new Database(DB_PATH, options)
       
-      // Solo usar WAL mode en desarrollo (no en producción/serverless)
-      if (!isProduction) {
+      // Solo usar WAL mode en desarrollo local (no en Vercel/serverless)
+      if (!isVercel) {
         db.pragma('journal_mode = WAL')
       } else {
-        // En producción, usar DELETE mode (más compatible con serverless)
+        // En Vercel, usar DELETE mode (más compatible con serverless)
         db.pragma('journal_mode = DELETE')
       }
       
@@ -69,7 +73,7 @@ export function getDB(): Database.Database {
     } catch (error: any) {
       console.error('[db] Error opening database at', DB_PATH)
       console.error('[db] Error details:', error?.message, error?.code)
-      console.error('[db] NODE_ENV:', process.env.NODE_ENV, 'isProduction:', isProduction)
+      console.error('[db] NODE_ENV:', process.env.NODE_ENV, 'isVercel:', isVercel, 'isProduction:', isProduction)
       console.error('[db] VERCEL:', process.env.VERCEL, 'VERCEL_ENV:', process.env.VERCEL_ENV, 'VERCEL_URL:', process.env.VERCEL_URL)
       throw error
     }
