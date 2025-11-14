@@ -83,18 +83,35 @@ const MIN_CORRELATIONS = 9
 const MIN_OBSERVATIONS = 1
 
 export default async function DashboardPage({ searchParams }: { searchParams?: Record<string, string> }) {
-  let apiBias
+  // Normalizar searchParams
+  const safeSearchParams = searchParams || {}
+  
+  // 1. Fetch bias data - NO lanzar error, retornar null si falla
+  let apiBias: any = null
   try {
     apiBias = await fetchBias()
   } catch (error) {
-    // Error will be caught by error boundary
-    throw error
+    console.error('[Dashboard] fetchBias failed, showing initializing state', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return <DashboardInitializing />
+  }
+
+  // Normalizar apiBias
+  if (!apiBias || typeof apiBias !== 'object') {
+    apiBias = { items: [], health: { hasData: false, observationCount: 0, biasCount: 0, correlationCount: 0 } }
+  }
+  if (!Array.isArray(apiBias.items)) {
+    apiBias.items = []
+  }
+  if (!apiBias.health || typeof apiBias.health !== 'object') {
+    apiBias.health = { hasData: false, observationCount: 0, biasCount: 0, correlationCount: 0 }
   }
 
   // Guardrails: check minimum data requirements
-  const itemsCount = Array.isArray(apiBias?.items) ? apiBias.items.length : 0
-  const correlationCount = apiBias?.health?.correlationCount || 0
-  const observationCount = apiBias?.health?.observationCount || 0
+  const itemsCount = Array.isArray(apiBias.items) ? apiBias.items.length : 0
+  const correlationCount = apiBias.health?.correlationCount || 0
+  const observationCount = apiBias.health?.observationCount || 0
 
   const hasMinData =
     itemsCount >= MIN_ITEMS &&
@@ -102,38 +119,80 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     observationCount >= MIN_OBSERVATIONS &&
     apiBias?.health?.hasData === true
 
-  if (!apiBias || !hasMinData) {
+  if (!hasMinData) {
     return <DashboardInitializing />
   }
 
-  let data
+  // 2. Get macro diagnosis - NO lanzar error
+  let data: any = null
   try {
     data = await getMacroDiagnosisWithDelta()
   } catch (error) {
     console.error('[Dashboard] getMacroDiagnosisWithDelta failed', {
       error: error instanceof Error ? error.message : String(error),
     })
-    // Si falla, retornar estado de inicialización en lugar de lanzar error
     return <DashboardInitializing />
   }
 
-  // Validar que data tiene la estructura esperada
-  if (!data || !Array.isArray(data.items)) {
+  // Normalizar data
+  if (!data || typeof data !== 'object') {
     console.warn('[Dashboard] Invalid data structure from getMacroDiagnosisWithDelta')
     return <DashboardInitializing />
   }
+  if (!Array.isArray(data.items)) {
+    data.items = []
+  }
+  if (typeof data.regime !== 'string') {
+    data.regime = 'Neutral'
+  }
+  if (typeof data.score !== 'number') {
+    data.score = 0
+  }
+  if (typeof data.threshold !== 'number') {
+    data.threshold = 0.3
+  }
+  if (!data.counts || typeof data.counts !== 'object') {
+    data.counts = { total: 0, withValue: 0, nulls: 0 }
+  }
+  if (typeof data.improving !== 'number') {
+    data.improving = 0
+  }
+  if (typeof data.deteriorating !== 'number') {
+    data.deteriorating = 0
+  }
+  if (!data.categoryCounts || typeof data.categoryCounts !== 'object') {
+    data.categoryCounts = {}
+  }
 
   const CONFIDENCE_TOOLTIP = `\nConfianza = probabilidad de que el activo se mueva según el sesgo macro actual.\n\n• Alta: ~70–80% (correlación fuerte y régimen claro)\n• Media: ~50–60%\n• Baja: <50%\n\nEjemplo: Si el USD está fuerte y EUR/USD tiene confianza Alta, hay alta probabilidad de que EUR/USD caiga.\n`
-  const showKeys = (searchParams?.showKeys ?? '') === '1'
+  const showKeys = (safeSearchParams?.showKeys ?? '') === '1'
   
-  // Manejar datos vacíos de forma segura
+  // Normalizar items
   const items = Array.isArray(data.items) ? data.items : []
-  const usd = usdBias(items)
-  const quad = macroQuadrant(items)
-  const biasRows = getBiasTable(data.regime || 'Neutral', usd, quad)
   
-  // Manejar errores en getCorrMap y getCorrelations
-  let corrMap
+  // 3. Calcular usd, quad, biasRows - pueden fallar, envolver en try-catch
+  let usd: 'Fuerte' | 'Débil' | 'Neutral' = 'Neutral'
+  let quad = 'expansion'
+  let biasRows: any[] = []
+  
+  try {
+    usd = usdBias(items)
+    quad = macroQuadrant(items)
+    biasRows = getBiasTable(data.regime || 'Neutral', usd, quad)
+  } catch (error) {
+    console.warn('[Dashboard] Error calculating usd/quad/biasRows, using defaults', error)
+    usd = 'Neutral'
+    quad = 'expansion'
+    biasRows = []
+  }
+  
+  // Normalizar biasRows
+  if (!Array.isArray(biasRows)) {
+    biasRows = []
+  }
+  
+  // 4. Get corrMap - ya tiene try-catch
+  let corrMap = new Map()
   try {
     corrMap = await getCorrMap()
   } catch (error) {
@@ -141,14 +200,45 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     corrMap = new Map()
   }
   
-  const tacticalRows = await getBiasTableTactical(items, data.regime || 'Neutral', usd, data.score || 0, [], corrMap)
+  // Normalizar corrMap
+  if (!(corrMap instanceof Map)) {
+    corrMap = new Map()
+  }
+  
+  // 5. Get tactical rows - puede fallar
+  let tacticalRows: any[] = []
+  try {
+    tacticalRows = await getBiasTableTactical(items, data.regime || 'Neutral', usd, data.score || 0, [], corrMap)
+  } catch (error) {
+    console.warn('[Dashboard] getBiasTableTactical failed, using empty array', error)
+    tacticalRows = []
+  }
+  
+  // Normalizar tacticalRows
+  if (!Array.isArray(tacticalRows)) {
+    tacticalRows = []
+  }
+  
   const color = data.regime === 'RISK ON' ? 'text-green-600' : data.regime === 'RISK OFF' ? 'text-red-600' : 'text-gray-600'
   const SHOW_CORR_ON_DASH = false
   const strongCorr: string[] = []
-  const scenarios = detectScenarios(items, data.regime || 'Neutral')
   
-  // getCorrelations puede tardar mucho o fallar, manejarlo de forma segura
-  let corrs = []
+  // 6. Detect scenarios - puede fallar
+  let scenarios: any[] = []
+  try {
+    scenarios = detectScenarios(items, data.regime || 'Neutral')
+  } catch (error) {
+    console.warn('[Dashboard] detectScenarios failed, using empty array', error)
+    scenarios = []
+  }
+  
+  // Normalizar scenarios
+  if (!Array.isArray(scenarios)) {
+    scenarios = []
+  }
+  
+  // 7. getCorrelations - ya tiene try-catch y timeout
+  let corrs: any[] = []
   try {
     corrs = await Promise.race([
       getCorrelations(),
@@ -156,6 +246,11 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     ])
   } catch (error) {
     console.warn('[Dashboard] getCorrelations failed, continuing without correlations', error)
+    corrs = []
+  }
+  
+  // Normalizar corrs
+  if (!Array.isArray(corrs)) {
     corrs = []
   }
   return (
@@ -193,7 +288,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                 label="Datos macro hasta"
               />
             </span>
-            <a href={`?${new URLSearchParams({ ...searchParams, showKeys: showKeys ? '0' : '1' } as any).toString()}`} className="inline-flex items-center gap-2 rounded border px-3 py-1">{showKeys ? 'Ocultar claves' : 'Mostrar claves'}</a>
+            <a href={`?${new URLSearchParams({ ...safeSearchParams, showKeys: showKeys ? '0' : '1' } as any).toString()}`} className="inline-flex items-center gap-2 rounded border px-3 py-1">{showKeys ? 'Ocultar claves' : 'Mostrar claves'}</a>
             <a href="/api/export" className="ml-auto inline-flex items-center gap-2 rounded border px-3 py-1">Exportar CSV</a>
           </div>
         </div>
@@ -286,7 +381,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
               </thead>
               <tbody>
                 {CATEGORY_ORDER.map(cat => {
-                  const rows = items.filter(i => i.category === cat)
+                  const rows = items.filter((i: any) => i.category === cat)
                   if (!rows.length) return null
                   return (
                     <Fragment key={cat}>
@@ -304,7 +399,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                             return true
                           }
                         })())
-                        .map((i) => {
+                        .map((i: any) => {
                         const isPayemsDelta = typeof i.label === 'string' && i.label.includes('Payrolls Δ')
                         const formatValue = (v: number | null) => {
                           if (v == null) return '—'
