@@ -174,8 +174,8 @@ export default async function NarrativeDetailPage({ params }: { params: { symbol
     : 'bg-gray-500/10 text-gray-700 border-gray-200'
 
   // Generar explicaciones
-  const marketExplanation = getMarketExplanation(row.par, usd, quad, corr_12m, corr_3m)
-  const correlationExplanation = getCorrelationExplanation(corr_12m, corr_3m, corr_ref)
+  const marketExplanation = getMarketExplanation(row.par, usd, quad, corr_12m ?? null, corr_3m ?? null)
+  const correlationExplanation = getCorrelationExplanation(corr_12m ?? null, corr_3m ?? null, corr_ref)
   const driverExplanation = getDriverExplanation(drivers, usd)
 
   return (
