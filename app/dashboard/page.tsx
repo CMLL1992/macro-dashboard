@@ -151,13 +151,85 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   const CONFIDENCE_TOOLTIP = `\nConfianza = probabilidad de que el activo se mueva según el sesgo macro actual.\n\n• Alta: ~70–80% (correlación fuerte y régimen claro)\n• Media: ~50–60%\n• Baja: <50%\n\nEjemplo: Si el USD está fuerte y EUR/USD tiene confianza Alta, hay alta probabilidad de que EUR/USD caiga.\n`
   const showKeys = (safeSearchParams?.showKeys ?? '') === '1'
   
-  // Usar items de apiBias (que viene de /api/bias) como fuente principal para la tabla
-  // Si apiBias.items está vacío o no tiene datos, usar data.items como fallback
-  const apiBiasItems = Array.isArray(apiBias?.items) ? apiBias.items : []
-  const dataItems = Array.isArray(data?.items) ? data.items : []
+  // Tipo normalizado para los items de la tabla
+  type NormalizedBiasRow = {
+    key: string
+    seriesId: string
+    label: string
+    category: string
+    value: number | null
+    previous: number | null
+    date: string | null
+    date_previous: string | null
+    trend: string | null
+    posture: string | null
+    weight: number | null
+    originalKey?: string
+    unit?: string
+  }
   
-  // Preferir apiBias.items si tiene datos, sino usar data.items
-  const items = apiBiasItems.length > 0 ? apiBiasItems : dataItems
+  // Función de normalización para asegurar que todos los campos estén presentes
+  function normalizeBiasItem(raw: any): NormalizedBiasRow {
+    const root = raw ?? {}
+    
+    // Los datos están al nivel raíz según domain/diagnostic.ts
+    // No están anidados en latest, point, etc.
+    return {
+      key: root.key ?? root.seriesId ?? root.originalKey ?? '',
+      seriesId: root.seriesId ?? root.key ?? root.originalKey ?? '',
+      label: root.label ?? '',
+      category: root.category ?? '',
+      value: root.value ?? null,
+      previous: root.value_previous ?? null,
+      date: root.date ?? null,
+      date_previous: root.date_previous ?? null,
+      trend: root.trend ?? null,
+      posture: root.posture ?? null,
+      weight: root.weight ?? null,
+      originalKey: root.originalKey ?? root.key ?? null,
+      unit: (root as any).unit ?? null,
+    }
+  }
+  
+  // Usar SOLO apiBias.items como fuente de datos para la tabla
+  const apiBiasItems = Array.isArray(apiBias?.items) ? apiBias.items : []
+  const items: NormalizedBiasRow[] = apiBiasItems.map(normalizeBiasItem)
+  
+  // Log para debugging
+  console.log('[Dashboard] items normalizados', {
+    count: items.length,
+    firstItem: items[0] ? {
+      key: items[0].key,
+      label: items[0].label,
+      value: items[0].value,
+      previous: items[0].previous,
+      date: items[0].date,
+      trend: items[0].trend,
+      posture: items[0].posture,
+    } : null,
+    itemsWithValue: items.filter(i => i.value != null).length,
+    itemsWithPrevious: items.filter(i => i.previous != null).length,
+    itemsWithDate: items.filter(i => i.date != null).length,
+  })
+  
+  // Para cálculos (usdBias, macroQuadrant, etc.) usar items normalizados
+  // pero necesitamos mantener compatibilidad con el formato esperado
+  // LatestPoint espera: value: number | null, date?: string
+  const itemsForCalculations = items.map(i => ({
+    key: i.key,
+    seriesId: i.seriesId,
+    label: i.label,
+    value: i.value, // number | null (ya está correcto)
+    value_previous: i.previous, // number | null
+    date: i.date ?? undefined, // string | undefined (opcional)
+    date_previous: i.date_previous ?? undefined,
+    trend: i.trend ?? undefined,
+    posture: i.posture ?? undefined,
+    weight: i.weight ?? undefined,
+    category: i.category,
+    originalKey: i.originalKey ?? undefined,
+    unit: i.unit ?? undefined,
+  })) as any[] // Usar 'as any[]' para evitar problemas de tipos estrictos
   
   // Calcular regime y score una sola vez para usar en múltiples lugares
   const regime = apiBias?.regime || data?.regime || 'Neutral'
@@ -170,8 +242,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   let biasRows: any[] = []
   
   try {
-    usd = usdBias(items)
-    quad = macroQuadrant(items)
+    usd = usdBias(itemsForCalculations)
+    quad = macroQuadrant(itemsForCalculations)
     biasRows = getBiasTable(regime, usd, quad)
   } catch (error) {
     console.warn('[Dashboard] Error calculating usd/quad/biasRows, using defaults', error)
@@ -202,7 +274,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   // 5. Get tactical rows - puede fallar
   let tacticalRows: any[] = []
   try {
-    tacticalRows = await getBiasTableTactical(items, regime, usd, score, [], corrMap)
+    tacticalRows = await getBiasTableTactical(itemsForCalculations, regime, usd, score, [], corrMap)
   } catch (error) {
     console.warn('[Dashboard] getBiasTableTactical failed, using empty array', error)
     tacticalRows = []
@@ -220,7 +292,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   // 6. Detect scenarios - puede fallar
   let scenarios: any[] = []
   try {
-    scenarios = detectScenarios(items, regime)
+    scenarios = detectScenarios(itemsForCalculations, regime)
   } catch (error) {
     console.warn('[Dashboard] detectScenarios failed, using empty array', error)
     scenarios = []
@@ -398,7 +470,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
               </thead>
               <tbody>
                 {CATEGORY_ORDER.map(cat => {
-                  const rows = items.filter((i: any) => i.category === cat)
+                  const rows = items.filter((row: NormalizedBiasRow) => row.category === cat)
                   if (!rows.length) return null
                   return (
                     <Fragment key={cat}>
@@ -409,31 +481,31 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                         // Deduplicación defensiva por clave única (seriesId/key)
                         .filter((() => {
                           const seen = new Set<string>()
-                          return (x: any) => {
+                          return (x: NormalizedBiasRow) => {
                             const k = String(x.seriesId || x.key)
                             if (seen.has(k)) return false
                             seen.add(k)
                             return true
                           }
                         })())
-                        .map((i: any) => {
-                        const isPayemsDelta = typeof i.label === 'string' && i.label.includes('Payrolls Δ')
+                        .map((row: NormalizedBiasRow) => {
+                        const isPayemsDelta = typeof row.label === 'string' && row.label.includes('Payrolls Δ')
                         const formatValue = (v: number | null) => {
                           if (v == null) return '—'
                           if (!Number.isFinite(v)) return String(v)
                           return isPayemsDelta ? Math.round(v).toString() : v.toFixed(2)
                         }
-                        const valCurrent = formatValue(i.value)
-                        const valPrevious = formatValue(i.value_previous)
-                        const p = i.value == null ? 'Neutral' : i.posture
-                        const trend = i.trend
+                        const valCurrent = formatValue(row.value)
+                        const valPrevious = formatValue(row.previous)
+                        const p = row.posture ?? (row.value == null ? 'Neutral' : 'Neutral')
+                        const trend = row.trend
                         const trendColor = trend === 'Mejora' ? 'text-green-600' : trend === 'Empeora' ? 'text-red-600' : trend === 'Estable' ? 'text-gray-500' : 'text-muted-foreground'
                         const trendBadge = trend === 'Mejora' ? 'bg-green-600/10 text-green-700' : trend === 'Empeora' ? 'bg-red-600/10 text-red-700' : trend === 'Estable' ? 'bg-gray-500/10 text-gray-700' : 'bg-gray-500/10 text-gray-500'
                         return (
-                          <tr key={String(i.seriesId || i.key)} className="border-t">
-                            <td className="px-3 py-2">{i.label}{showKeys ? <span className="text-muted-foreground text-xs"> {' ' }[{i.key}]</span> : null}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{valPrevious}{i.value_previous != null && (i as any).unit ? ` ${(i as any).unit}` : ''}</td>
-                            <td className="px-3 py-2">{valCurrent}{i.value != null && (i as any).unit ? ` ${(i as any).unit}` : ''}</td>
+                          <tr key={String(row.seriesId || row.key)} className="border-t">
+                            <td className="px-3 py-2">{row.label}{showKeys ? <span className="text-muted-foreground text-xs"> {' ' }[{row.key}]</span> : null}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{valPrevious}{row.previous != null && row.unit ? ` ${row.unit}` : ''}</td>
+                            <td className="px-3 py-2">{valCurrent}{row.value != null && row.unit ? ` ${row.unit}` : ''}</td>
                             <td className="px-3 py-2">
                               {trend ? (
                                 <span className={`inline-flex rounded-full px-2 py-0.5 text-xs ${trendBadge}`}>
@@ -444,14 +516,14 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                               )}
                             </td>
                             <td className="px-3 py-2">{p}</td>
-                            <td className="px-3 py-2">{(i.weight ?? 0).toFixed(2)}</td>
+                            <td className="px-3 py-2">{(row.weight ?? 0).toFixed(2)}</td>
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-1">
-                                <span>{i.date ?? '—'}</span>
-                                {i.date && (() => {
+                                <span>{row.date ?? '—'}</span>
+                                {row.date && (() => {
                                   // Use originalKey for freshness (e.g., 'gdp_yoy', 'cpi_yoy') instead of weightKey (e.g., 'GDPC1')
-                                  const indicatorKey = (i as any).originalKey || i.key.toLowerCase()
-                                  const freshness = isStaleByFrequency(i.date, indicatorKey)
+                                  const indicatorKey = row.originalKey || row.key.toLowerCase()
+                                  const freshness = isStaleByFrequency(row.date, indicatorKey)
                                   if (freshness.isStale) {
                                     const freqLabel = getFrequencyLabel(freshness.frequency)
                                     const sla = SLA_BY_FREQUENCY[freshness.frequency]
@@ -459,7 +531,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                                     return (
                                       <span 
                                         className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5" 
-                                        title={`Serie ${freqLabel}; último dato: ${i.date}; SLA: ${slaLabel}`}
+                                        title={`Serie ${freqLabel}; último dato: ${row.date}; SLA: ${slaLabel}`}
                                       >
                                         Desactualizado
                                       </span>
