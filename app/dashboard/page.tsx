@@ -174,11 +174,14 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     
     // Los datos están al nivel raíz según domain/diagnostic.ts
     // No están anidados en latest, point, etc.
+    // IMPORTANTE: Preservar la categoría exacta que viene de /api/bias
+    const category = root.category ?? ''
+    
     return {
       key: root.key ?? root.seriesId ?? root.originalKey ?? '',
       seriesId: root.seriesId ?? root.key ?? root.originalKey ?? '',
       label: root.label ?? '',
-      category: root.category ?? '',
+      category: category, // Preservar la categoría exacta
       value: root.value ?? null,
       previous: root.value_previous ?? null,
       date: root.date ?? null,
@@ -333,10 +336,15 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   console.log('[Dashboard] items para la tabla', {
     length: items.length,
     sample: items[0] || null,
-    itemsByCategory: CATEGORY_ORDER.map(cat => ({
-      category: cat,
-      count: items.filter((row: NormalizedBiasRow) => row.category === cat).length,
-    })),
+    allCategories: items.map(i => i.category),
+    itemsByCategory: CATEGORY_ORDER.map(cat => {
+      const matching = items.filter((row: NormalizedBiasRow) => row.category === cat)
+      return {
+        category: cat,
+        count: matching.length,
+        sampleKeys: matching.slice(0, 3).map(m => m.key),
+      }
+    }),
   })
 
   return (
