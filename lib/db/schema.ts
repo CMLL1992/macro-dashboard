@@ -59,26 +59,27 @@ let db: Database.Database | null = null
 export function getDB(): Database.Database {
   if (!db) {
     try {
-      // Log INMEDIATO para debugging
+      // ========================================
+      // LOGS CLAROS DEL PATH REAL QUE SE ESTÁ USANDO
+      // ========================================
       console.log('[db] ========================================')
-      console.log('[db] getDB() called')
+      console.log('[db] getDB() called - Iniciando apertura de base de datos')
       console.log('[db] process.cwd():', process.cwd())
       
       // Calcular path y detección de serverless en runtime
       const isServerless = detectServerless()
       const DB_PATH = getDBPath()
       
-      // Log detallado ANTES de intentar abrir la BD
-      console.log('[db] Opening database at:', DB_PATH)
-      console.log('[db] DATABASE_PATH env:', process.env.DATABASE_PATH || 'NOT SET')
-      console.log('[db] NODE_ENV:', process.env.NODE_ENV || 'NOT SET')
-      console.log('[db] isVercel:', isVercel)
-      console.log('[db] isServerless:', isServerless)
-      console.log('[db] isProduction:', isProduction)
-      console.log('[db] VERCEL:', process.env.VERCEL || 'NOT SET')
-      console.log('[db] VERCEL_ENV:', process.env.VERCEL_ENV || 'NOT SET')
-      console.log('[db] VERCEL_URL:', process.env.VERCEL_URL || 'NOT SET')
-      console.log('[db] process.cwd():', process.cwd())
+      // Logs críticos: ¿estoy en Vercel? y ruta exacta
+      console.log('[db] ========================================')
+      console.log('[db] DETECCIÓN DE ENTORNO:')
+      console.log('[db]   isVercel (por env vars):', isVercel)
+      console.log('[db]   isServerless (por process.cwd()):', isServerless)
+      console.log('[db]   process.cwd():', process.cwd())
+      console.log('[db]   DATABASE_PATH env:', process.env.DATABASE_PATH || 'NOT SET')
+      console.log('[db] ========================================')
+      console.log('[db] RUTA DE BASE DE DATOS QUE SE VA A USAR:')
+      console.log('[db]   DB_PATH:', DB_PATH)
       console.log('[db] ========================================')
       
       // En Vercel/serverless, verificar que /tmp existe y es accesible
