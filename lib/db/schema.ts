@@ -106,6 +106,10 @@ export function getDB(): Database.Database {
       initializeSchema(db)
       console.log('[db] Database initialized successfully at:', DB_PATH)
     } catch (error: any) {
+      // Recalcular para logging de error
+      const isServerless = detectServerless()
+      const DB_PATH = getDBPath()
+      
       console.error('[db] ========================================')
       console.error('[db] ERROR opening database at:', DB_PATH)
       console.error('[db] Error message:', error?.message)
