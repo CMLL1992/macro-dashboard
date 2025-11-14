@@ -28,15 +28,27 @@ function detectServerless(): boolean {
 
 // Función para obtener el path de la BD
 function getDBPath(): string {
+  // Si hay variable de entorno, usarla
   if (process.env.DATABASE_PATH) {
     return process.env.DATABASE_PATH
   }
   
+  // Detectar serverless en runtime
   const isServerless = detectServerless()
-  if (isVercel || isServerless) {
+  const cwd = process.cwd()
+  
+  // Si estamos en serverless (process.cwd() es /var/task), SIEMPRE usar /tmp
+  // Esto es crítico porque /var/task es de solo lectura en Vercel
+  if (isServerless || cwd === '/var/task' || cwd.startsWith('/var/task')) {
     return '/tmp/macro.db'
   }
   
+  // Si detectamos Vercel por variables de entorno, usar /tmp
+  if (isVercel) {
+    return '/tmp/macro.db'
+  }
+  
+  // Desarrollo local: usar ./macro.db
   return join(process.cwd(), 'macro.db')
 }
 
@@ -47,12 +59,16 @@ let db: Database.Database | null = null
 export function getDB(): Database.Database {
   if (!db) {
     try {
+      // Log INMEDIATO para debugging
+      console.log('[db] ========================================')
+      console.log('[db] getDB() called')
+      console.log('[db] process.cwd():', process.cwd())
+      
       // Calcular path y detección de serverless en runtime
       const isServerless = detectServerless()
       const DB_PATH = getDBPath()
       
       // Log detallado ANTES de intentar abrir la BD
-      console.log('[db] ========================================')
       console.log('[db] Opening database at:', DB_PATH)
       console.log('[db] DATABASE_PATH env:', process.env.DATABASE_PATH || 'NOT SET')
       console.log('[db] NODE_ENV:', process.env.NODE_ENV || 'NOT SET')
