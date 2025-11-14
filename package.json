@@ -15,7 +15,7 @@
     "node": "20.x"
   },
   "scripts": {
-    "preinstall": "pnpm approve-builds esbuild better-sqlite3 unrs-resolver || true",
+    "preinstall": "echo 'Skipping interactive approve-builds in CI/Vercel' || true",
     "postinstall": "cd node_modules/.pnpm/better-sqlite3@12.4.1/node_modules/better-sqlite3 && npm run build-release || true",
     "dev": "next dev -p 3000",
     "build": "next build",
