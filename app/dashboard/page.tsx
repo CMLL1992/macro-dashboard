@@ -205,14 +205,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     unit: (item as any).unit ?? null,
   }))
   
-  console.log('[Dashboard] rows para tabla', {
-    rowsLength: rows.length,
-    firstRow: rows[0] || null,
-    rowsWithValue: rows.filter(r => r.value != null).length,
-    rowsWithPrevious: rows.filter(r => r.previous != null).length,
-    rowsWithDate: rows.filter(r => r.date != null).length,
-  })
-  
   // Para cálculos (usdBias, macroQuadrant, etc.) usar apiItems directamente
   const itemsForCalculations = apiItems.map((item: any) => ({
     key: item.key ?? item.seriesId ?? '',
@@ -501,19 +493,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                 {CATEGORY_ORDER.map(cat => {
                   const categoryRows = rows.filter((row: DashboardRow) => row.category === cat)
                   
-                  // Debug: log de categoría y filas
-                  console.log('[Dashboard] CATEGORY FILTER', {
-                    category: cat,
-                    totalRows: rows.length,
-                    categoryRowsCount: categoryRows.length,
-                    sampleCategoryRows: categoryRows.slice(0, 2).map(r => ({
-                      key: r.key,
-                      label: r.label,
-                      category: r.category,
-                      value: r.value,
-                    })),
-                  })
-                  
                   // SIEMPRE renderizar la categoría, aunque esté vacía
                   if (!categoryRows.length) {
                     return (
@@ -546,18 +525,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                           }
                         })())
                         .map((row: DashboardRow) => {
-                        // Debug: log de cada fila antes de renderizar
-                        console.log('[Dashboard] RENDERING ROW', {
-                          key: row.key,
-                          label: row.label,
-                          value: row.value,
-                          previous: row.previous,
-                          date: row.date,
-                          trend: row.trend,
-                          posture: row.posture,
-                          weight: row.weight,
-                        })
-                        
                         const isPayemsDelta = typeof row.label === 'string' && row.label.includes('Payrolls Δ')
                         const formatValue = (v: number | null | undefined) => {
                           // Verificar explícitamente null y undefined
@@ -569,17 +536,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                         const valPrevious = formatValue(row.previous)
                         const p = row.posture ?? 'Neutral'
                         const trend = row.trend
-                        
-                        // Debug: log de valores formateados
-                        console.log('[Dashboard] FORMATTED VALUES', {
-                          key: row.key,
-                          valCurrent,
-                          valPrevious,
-                          trend,
-                          posture: p,
-                          weight: row.weight,
-                          date: row.date,
-                        })
                         const trendColor = trend === 'Mejora' ? 'text-green-600' : trend === 'Empeora' ? 'text-red-600' : trend === 'Estable' ? 'text-gray-500' : 'text-muted-foreground'
                         const trendBadge = trend === 'Mejora' ? 'bg-green-600/10 text-green-700' : trend === 'Empeora' ? 'bg-red-600/10 text-red-700' : trend === 'Estable' ? 'bg-gray-500/10 text-gray-700' : 'bg-gray-500/10 text-gray-500'
                         return (
