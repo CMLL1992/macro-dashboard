@@ -123,13 +123,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     apiBias.health = { hasData: false, observationCount: 0, biasCount: 0, correlationCount: 0 }
   }
   
-  // Log: ver exactamente cómo viene /api/bias.items
-  console.log('[Dashboard] apiBias resumen', {
-    hasData: apiBias?.hasData,
-    itemsLength: apiBias?.items?.length,
-    firstItem: apiBias?.items?.[0] || null,
-  })
-  
   // 2. Get macro diagnosis - NO lanzar error, usar valores por defecto si falla
   let data: any = null
   try {
@@ -190,12 +183,13 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   }
   
   // Construir las filas directamente desde apiBias.items
+  // IMPORTANTE: Mantener orden determinista para evitar errores de hidratación
+  // El orden de los items debe ser el mismo en servidor y cliente
   const apiItems = Array.isArray(apiBias?.items) ? apiBias.items : []
-  console.log('[Dashboard] apiItems antes de mapear', {
-    apiItemsLength: apiItems.length,
-    firstApiItem: apiItems[0] || null,
-  })
   
+  // Mapear items a rows de forma determinista (sin ordenar, mantener orden original)
+  // CAUSA RAÍZ DE HIDRATACIÓN: Si se ordena o filtra de forma diferente en servidor vs cliente,
+  // React detecta diferencias en el HTML y lanza errores #422 y #425
   const rows: DashboardRow[] = apiItems.map((item: any): DashboardRow => ({
     key: item.key ?? item.seriesId ?? '',
     label: item.label ?? item.originalKey ?? '',
@@ -209,12 +203,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     originalKey: item.originalKey ?? null,
     unit: (item as any).unit ?? null,
   }))
-  
-  console.log('[Dashboard] rows después de mapear', {
-    rowsLength: rows.length,
-    firstRow: rows[0] || null,
-    rowsWithValue: rows.filter(r => r.value != null).length,
-  })
   
   // Para cálculos (usdBias, macroQuadrant, etc.) usar apiItems directamente
   const itemsForCalculations = apiItems.map((item: any) => ({
@@ -263,14 +251,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   let corrMap = new Map()
   try {
     corrMap = await getCorrMap()
-    console.log('[Dashboard] corrMap obtenido', {
-      size: corrMap.size,
-      sampleEntries: Array.from(corrMap.entries()).slice(0, 3).map(([k, v]) => ({
-        key: k,
-        corr12: v.c12,
-        corr3: v.c3,
-      })),
-    })
   } catch (error) {
     console.warn('[Dashboard] getCorrMap failed, using empty map', error)
     corrMap = new Map()
@@ -282,19 +262,10 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   }
   
   // 5. Get tactical rows - puede fallar
+  // IMPORTANTE: Mantener orden determinista para evitar errores de hidratación
   let tacticalRows: any[] = []
   try {
     tacticalRows = await getBiasTableTactical(itemsForCalculations, regime, usd, score, [], corrMap)
-    console.log('[Dashboard] tacticalRows obtenidas', {
-      count: tacticalRows.length,
-      firstRow: tacticalRows[0] || null,
-      sampleCorrelations: tacticalRows.slice(0, 3).map(r => ({
-        par: r.par,
-        corr12m: r.corr12m,
-        corr3m: r.corr3m,
-        corrMapped: r.corrMapped,
-      })),
-    })
   } catch (error) {
     console.warn('[Dashboard] getBiasTableTactical failed, using empty array', error)
     tacticalRows = []
@@ -304,13 +275,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   if (!Array.isArray(tacticalRows)) {
     tacticalRows = []
   }
-  
-  console.log('[Dashboard] tacticalRows normalizadas', {
-    count: tacticalRows.length,
-    rowsWithCorr12m: tacticalRows.filter(r => r.corr12m != null).length,
-    rowsWithCorr3m: tacticalRows.filter(r => r.corr3m != null).length,
-    sampleRow: tacticalRows[0] || null,
-  })
   
   const color = regime === 'RISK ON' ? 'text-green-600' : regime === 'RISK OFF' ? 'text-red-600' : 'text-gray-600'
   const SHOW_CORR_ON_DASH = false
@@ -525,7 +489,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                         <td colSpan={7} className="text-sm font-semibold uppercase tracking-wide py-2 px-3">{cat}</td>
                       </tr>
                       {categoryRows
-                        // Deduplicación defensiva por clave única
+                        // Deduplicación determinista: mantener solo la primera ocurrencia de cada key
+                        // Esto asegura que el orden sea consistente entre servidor y cliente
                         .filter((() => {
                           const seen = new Set<string>()
                           return (x: DashboardRow) => {
@@ -535,6 +500,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                             return true
                           }
                         })())
+                        // IMPORTANTE: No ordenar aquí - mantener orden original para consistencia SSR/CSR
                         .map((row: DashboardRow) => {
                         const isPayemsDelta = typeof row.label === 'string' && row.label.includes('Payrolls Δ')
                         const formatValue = (v: number | null | undefined) => {
@@ -645,16 +611,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
               </thead>
               <tbody>
                 {tacticalRows.map(r => {
-                  // Debug: log de cada fila de correlaciones
-                  console.log('[Dashboard] RENDERING TACTICAL ROW', {
-                    par: r.par,
-                    corr12m: r.corr12m,
-                    corr3m: r.corr3m,
-                    corrMapped: r.corrMapped,
-                    tactico: r.tactico,
-                    confianza: r.confianza,
-                  })
-                  
+                  // IMPORTANTE: Render determinista - no usar valores que cambien entre servidor y cliente
                   const badge = r.tactico === 'Alcista' ? 'bg-emerald-600/10 text-emerald-700' : r.tactico === 'Bajista' ? 'bg-rose-600/10 text-rose-700' : 'bg-gray-500/10 text-gray-700'
                   const confBadge = r.confianza === 'Alta' ? 'bg-green-600/10 text-green-700' : r.confianza === 'Media' ? 'bg-amber-600/10 text-amber-700' : 'bg-gray-500/10 text-gray-700'
                   const corrIntensity = (v?: number | null) => {
