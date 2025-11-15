@@ -19,24 +19,18 @@ import { checkMacroReleases } from '@/lib/alerts/triggers'
 import { getAllIndicatorHistories } from '@/lib/db/read'
 import { getMacroDiagnosis } from '@/domain/diagnostic'
 import { KEY_TO_SERIES_ID } from '@/lib/db/read-macro'
+import { INDICATOR_SOURCES } from '@/lib/sources'
 
 // FRED series IDs used by the dashboard
-const FRED_SERIES = [
-  { id: 'CPIAUCSL', name: 'Consumer Price Index for All Urban Consumers: All Items in U.S. City Average', frequency: 'm' },
-  { id: 'CPILFESL', name: 'Consumer Price Index for All Urban Consumers: All Items Less Food and Energy in U.S. City Average', frequency: 'm' },
-  { id: 'PCEPI', name: 'Personal Consumption Expenditures: Chain-type Price Index', frequency: 'm' },
-  { id: 'PCEPILFE', name: 'Personal Consumption Expenditures Excluding Food and Energy (Chain-Type Price Index)', frequency: 'm' },
-  { id: 'PPIACO', name: 'Producer Price Index for All Commodities', frequency: 'm' },
-  { id: 'GDPC1', name: 'Real Gross Domestic Product', frequency: 'q' },
-  { id: 'INDPRO', name: 'Industrial Production Index', frequency: 'm' },
-  { id: 'RSXFS', name: 'Advance Retail Sales: Retail Trade', frequency: 'm' },
-  { id: 'PAYEMS', name: 'All Employees, Total Nonfarm', frequency: 'm' },
-  { id: 'UNRATE', name: 'Unemployment Rate', frequency: 'm' },
-  { id: 'ICSA', name: 'Initial Claims', frequency: 'w' },
-  { id: 'T10Y2Y', name: '10-Year Treasury Constant Maturity Minus 2-Year Treasury Constant Maturity', frequency: 'd' },
-  { id: 'FEDFUNDS', name: 'Effective Federal Funds Rate', frequency: 'm' },
-  { id: 'VIXCLS', name: 'CBOE Volatility Index: VIX', frequency: 'd' },
-]
+// IMPORTANTE: Usar INDICATOR_SOURCES como fuente única de verdad para metadata
+// Esto asegura que todos los IDs, frecuencias y nombres coincidan con lib/sources.ts
+const FRED_SERIES = Object.entries(INDICATOR_SOURCES)
+  .filter(([_, source]) => source.source.includes('FRED'))
+  .map(([seriesId, source]) => ({
+    id: seriesId,
+    name: source.description || seriesId,
+    frequency: source.frequency.toLowerCase() as 'd' | 'm' | 'q' | 'w',
+  }))
 
 export async function POST(request: NextRequest) {
   if (!validateCronToken(request)) {

@@ -144,6 +144,14 @@ export const INDICATOR_SOURCES: Record<string, IndicatorSource> = {
     unit: 'Índice',
     description: 'CBOE Volatility Index',
   },
+  VIXCLS: {
+    seriesId: 'VIXCLS',
+    source: 'FRED (CBOE)',
+    sourceUrl: 'https://fred.stlouisfed.org/series/VIXCLS',
+    frequency: 'D',
+    unit: 'Índice',
+    description: 'CBOE Volatility Index: VIX',
+  },
 }
 
 /**

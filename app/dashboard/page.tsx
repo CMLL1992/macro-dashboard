@@ -366,7 +366,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
               <DateDisplay
                 isoString={apiBias?.updatedAt}
                 format="datetime"
-                label="Actualizado"
+                label="Última actualización de datos macro"
                 showTimezone={true}
               />
             </span>
@@ -539,7 +539,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-muted-foreground hover:text-foreground"
-                                    title={`Fuente: ${sourceInfo.source} (${sourceInfo.seriesId}) - ${sourceInfo.description || ''}`}
+                                    title={`Fuente: ${sourceInfo.source} (${sourceInfo.seriesId})${row.date ? ` | Dato a cierre de ${new Date(row.date).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}` : ''} - ${sourceInfo.description || ''}`}
                                   >
                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
