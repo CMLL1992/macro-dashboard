@@ -136,12 +136,30 @@ export async function fetchFredSeries(
 
   // Fetch with rate limiting and retries
   const res = await rateLimitedFetch(url)
-  const json = await res.json()
+  
+  // Log response status para debugging (especialmente útil para FEDFUNDS)
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => 'Unable to read error response')
+    throw new Error(`FRED API error for ${seriesId}: ${res.status} ${res.statusText} - ${errorText.substring(0, 200)}`)
+  }
+  
+  const json = await res.json().catch((error) => {
+    throw new Error(`Failed to parse FRED JSON response for ${seriesId}: ${error instanceof Error ? error.message : String(error)}`)
+  })
+  
+  // Validar estructura de respuesta antes de parsear
+  if (!json || typeof json !== 'object' || !Array.isArray(json.observations)) {
+    throw new Error(`Invalid FRED response structure for ${seriesId}: expected {observations: []}, got ${JSON.stringify(json).substring(0, 200)}`)
+  }
+  
   const parsed = FredResponseSchema.parse(json)
 
   const items: SeriesPoint[] = parsed.observations
-    .filter(o => o.value !== '.')
-    .map(o => ({ date: o.date, value: Number(o.value) }))
+    .filter(o => o.value !== '.' && o.value !== null && o.value !== undefined)
+    .map(o => {
+      const numValue = Number(o.value)
+      return { date: o.date, value: numValue }
+    })
     .filter(o => Number.isFinite(o.value))
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
 

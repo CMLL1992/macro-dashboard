@@ -51,6 +51,12 @@ export async function POST(request: NextRequest) {
       try {
         // Fetch from FRED
         // No usar observation_end para obtener los datos más recientes disponibles
+        logger.info(`Fetching ${series.id} from FRED`, {
+          job: jobId,
+          series_id: series.id,
+          frequency: series.frequency,
+        })
+        
         const observations = await fetchFredSeries(series.id, {
           frequency: series.frequency as 'd' | 'm' | 'q',
           observation_start: '2010-01-01',
@@ -58,9 +64,41 @@ export async function POST(request: NextRequest) {
         })
 
         if (observations.length === 0) {
-          logger.warn(`No observations for ${series.id}`, { job: jobId })
+          logger.warn(`No observations for ${series.id}`, {
+            job: jobId,
+            series_id: series.id,
+            frequency: series.frequency,
+            message: 'FRED returned empty array - series may not exist or have no data',
+          })
+          // No incrementar errors, solo warning (puede ser esperable para algunas series)
           continue
         }
+
+        // Validar que tenemos al menos algunos valores válidos
+        const validObservations = observations.filter(obs => 
+          obs.value != null && Number.isFinite(obs.value)
+        )
+        
+        if (validObservations.length === 0) {
+          logger.warn(`No valid observations for ${series.id} (all values are null/NaN)`, {
+            job: jobId,
+            series_id: series.id,
+            total_observations: observations.length,
+            message: 'All values from FRED are null or NaN',
+          })
+          continue
+        }
+
+        // Log último valor para debugging (especialmente útil para FEDFUNDS)
+        const lastObs = validObservations[validObservations.length - 1]
+        logger.info(`Fetched ${series.id} from FRED`, {
+          job: jobId,
+          series_id: series.id,
+          total_points: observations.length,
+          valid_points: validObservations.length,
+          last_date: lastObs?.date,
+          last_value: lastObs?.value,
+        })
 
         // Convert to MacroSeries format
         const macroSeries: MacroSeries = {
@@ -85,16 +123,25 @@ export async function POST(request: NextRequest) {
           job: jobId,
           series_id: series.id,
           points: observations.length,
+          valid_points: validObservations.length,
         })
       } catch (error) {
         errors++
         const errorMsg = error instanceof Error ? error.message : String(error)
-        ingestErrors.push({ seriesId: series.id, error: errorMsg })
+        const errorStack = error instanceof Error ? error.stack : undefined
+        
+        // Log detallado del error para debugging (especialmente para FEDFUNDS)
         logger.error(`Failed to ingest ${series.id}`, {
           job: jobId,
           series_id: series.id,
+          frequency: series.frequency,
           error: errorMsg,
+          stack: errorStack,
+          // Intentar obtener más información del error si es un error de fetch
+          error_type: error instanceof TypeError ? 'TypeError' : error instanceof Error ? error.constructor.name : typeof error,
         })
+        
+        ingestErrors.push({ seriesId: series.id, error: errorMsg })
       }
     }
 

@@ -539,7 +539,22 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-muted-foreground hover:text-foreground"
-                                    title={`Fuente: ${sourceInfo.source} (${sourceInfo.seriesId})${row.date ? ` | Dato a cierre de ${new Date(row.date).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}` : ''} - ${sourceInfo.description || ''}`}
+                                    title={`Fuente: ${sourceInfo.source} (${sourceInfo.seriesId})${row.date ? ` | Dato a cierre de ${(() => {
+                                      // CAUSA RAÍZ DE HIDRATACIÓN: toLocaleDateString puede generar diferentes resultados
+                                      // entre servidor y cliente debido a diferencias de timezone o locale.
+                                      // SOLUCIÓN: Usar formato determinista basado en UTC que no dependa de locale
+                                      try {
+                                        const date = new Date(row.date)
+                                        if (isNaN(date.getTime())) return ''
+                                        // Formato determinista: mes en español hardcodeado + año UTC
+                                        const monthNames = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+                                        const month = monthNames[date.getUTCMonth()]
+                                        const year = date.getUTCFullYear()
+                                        return `${month} ${year}`
+                                      } catch {
+                                        return ''
+                                      }
+                                    })()}` : ''} - ${sourceInfo.description || ''}`}
                                   >
                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
