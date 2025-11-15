@@ -260,6 +260,14 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   let corrMap = new Map()
   try {
     corrMap = await getCorrMap()
+    console.log('[Dashboard] corrMap obtenido', {
+      size: corrMap.size,
+      sampleEntries: Array.from(corrMap.entries()).slice(0, 3).map(([k, v]) => ({
+        key: k,
+        corr12: v.c12,
+        corr3: v.c3,
+      })),
+    })
   } catch (error) {
     console.warn('[Dashboard] getCorrMap failed, using empty map', error)
     corrMap = new Map()
@@ -274,6 +282,16 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   let tacticalRows: any[] = []
   try {
     tacticalRows = await getBiasTableTactical(itemsForCalculations, regime, usd, score, [], corrMap)
+    console.log('[Dashboard] tacticalRows obtenidas', {
+      count: tacticalRows.length,
+      firstRow: tacticalRows[0] || null,
+      sampleCorrelations: tacticalRows.slice(0, 3).map(r => ({
+        par: r.par,
+        corr12m: r.corr12m,
+        corr3m: r.corr3m,
+        corrMapped: r.corrMapped,
+      })),
+    })
   } catch (error) {
     console.warn('[Dashboard] getBiasTableTactical failed, using empty array', error)
     tacticalRows = []
@@ -283,6 +301,13 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   if (!Array.isArray(tacticalRows)) {
     tacticalRows = []
   }
+  
+  console.log('[Dashboard] tacticalRows normalizadas', {
+    count: tacticalRows.length,
+    rowsWithCorr12m: tacticalRows.filter(r => r.corr12m != null).length,
+    rowsWithCorr3m: tacticalRows.filter(r => r.corr3m != null).length,
+    sampleRow: tacticalRows[0] || null,
+  })
   
   const color = regime === 'RISK ON' ? 'text-green-600' : regime === 'RISK OFF' ? 'text-red-600' : 'text-gray-600'
   const SHOW_CORR_ON_DASH = false
@@ -653,6 +678,16 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
               </thead>
               <tbody>
                 {tacticalRows.map(r => {
+                  // Debug: log de cada fila de correlaciones
+                  console.log('[Dashboard] RENDERING TACTICAL ROW', {
+                    par: r.par,
+                    corr12m: r.corr12m,
+                    corr3m: r.corr3m,
+                    corrMapped: r.corrMapped,
+                    tactico: r.tactico,
+                    confianza: r.confianza,
+                  })
+                  
                   const badge = r.tactico === 'Alcista' ? 'bg-emerald-600/10 text-emerald-700' : r.tactico === 'Bajista' ? 'bg-rose-600/10 text-rose-700' : 'bg-gray-500/10 text-gray-700'
                   const confBadge = r.confianza === 'Alta' ? 'bg-green-600/10 text-green-700' : r.confianza === 'Media' ? 'bg-amber-600/10 text-amber-700' : 'bg-gray-500/10 text-gray-700'
                   const corrIntensity = (v?: number | null) => {
