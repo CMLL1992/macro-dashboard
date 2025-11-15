@@ -125,7 +125,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   
   // Log: ver exactamente cómo viene /api/bias.items
   console.log('[Dashboard] apiBias resumen', {
-    hasData: apiBias?.health?.hasData,
+    hasData: apiBias?.hasData,
     itemsLength: apiBias?.items?.length,
     firstItem: apiBias?.items?.[0] || null,
   })
@@ -193,14 +193,14 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   const apiItems = Array.isArray(apiBias?.items) ? apiBias.items : []
   const rows: DashboardRow[] = apiItems.map((item: any): DashboardRow => ({
     key: item.key ?? item.seriesId ?? '',
-    label: item.label ?? '',
+    label: item.label ?? item.originalKey ?? '',
     category: item.category ?? 'Otros',
     previous: item.value_previous ?? null,
     value: item.value ?? null,
     trend: item.trend ?? null,
     posture: item.posture ?? null,
     weight: item.weight ?? null,
-    date: item.date ?? null,
+    date: item.date ?? item.latestDate ?? null,
     originalKey: item.originalKey ?? null,
     unit: (item as any).unit ?? null,
   }))
