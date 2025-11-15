@@ -63,10 +63,19 @@
     "region": "US"
   },
   {
-    "symbol": "BTCUSD",
+    "symbol": "BTCUSDT",
     "class": "crypto",
     "base": "BTC",
-    "quote": "USD",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "class": "crypto",
+    "base": "ETH",
+    "quote": "USDT",
     "risk_sensitivity": "risk_on",
     "usd_exposure": "short_usd",
     "region": "GLOBAL"

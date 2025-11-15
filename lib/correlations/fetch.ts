@@ -121,7 +121,9 @@ export async function getActiveSymbols(): Promise<string[]> {
     return assets.map(a => a.symbol)
   } catch {
     // Fallback to hardcoded list
-    return ['EURUSD', 'GBPUSD', 'AUDUSD', 'USDJPY', 'USDCAD', 'XAUUSD', 'SPX', 'NDX', 'BTCUSD', 'ETHUSD']
+    // IMPORTANTE: Usar BTCUSDT y ETHUSDT (con T) para consistencia con domain/bias.ts que usa 'BTC/USDT' y 'ETH/USDT'
+    // La función norm() convierte 'BTC/USDT' a 'BTCUSDT', así que deben coincidir
+    return ['EURUSD', 'GBPUSD', 'AUDUSD', 'USDJPY', 'USDCAD', 'XAUUSD', 'SPX', 'NDX', 'BTCUSDT', 'ETHUSDT']
   }
 }
 

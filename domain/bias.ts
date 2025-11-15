@@ -153,38 +153,55 @@ function corrFromMap(par: string, corrMap: CorrMap): { corr12m: number | null; c
  */
 function corrFromDB(par: string, corrMap: CorrMap): { corr12m: number | null; corr6m: number | null; corr3m: number | null; ref: string | undefined; mapped: boolean } {
   // Try SQLite first
+  // IMPORTANTE: Para BTC/USDT y ETH/USDT, norm() convierte a BTCUSDT y ETHUSDT
+  // Pero si en la BD está guardado como BTCUSD (sin T), también intentamos buscar esa variante
   const symbol = norm(par)
-  if (symbol) {
-    const dbCorr = getCorrelationsForSymbol(symbol, 'DXY')
-    // Use DB if we have valid data (n_obs meets minimums) OR if we have correlation values
-    // This ensures we show correlations even if n_obs is low but value exists
-    if ((dbCorr.n_obs12m >= 150 || dbCorr.n_obs3m >= 40) || (dbCorr.corr12m != null || dbCorr.corr3m != null)) {
-      return {
-        corr12m: dbCorr.corr12m,
-        corr6m: null, // Not stored in DB
-        corr3m: dbCorr.corr3m,
-        ref: 'DXY',
-        mapped: true,
+  const variants = [symbol]
+  
+  // Para criptos, también intentar variantes sin T (por compatibilidad con datos antiguos)
+  if (symbol === 'BTCUSDT') variants.push('BTCUSD')
+  if (symbol === 'ETHUSDT') variants.push('ETHUSD')
+  
+  for (const sym of variants) {
+    if (sym) {
+      const dbCorr = getCorrelationsForSymbol(sym, 'DXY')
+      // Use DB if we have valid data (n_obs meets minimums) OR if we have correlation values
+      // This ensures we show correlations even if n_obs is low but value exists
+      if ((dbCorr.n_obs12m >= 150 || dbCorr.n_obs3m >= 40) || (dbCorr.corr12m != null || dbCorr.corr3m != null)) {
+        return {
+          corr12m: dbCorr.corr12m,
+          corr6m: null, // Not stored in DB
+          corr3m: dbCorr.corr3m,
+          ref: 'DXY',
+          mapped: true,
+        }
       }
     }
   }
+  
   // Fallback to corrMap
   const mapResult = corrFromMap(par, corrMap)
   // If corrMap has data, use it; otherwise return DB result even if n_obs is low
   if (mapResult.mapped) {
     return mapResult
   }
+  
   // Last resort: return DB data even if n_obs is low (better than nothing)
-  if (symbol) {
-    const dbCorr = getCorrelationsForSymbol(symbol, 'DXY')
-    return {
-      corr12m: dbCorr.corr12m,
-      corr6m: null,
-      corr3m: dbCorr.corr3m,
-      ref: 'DXY',
-      mapped: true,
+  for (const sym of variants) {
+    if (sym) {
+      const dbCorr = getCorrelationsForSymbol(sym, 'DXY')
+      if (dbCorr.corr12m != null || dbCorr.corr3m != null) {
+        return {
+          corr12m: dbCorr.corr12m,
+          corr6m: null,
+          corr3m: dbCorr.corr3m,
+          ref: 'DXY',
+          mapped: true,
+        }
+      }
     }
   }
+  
   return mapResult
 }
 

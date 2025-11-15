@@ -11,6 +11,7 @@ import { detectScenarios } from '@/domain/scenarios'
 import { isStaleByFrequency, getFrequencyLabel, SLA_BY_FREQUENCY } from '@/lib/utils/freshness'
 import Link from 'next/link'
 import DateDisplay from '@/components/DateDisplay'
+import { getIndicatorSource } from '@/lib/sources'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -190,19 +191,28 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   // Mapear items a rows de forma determinista (sin ordenar, mantener orden original)
   // CAUSA RAÍZ DE HIDRATACIÓN: Si se ordena o filtra de forma diferente en servidor vs cliente,
   // React detecta diferencias en el HTML y lanza errores #422 y #425
-  const rows: DashboardRow[] = apiItems.map((item: any): DashboardRow => ({
-    key: item.key ?? item.seriesId ?? '',
-    label: item.label ?? item.originalKey ?? '',
-    category: item.category ?? 'Otros',
-    previous: item.value_previous ?? null,
-    value: item.value ?? null,
-    trend: item.trend ?? null,
-    posture: item.posture ?? null,
-    weight: item.weight ?? null,
-    date: item.date ?? item.latestDate ?? null,
-    originalKey: item.originalKey ?? null,
-    unit: (item as any).unit ?? null,
-  }))
+  // 
+  // CAUSA RAÍZ DE TABLA VACÍA: Los datos llegan correctamente desde /api/bias, pero el mapeo
+  // debe preservar exactamente los campos que vienen de la API (value, value_previous, date, etc.)
+  const rows: DashboardRow[] = apiItems.map((item: any): DashboardRow => {
+    // Preservar valores numéricos explícitamente, incluyendo 0
+    const value = item.value !== undefined && item.value !== null ? Number(item.value) : null
+    const previous = item.value_previous !== undefined && item.value_previous !== null ? Number(item.value_previous) : null
+    
+    return {
+      key: item.key ?? item.seriesId ?? '',
+      label: item.label ?? item.originalKey ?? '',
+      category: item.category ?? 'Otros',
+      previous: previous,
+      value: value,
+      trend: item.trend ?? null,
+      posture: item.posture ?? null,
+      weight: item.weight !== undefined && item.weight !== null ? Number(item.weight) : null,
+      date: item.date ?? item.latestDate ?? null,
+      originalKey: item.originalKey ?? null,
+      unit: (item as any).unit ?? null,
+    }
+  })
   
   // Para cálculos (usdBias, macroQuadrant, etc.) usar apiItems directamente
   const itemsForCalculations = apiItems.map((item: any) => ({
@@ -515,9 +525,30 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                         const trend = row.trend
                         const trendColor = trend === 'Mejora' ? 'text-green-600' : trend === 'Empeora' ? 'text-red-600' : trend === 'Estable' ? 'text-gray-500' : 'text-muted-foreground'
                         const trendBadge = trend === 'Mejora' ? 'bg-green-600/10 text-green-700' : trend === 'Empeora' ? 'bg-red-600/10 text-red-700' : trend === 'Estable' ? 'bg-gray-500/10 text-gray-700' : 'bg-gray-500/10 text-gray-500'
+                        // Obtener metadata de fuente para auditoría
+                        const sourceInfo = getIndicatorSource(row.key)
+                        
                         return (
                           <tr key={String(row.key)} className="border-t">
-                            <td className="px-3 py-2">{row.label}{showKeys ? <span className="text-muted-foreground text-xs"> {' ' }[{row.key}]</span> : null}</td>
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-1">
+                                <span>{row.label}</span>
+                                {sourceInfo && (
+                                  <a
+                                    href={sourceInfo.sourceUrl || '#'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-muted-foreground hover:text-foreground"
+                                    title={`Fuente: ${sourceInfo.source} (${sourceInfo.seriesId}) - ${sourceInfo.description || ''}`}
+                                  >
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  </a>
+                                )}
+                                {showKeys ? <span className="text-muted-foreground text-xs"> {' ' }[{row.key}]</span> : null}
+                              </div>
+                            </td>
                             <td className="px-3 py-2 text-muted-foreground">{valPrevious}{row.previous != null && row.unit ? ` ${row.unit}` : ''}</td>
                             <td className="px-3 py-2">{valCurrent}{row.value != null && row.unit ? ` ${row.unit}` : ''}</td>
                             <td className="px-3 py-2">
