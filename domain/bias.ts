@@ -156,8 +156,9 @@ function corrFromDB(par: string, corrMap: CorrMap): { corr12m: number | null; co
   const symbol = norm(par)
   if (symbol) {
     const dbCorr = getCorrelationsForSymbol(symbol, 'DXY')
-    // Only use DB if we have valid data (n_obs meets minimums)
-    if (dbCorr.n_obs12m >= 150 || dbCorr.n_obs3m >= 40) {
+    // Use DB if we have valid data (n_obs meets minimums) OR if we have correlation values
+    // This ensures we show correlations even if n_obs is low but value exists
+    if ((dbCorr.n_obs12m >= 150 || dbCorr.n_obs3m >= 40) || (dbCorr.corr12m != null || dbCorr.corr3m != null)) {
       return {
         corr12m: dbCorr.corr12m,
         corr6m: null, // Not stored in DB
@@ -168,7 +169,23 @@ function corrFromDB(par: string, corrMap: CorrMap): { corr12m: number | null; co
     }
   }
   // Fallback to corrMap
-  return corrFromMap(par, corrMap)
+  const mapResult = corrFromMap(par, corrMap)
+  // If corrMap has data, use it; otherwise return DB result even if n_obs is low
+  if (mapResult.mapped) {
+    return mapResult
+  }
+  // Last resort: return DB data even if n_obs is low (better than nothing)
+  if (symbol) {
+    const dbCorr = getCorrelationsForSymbol(symbol, 'DXY')
+    return {
+      corr12m: dbCorr.corr12m,
+      corr6m: null,
+      corr3m: dbCorr.corr3m,
+      ref: 'DXY',
+      mapped: true,
+    }
+  }
+  return mapResult
 }
 
 export async function getBiasTableTactical(items: any[], risk: string, usdBiasStr: 'Fuerte' | 'Débil' | 'Neutral', score: number, _upcomingNamed: any[], corrMap: CorrMap): Promise<BiasRow[]> {
