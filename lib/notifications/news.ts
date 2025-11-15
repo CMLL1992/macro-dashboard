@@ -125,9 +125,22 @@ export async function insertNewsItem(item: NewsItem): Promise<{ inserted: boolea
         console.log(`[news] sent id=${item.id_fuente} reason=success`)
         return { inserted: true, notified: true }
       } else {
-        incrementMetric('notification_sent', 'status=failed')
-        console.error(`[news] failed id=${item.id_fuente} reason=${notified.error || 'unknown'}`)
-        return { inserted: true, notified: false, error: notified.error }
+        // CAUSA RAÍZ: Cuando las notificaciones están desactivadas, sendTelegramMessage
+        // retorna { success: false, error: 'Notifications disabled' }, lo cual se loguea
+        // como "failed" aunque no es realmente un error.
+        // SOLUCIÓN: Distinguir entre "notificaciones desactivadas" (skipped) y errores reales (failed)
+        const isDisabled = notified.error === 'Notifications disabled'
+        
+        if (isDisabled) {
+          // Notificaciones desactivadas por configuración - no es un error
+          console.log(`[news] skipped id=${item.id_fuente} reason=notifications_disabled`)
+          return { inserted: true, notified: false, error: 'Notifications disabled' }
+        } else {
+          // Error real (red, token inválido, etc.)
+          incrementMetric('notification_sent', 'status=failed')
+          console.error(`[news] failed id=${item.id_fuente} reason=${notified.error || 'unknown'}`)
+          return { inserted: true, notified: false, error: notified.error }
+        }
       }
     }
 

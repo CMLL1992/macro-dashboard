@@ -1,7 +1,7 @@
 import { stooqSeries, STOOQ, type OHLC } from './stooq'
-import { binanceKlinesMonthly } from './binance'
+import { binanceKlinesMonthly, BinanceRestrictionError } from './binance'
 
-export { OHLC, stooqSeries, STOOQ, binanceKlinesMonthly }
+export { OHLC, stooqSeries, STOOQ, binanceKlinesMonthly, BinanceRestrictionError }
 
 export type ClosePoint = { date: string; value: number }
 

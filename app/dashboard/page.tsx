@@ -387,7 +387,17 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
           {scenarios.length ? (
             <ul className="space-y-2 text-sm">
               {scenarios
-                .sort((a, b) => (a.severity === 'alta' ? -1 : a.severity === 'media' && b.severity === 'baja' ? -1 : 1))
+                // CAUSA RAÍZ DE HIDRATACIÓN: El sort debe ser determinista
+                // Si dos escenarios tienen la misma severity, el orden debe ser consistente
+                // SOLUCIÓN: Añadir criterio secundario (id o título) para garantizar orden determinista
+                .sort((a, b) => {
+                  const severityOrder = { 'alta': 0, 'media': 1, 'baja': 2 }
+                  const aSev = severityOrder[a.severity as keyof typeof severityOrder] ?? 2
+                  const bSev = severityOrder[b.severity as keyof typeof severityOrder] ?? 2
+                  if (aSev !== bSev) return aSev - bSev
+                  // Si misma severity, ordenar por id o título para mantener orden determinista
+                  return (a.id || a.title || '').localeCompare(b.id || b.title || '')
+                })
                 .map((s) => (
                   <li key={s.id} className="rounded border p-3">
                     <div className="flex items-center gap-2">

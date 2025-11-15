@@ -131,14 +131,23 @@ export async function POST(request: NextRequest) {
         const errorStack = error instanceof Error ? error.stack : undefined
         
         // Log detallado del error para debugging (especialmente para FEDFUNDS)
+        // CAUSA RAÍZ: Este es el punto exacto donde se loguea "Failed to ingest FEDFUNDS"
+        // El error puede venir de:
+        // 1. fetchFredSeries() - error de red, status HTTP, parseo JSON
+        // 2. upsertMacroSeries() - error de base de datos
+        // 3. Validación de datos - estructura inesperada
         logger.error(`Failed to ingest ${series.id}`, {
           job: jobId,
           series_id: series.id,
           frequency: series.frequency,
           error: errorMsg,
           stack: errorStack,
-          // Intentar obtener más información del error si es un error de fetch
           error_type: error instanceof TypeError ? 'TypeError' : error instanceof Error ? error.constructor.name : typeof error,
+          // Información adicional para debugging FEDFUNDS
+          is_fedfunds: series.id === 'FEDFUNDS',
+          // Si el error menciona FRED API, incluir más contexto
+          fred_api_error: errorMsg.includes('FRED API') ? errorMsg : undefined,
+          invalid_structure: errorMsg.includes('Invalid FRED response structure') ? errorMsg : undefined,
         })
         
         ingestErrors.push({ seriesId: series.id, error: errorMsg })

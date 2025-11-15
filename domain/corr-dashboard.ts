@@ -1,6 +1,6 @@
 import { fetchFredSeries } from '@/lib/fred'
 import { resampleToMonthly } from '@/lib/markets'
-import { binanceKlinesMonthly } from '@/lib/markets'
+import { binanceKlinesMonthly, BinanceRestrictionError } from '@/lib/markets'
 import { yahooSeriesMonthly, yahooSeriesMonthlyAny } from '@/lib/markets/yahoo'
 import { pearson } from './correlation'
 
@@ -39,6 +39,14 @@ async function fetchAssetSeries(name: string): Promise<{ date: string; value: nu
     const s = await yahooSeriesMonthly(m, '20y')
     return s.map(p => ({ date: p.date, value: p.close }))
   } catch (e) {
+    // Manejo específico para errores de restricción de Binance (451/403)
+    // CAUSA RAÍZ: Binance devuelve 451/403 cuando hay restricciones legales/geográficas
+    // SOLUCIÓN: No lanzar excepción, retornar null y loguear warning claro
+    if (e instanceof BinanceRestrictionError) {
+      console.warn(`[corr-dashboard] ${e.symbol} data unavailable: provider ${e.status} (legal/geo restriction) - marking as INSUFFICIENT_DATA`)
+      return null // Retornar null para que se marque como "Datos no disponibles"
+    }
+    // Otros errores se loguean como warning
     console.warn(`Error fetching ${name}:`, e)
     return null
   }
