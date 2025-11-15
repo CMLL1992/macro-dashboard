@@ -129,6 +129,13 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     itemsLength: apiBias?.items?.length,
     firstItem: apiBias?.items?.[0] || null,
   })
+  
+  // Log: verificar que rows se construye correctamente
+  const apiItems = Array.isArray(apiBias?.items) ? apiBias.items : []
+  console.log('[Dashboard] apiItems antes de mapear', {
+    apiItemsLength: apiItems.length,
+    firstApiItem: apiItems[0] || null,
+  })
 
   // 2. Get macro diagnosis - NO lanzar error, usar valores por defecto si falla
   let data: any = null
@@ -190,7 +197,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   }
   
   // Construir las filas directamente desde apiBias.items
-  const apiItems = Array.isArray(apiBias?.items) ? apiBias.items : []
   const rows: DashboardRow[] = apiItems.map((item: any): DashboardRow => ({
     key: item.key ?? item.seriesId ?? '',
     label: item.label ?? item.originalKey ?? '',
@@ -204,6 +210,12 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     originalKey: item.originalKey ?? null,
     unit: (item as any).unit ?? null,
   }))
+  
+  console.log('[Dashboard] rows después de mapear', {
+    rowsLength: rows.length,
+    firstRow: rows[0] || null,
+    rowsWithValue: rows.filter(r => r.value != null).length,
+  })
   
   // Para cálculos (usdBias, macroQuadrant, etc.) usar apiItems directamente
   const itemsForCalculations = apiItems.map((item: any) => ({
