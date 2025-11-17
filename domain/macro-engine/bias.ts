@@ -237,20 +237,26 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
         ? new Date(observations.latestDate)
         : new Date()
 
-  const table: BiasRow[] = latestPoints.map((item: any) => ({
-    key: item.key,
-    label: item.label,
-    value: item.value ?? null,
-    value_previous: item.value_previous ?? null,
-    trend: item.trend ?? null,
-    posture: item.posture ?? null,
-    weight: item.weight ?? null,
-    category: item.category ?? categoryFor(item.key ?? item.originalKey ?? ''),
-    date: item.date ?? null,
-    date_previous: item.date_previous ?? null,
-    originalKey: item.originalKey ?? item.key ?? null,
-    unit: item.unit ?? null,
-  }))
+  const table: BiasRow[] = latestPoints.map((item: any) => {
+    // Ensure date is converted from undefined to null for consistency
+    const dateValue = item.date ?? null
+    const datePreviousValue = item.date_previous ?? null
+    
+    return {
+      key: item.key,
+      label: item.label,
+      value: item.value ?? null,
+      value_previous: item.value_previous ?? null,
+      trend: item.trend ?? null,
+      posture: item.posture ?? null,
+      weight: item.weight ?? null,
+      category: item.category ?? categoryFor(item.key ?? item.originalKey ?? ''),
+      date: dateValue,
+      date_previous: datePreviousValue,
+      originalKey: item.originalKey ?? item.key ?? null,
+      unit: item.unit ?? null,
+    }
+  })
 
   return {
     latestPoints,
