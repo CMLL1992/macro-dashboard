@@ -48,6 +48,12 @@ function buildNarrativeRows(tableTactical: any[], correlationShifts: any[]): Nar
   })
 }
 
+const USD_LABELS: Record<string, 'Fuerte' | 'Débil' | 'Neutral'> = {
+  Bullish: 'Fuerte',
+  Bearish: 'Débil',
+  Neutral: 'Neutral',
+}
+
 export default async function NarrativasPage() {
   const [biasState, correlationState] = await Promise.all([
     getBiasState(),
@@ -56,6 +62,13 @@ export default async function NarrativasPage() {
 
   const tacticalRows = Array.isArray(biasState.tableTactical) ? biasState.tableTactical : []
   const rows: NarrativeRow[] = buildNarrativeRows(tacticalRows, correlationState.shifts)
+
+  const usd = USD_LABELS[biasState.regime.usd_direction] ?? biasState.regime.usd_direction
+  const quad = biasState.regime.quad
+  const overallRegime = biasState.regime.overall
+  const liquidity = biasState.regime.liquidity
+  const credit = biasState.regime.credit
+  const risk = biasState.regime.risk
 
   if (!rows.length) {
     return (
@@ -205,6 +218,40 @@ export default async function NarrativasPage() {
               </ul>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Contexto macro actual */}
+      <div className="rounded-lg border bg-card p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4">Contexto Macroeconómico Actual</h2>
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="bg-muted/30 rounded-lg p-4">
+            <div className="text-xs text-muted-foreground mb-1">Régimen General</div>
+            <div className="text-lg font-semibold">{overallRegime}</div>
+          </div>
+          <div className="bg-muted/30 rounded-lg p-4">
+            <div className="text-xs text-muted-foreground mb-1">USD</div>
+            <div className="text-lg font-semibold">{usd}</div>
+          </div>
+          <div className="bg-muted/30 rounded-lg p-4">
+            <div className="text-xs text-muted-foreground mb-1">Cuadrante</div>
+            <div className="text-lg font-semibold">{quad}</div>
+          </div>
+          <div className="bg-muted/30 rounded-lg p-4">
+            <div className="text-xs text-muted-foreground mb-1">Liquidez</div>
+            <div className="text-lg font-semibold">{liquidity}</div>
+          </div>
+          <div className="bg-muted/30 rounded-lg p-4">
+            <div className="text-xs text-muted-foreground mb-1">Crédito</div>
+            <div className="text-lg font-semibold">{credit}</div>
+          </div>
+          <div className="bg-muted/30 rounded-lg p-4">
+            <div className="text-xs text-muted-foreground mb-1">Apetito de Riesgo</div>
+            <div className="text-lg font-semibold">{risk}</div>
+          </div>
+        </div>
+        <div className="mt-4 text-xs text-muted-foreground">
+          Última actualización: {biasState.updatedAt ? new Date(biasState.updatedAt).toLocaleString('es-ES') : 'N/A'}
         </div>
       </div>
 

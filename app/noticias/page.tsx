@@ -71,17 +71,25 @@ function parseConsenso(consenso: string | null | undefined): { value: number | n
 }
 
 export default async function NoticiasPage() {
-  // Calcular próxima semana (lunes a domingo)
-  const currentUTC = new Date()
-  const currentMadrid = toZonedTime(currentUTC, TIMEZONE)
-  const nextMonday = startOfWeek(addDays(currentMadrid, 7), { weekStartsOn: 1 })
-  const nextSunday = endOfWeek(nextMonday, { weekStartsOn: 1 })
+  let events: ReturnType<typeof getCalendarEvents> = []
+  let error: string | null = null
 
-  const mondayStr = format(nextMonday, 'yyyy-MM-dd')
-  const sundayStr = format(nextSunday, 'yyyy-MM-dd')
+  try {
+    // Calcular próxima semana (lunes a domingo)
+    const currentUTC = new Date()
+    const currentMadrid = toZonedTime(currentUTC, TIMEZONE)
+    const nextMonday = startOfWeek(addDays(currentMadrid, 7), { weekStartsOn: 1 })
+    const nextSunday = endOfWeek(nextMonday, { weekStartsOn: 1 })
 
-  // Obtener eventos de próxima semana
-  const events = getCalendarEvents(mondayStr, sundayStr)
+    const mondayStr = format(nextMonday, 'yyyy-MM-dd')
+    const sundayStr = format(nextSunday, 'yyyy-MM-dd')
+
+    // Obtener eventos de próxima semana
+    events = getCalendarEvents(mondayStr, sundayStr)
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Error desconocido al cargar eventos'
+    console.error('[NoticiasPage] Error loading calendar events:', err)
+  }
   
   // Agrupar eventos por día
   const eventsByDay = new Map<string, typeof events>()
@@ -141,12 +149,21 @@ export default async function NoticiasPage() {
         </div>
       </div>
 
+      {/* Error state */}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-6">
+          <h2 className="text-lg font-semibold text-red-900 mb-2">Error al cargar eventos</h2>
+          <p className="text-sm text-red-800">{error}</p>
+          <p className="text-xs text-red-700 mt-2">Por favor, intenta recargar la página o contacta al administrador.</p>
+        </div>
+      )}
+
       {/* Eventos por día */}
-      {eventsByDay.size === 0 ? (
+      {!error && eventsByDay.size === 0 ? (
         <div className="rounded-lg border bg-card p-6 text-center">
           <p className="text-muted-foreground">No hay eventos programados para la próxima semana.</p>
         </div>
-      ) : (
+      ) : !error ? (
         <div className="space-y-6">
           {Array.from(eventsByDay.entries())
             .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))

@@ -477,6 +477,218 @@ const table: BiasRow[] = latestPoints.map((item: any) => ({
 
 ---
 
+---
+
+## 📄 PÁGINAS Y FUNCIONALIDADES
+
+### 1. Dashboard (`/dashboard`)
+
+**Objetivo:** Vista principal con indicadores macro, régimen actual, escenarios y pares tácticos.
+
+**Fuentes de datos:**
+- `getBiasState()` - Estado completo del bias macro
+- `getCorrelationState()` - Estado de correlaciones
+
+**Componentes principales:**
+- Régimen actual del mercado (overall, USD, Quad, Liquidity, Credit, Risk)
+- Tabla de indicadores macro (por categoría)
+- Vista rápida de pares tácticos (categorizados: Forex, Metales, Crypto, Índices)
+- Escenarios detectados
+- Resumen de correlaciones USD
+
+**Última actualización:** Integrado con Macro Engine (`domain/macro-engine/bias.ts` y `correlations.ts`)
+
+---
+
+### 2. Narrativas (`/narrativas`)
+
+**Objetivo:** Mostrar narrativas macroeconómicas por activo, derivadas del macro engine.
+
+**Fuentes de datos:**
+- `getBiasState()` - Para `tableTactical` (narrativas por activo)
+- `getCorrelationState()` - Para `shifts` (cambios de correlación)
+
+**Mejoras implementadas (2025-11-17):**
+- ✅ **Contexto macro actual:** Muestra régimen general, USD, Quad, Liquidity, Credit, Risk
+- ✅ **Consistencia de labels:** Usa los mismos labels que el Dashboard
+- ✅ **Última actualización:** Muestra timestamp de `biasState.updatedAt`
+- ✅ **Estructura de datos:** Cada narrativa incluye:
+  - `par`: Símbolo del activo
+  - `tactico`: Tendencia (Alcista/Bajista/Neutral)
+  - `accion`: Acción recomendada
+  - `confianza`: Nivel de confianza (Alta/Media/Baja)
+  - `motivo`: Narrativa macro explicativa
+  - `corr12m`, `corr3m`: Correlaciones con DXY
+
+**Página de detalle:** `/narrativas/[symbol]` muestra análisis detallado con:
+- Explicación del mercado
+- Explicación de correlaciones
+- Drivers macroeconómicos principales
+- Implicaciones para el trading
+
+---
+
+### 3. Noticias (`/noticias`)
+
+**Objetivo:** Calendario macroeconómico con eventos de la próxima semana.
+
+**Fuentes de datos:**
+- `getCalendarEvents()` - Eventos del calendario macro (`lib/notifications/weekly.ts`)
+- `getIndicatorHistory()` - Datos históricos para cada evento
+
+**Estructura de datos:**
+- Cada evento incluye:
+  - `fecha`: Fecha del evento
+  - `hora_local`: Hora local
+  - `pais`: País
+  - `tema`: Tema (CPI, GDP, NFP, etc.)
+  - `evento`: Nombre del evento
+  - `importancia`: 'high' o 'med'
+  - `consenso`: Previsión de analistas
+  - `indicatorKey`: Clave del indicador relacionado (mapeo automático)
+  - `history`: Datos históricos (value_current, value_previous, dates)
+
+**Mejoras implementadas (2025-11-17):**
+- ✅ **Manejo de errores:** Try-catch con mensaje de error amigable
+- ✅ **Estados vacíos:** Mensaje claro cuando no hay eventos
+- ✅ **Análisis automático:** Compara dato anterior vs previsión
+- ✅ **Mapeo de indicadores:** Asocia eventos con indicadores automáticamente
+
+**Nota:** Esta página muestra el calendario económico, no noticias de fuentes externas. Las noticias reales se gestionan en `/admin/news`.
+
+---
+
+### 4. Admin (`/admin`)
+
+**Objetivo:** Panel de administración con acceso controlado.
+
+**Autenticación:**
+- Protegido con `isAdminAuthenticated()` (`lib/auth.ts`)
+- Redirige a `/admin/login` si no está autenticado
+- Sesiones expiran después de 24 horas
+
+**Secciones principales:**
+- **Dashboard (`/admin/dashboard`):** Vista general del sistema
+  - Estado de notificaciones Telegram
+  - Métricas (enviados, fallidos, rate limited)
+  - Estado de la cola
+  - Noticias y eventos recientes
+  - Acciones rápidas (jobs, verificación)
+- **Notificaciones (`/admin/notifications`):** Configuración de Telegram
+- **Calendario (`/admin/calendar`):** Gestión de eventos macro
+- **Noticias (`/admin/news`):** Gestión de noticias publicadas
+
+**Jobs disponibles:**
+- `/api/jobs/ingest/fred` - Ingesta de datos FRED
+- `/api/jobs/ingest/macro` - Ingesta de datos macro
+- `/api/jobs/correlations` - Cálculo de correlaciones
+- `/api/jobs/compute/bias` - Cálculo de bias macro
+- `/api/jobs/weekly` - Notificación semanal
+- `/api/jobs/digest` - Resumen diario
+- `/api/jobs/maintenance` - Mantenimiento de BD
+
+**Mejoras recomendadas (pendientes):**
+- ⏳ Panel de estado del sistema con datos del macro engine
+- ⏳ Job triggers mejorados con feedback visual
+- ⏳ Última actualización de cada job visible
+
+---
+
+### 5. Notificaciones (`/notificaciones`)
+
+**Objetivo:** Configuración de preferencias de notificaciones del usuario.
+
+**Funcionalidad:**
+- Configuración de Chat ID de Telegram
+- Preferencias de notificaciones (news, narrative, weekly, daily)
+- Persistencia en localStorage
+- Registro opcional en servidor vía `/api/notifications/user-config`
+
+**Tipos de notificaciones:**
+- `news_high`: Noticias de alto impacto
+- `news_medium`: Noticias de impacto medio
+- `narrative_changes`: Cambios de narrativa macro
+- `weekly_ahead`: Resumen semanal
+- `daily_digest`: Resumen diario
+
+**Sistema de notificaciones backend:**
+- **Triggers:** `lib/alerts/triggers.ts`
+  - `checkUSDChange()` - Cambios en régimen USD
+  - `checkCorrelationChanges()` - Cambios en correlaciones
+  - `checkMacroReleases()` - Nuevos datos macro
+- **Builders:** `lib/alerts/builders.ts` - Plantillas de mensajes
+- **Estado:** `lib/alerts/state.ts` - Persistencia en SQLite
+- **Historial:** `notification_history` table
+
+**Mejoras recomendadas (pendientes):**
+- ⏳ Historial de notificaciones visible en la página
+- ⏳ Notificaciones derivadas del macro engine (cambios de régimen, etc.)
+
+---
+
+### 6. Correlaciones (`/correlations`)
+
+**Objetivo:** Visualizar correlaciones entre activos y benchmarks.
+
+**Fuentes de datos:**
+- `getCorrelationState()` - Estado completo de correlaciones
+- `getBiasState()` - Contexto macro para relevancia
+
+**Componentes:**
+- Contexto macro actual (regime, USD, Quad)
+- Mapa de correlaciones con:
+  - Ventana más fuerte
+  - Correlación actual
+  - Tendencia (Strengthening/Weakening/Stable/Inconclusive)
+  - Régimen de cambio (Break/Reinforcing/Stable/Weak)
+  - Relevancia macro (score 0-1)
+
+---
+
+### 7. Sesgos (`/sesgos`)
+
+**Objetivo:** Visualizar sesgos de trading por activo.
+
+**Fuentes de datos:**
+- `getTradingBiasState()` - Estado de sesgos de trading (`domain/macro-engine/trading-bias.ts`)
+
+**Componentes:**
+- Contexto global (regime)
+- Tabla de sesgos por activo:
+  - Activo
+  - Sesgo (Long/Short/Neutral)
+  - Convicción (Alta/Media/Baja)
+  - Narrativa macro
+  - Correlación
+  - Flags de riesgo
+
+---
+
+## 🔧 MEJORAS IMPLEMENTADAS (2025-11-17)
+
+### Narrativas
+- ✅ Contexto macro actual visible en la página principal
+- ✅ Consistencia de labels con Dashboard
+- ✅ Timestamp de última actualización
+
+### Noticias
+- ✅ Manejo robusto de errores con try-catch
+- ✅ Estados vacíos con mensajes claros
+- ✅ Análisis automático de datos anteriores vs previsión
+
+### Admin
+- ✅ Autenticación implementada
+- ✅ Dashboard funcional con métricas
+- ⏳ Panel de estado del sistema (pendiente)
+- ⏳ Job triggers mejorados (pendiente)
+
+### Notificaciones
+- ✅ Configuración de preferencias funcional
+- ✅ Persistencia en localStorage
+- ⏳ Historial visible (pendiente)
+
+---
+
 **Última actualización:** 2025-11-17  
-**Commits relevantes:** `a91d2de`, `870e4ee`, `f5168f2`, `44e8afe`
+**Commits relevantes:** `a91d2de`, `870e4ee`, `f5168f2`, `44e8afe`, `bc85bdb`
 
