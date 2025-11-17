@@ -70,50 +70,64 @@ function parseConsenso(consenso: string | null | undefined): { value: number | n
   return { value: null, unit: null }
 }
 
+type EventWithHistory = {
+  fecha: string
+  hora_local?: string
+  pais?: string
+  tema: string
+  evento: string
+  importancia: 'low' | 'med' | 'high'
+  consenso?: string
+  indicatorKey: string | null
+  history: ReturnType<typeof getIndicatorHistory> | null
+  consensoParsed: { value: number | null; unit: string | null }
+}
+
 export default async function NoticiasPage() {
   let events: ReturnType<typeof getCalendarEvents> = []
   let error: string | null = null
+  let eventsByDay = new Map<string, typeof events>()
+  let eventsWithHistory: EventWithHistory[] = []
+  
+  // Calcular próxima semana (lunes a domingo) - fuera del try para usar en JSX
+  const currentUTC = new Date()
+  const currentMadrid = toZonedTime(currentUTC, TIMEZONE)
+  const nextMonday = startOfWeek(addDays(currentMadrid, 7), { weekStartsOn: 1 })
+  const nextSunday = endOfWeek(nextMonday, { weekStartsOn: 1 })
 
   try {
-    // Calcular próxima semana (lunes a domingo)
-    const currentUTC = new Date()
-    const currentMadrid = toZonedTime(currentUTC, TIMEZONE)
-    const nextMonday = startOfWeek(addDays(currentMadrid, 7), { weekStartsOn: 1 })
-    const nextSunday = endOfWeek(nextMonday, { weekStartsOn: 1 })
-
     const mondayStr = format(nextMonday, 'yyyy-MM-dd')
     const sundayStr = format(nextSunday, 'yyyy-MM-dd')
 
     // Obtener eventos de próxima semana
     events = getCalendarEvents(mondayStr, sundayStr)
+    
+    // Agrupar eventos por día
+    for (const event of events) {
+      const day = event.fecha
+      if (!eventsByDay.has(day)) {
+        eventsByDay.set(day, [])
+      }
+      eventsByDay.get(day)!.push(event)
+    }
+
+    // Obtener datos históricos para cada evento
+    eventsWithHistory = events.map(event => {
+      const indicatorKey = getIndicatorKeyFromEvent(event.evento, event.tema)
+      const history = indicatorKey ? getIndicatorHistory(indicatorKey) : null
+      const consensoParsed = parseConsenso(event.consenso)
+      
+      return {
+        ...event,
+        indicatorKey,
+        history,
+        consensoParsed,
+      }
+    })
   } catch (err) {
     error = err instanceof Error ? err.message : 'Error desconocido al cargar eventos'
     console.error('[NoticiasPage] Error loading calendar events:', err)
   }
-  
-  // Agrupar eventos por día
-  const eventsByDay = new Map<string, typeof events>()
-  for (const event of events) {
-    const day = event.fecha
-    if (!eventsByDay.has(day)) {
-      eventsByDay.set(day, [])
-    }
-    eventsByDay.get(day)!.push(event)
-  }
-
-  // Obtener datos históricos para cada evento
-  const eventsWithHistory = events.map(event => {
-    const indicatorKey = getIndicatorKeyFromEvent(event.evento, event.tema)
-    const history = indicatorKey ? getIndicatorHistory(indicatorKey) : null
-    const consenso = parseConsenso(event.consenso)
-    
-    return {
-      ...event,
-      indicatorKey,
-      history,
-      consenso,
-    }
-  })
 
   return (
     <div className="mx-auto max-w-7xl p-6 space-y-8">
@@ -187,10 +201,10 @@ export default async function NoticiasPage() {
                         e.fecha === event.fecha && 
                         e.evento === event.evento &&
                         e.tema === event.tema
-                      ) || event
+                      )
                       
-                      const history = 'history' in eventWithHistory ? eventWithHistory.history : null
-                      const consenso = 'consenso' in eventWithHistory ? eventWithHistory.consenso : parseConsenso(event.consenso)
+                      const history = eventWithHistory?.history ?? null
+                      const consensoParsed = eventWithHistory?.consensoParsed ?? parseConsenso(event.consenso)
                       
                       const importanciaBadge = event.importancia === 'high'
                         ? 'bg-red-100 text-red-800 border-red-200'
@@ -259,13 +273,13 @@ export default async function NoticiasPage() {
                             {/* Previsión (Consenso) */}
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                               <div className="text-xs text-blue-700 mb-1 font-medium">Previsión (Consenso)</div>
-                              {typeof consenso === 'object' && consenso?.value != null ? (
+                              {consensoParsed?.value != null ? (
                                 <div>
                                   <div className="text-lg font-semibold text-blue-900">
-                                    {consenso.value > 0 ? '+' : ''}{consenso.value.toLocaleString('es-ES', {
+                                    {consensoParsed.value > 0 ? '+' : ''}{consensoParsed.value.toLocaleString('es-ES', {
                                       maximumFractionDigits: 2
                                     })}
-                                    {consenso.unit && <span className="text-sm ml-1">{consenso.unit}</span>}
+                                    {consensoParsed.unit && <span className="text-sm ml-1">{consensoParsed.unit}</span>}
                                   </div>
                                   {event.consenso && (
                                     <div className="text-xs text-blue-700 mt-1">
@@ -283,11 +297,11 @@ export default async function NoticiasPage() {
                             {/* Análisis */}
                             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                               <div className="text-xs text-green-700 mb-1 font-medium">Análisis</div>
-                              {history?.value_previous != null && typeof consenso === 'object' && consenso?.value != null ? (
+                              {history?.value_previous != null && consensoParsed?.value != null ? (
                                 <div className="text-sm text-green-800">
-                                  {consenso.value > history.value_previous ? (
+                                  {consensoParsed.value > history.value_previous ? (
                                     <span className="font-semibold">Esperado mejor que anterior</span>
-                                  ) : consenso.value < history.value_previous ? (
+                                  ) : consensoParsed.value < history.value_previous ? (
                                     <span className="font-semibold">Esperado peor que anterior</span>
                                   ) : (
                                     <span>Esperado similar al anterior</span>
@@ -302,7 +316,7 @@ export default async function NoticiasPage() {
                           </div>
 
                           {/* Información adicional */}
-                          {'indicatorKey' in eventWithHistory && eventWithHistory.indicatorKey && (
+                          {eventWithHistory?.indicatorKey && (
                             <div className="mt-4 pt-4 border-t text-xs text-muted-foreground">
                               Indicador relacionado: <code className="bg-muted px-1 rounded">{eventWithHistory.indicatorKey}</code>
                             </div>
