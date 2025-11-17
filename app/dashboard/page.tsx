@@ -283,9 +283,9 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
         metrics: {
           usdScore: 0,
           quadScore: 0,
-          liquidityScore: 0,
-          creditScore: 0,
-          riskScore: 0,
+          liquidityScore: null,
+          creditScore: null,
+          riskScore: null,
         },
         table: [],
         tableTactical: [],
