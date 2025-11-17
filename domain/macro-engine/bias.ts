@@ -95,9 +95,9 @@ export type BiasState = {
   metrics: {
     usdScore: number
     quadScore: number
-    liquidityScore: number
-    creditScore: number
-    riskScore: number
+    liquidityScore: number | null
+    creditScore: number | null
+    riskScore: number | null
   }
   table: BiasRow[]
   tableTactical: TacticalBiasRow[]
