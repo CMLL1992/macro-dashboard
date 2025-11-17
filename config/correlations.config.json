@@ -1,0 +1,28 @@
+{
+  "base": "DXY",
+  "windows": {
+    "w12m": { "label": "Corr. 12m (ref)", "trading_days": 252, "min_obs": 150 },
+    "w3m":  { "label": "Corr. 3m",        "trading_days": 63,  "min_obs": 40 }
+  },
+  "method": {
+    "return_type": "log",
+    "align": "ny_close",
+    "fill": { "method": "ffill", "max_days": 3 },
+    "winsorize": { "p_low": 0.01, "p_high": 0.99 }
+  },
+  "color_rules": {
+    "strong": { "abs_gte": 0.60 },
+    "moderate": { "abs_gte": 0.30, "abs_lt": 0.60 },
+    "weak": { "abs_lt": 0.30 }
+  },
+  "ui": {
+    "format": { "decimals": 2, "suffix": " (DXY)" },
+    "no_data": "—",
+    "tooltip": "Correlación de Pearson entre rendimientos diarios (activo vs. DXY)"
+  }
+}
+
+
+
+
+

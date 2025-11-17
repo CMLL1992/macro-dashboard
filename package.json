@@ -1,0 +1,70 @@
+{
+  "name": "macro-dashboard-with-data",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@10.20.0",
+  "pnpm": {
+    "allowedBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild",
+      "unrs-resolver"
+    ]
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "preinstall": "echo 'Skipping interactive approve-builds in CI/Vercel' || true",
+    "postinstall": "cd node_modules/.pnpm/better-sqlite3@12.4.1/node_modules/better-sqlite3 && npm run build-release || true",
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "job:ingest": "curl -XPOST -H 'Authorization: Bearer ${CRON_TOKEN}' ${APP_URL:-http://localhost:3000}/api/jobs/ingest/macro",
+    "job:ingest:fred": "curl -XPOST -H 'Authorization: Bearer ${CRON_TOKEN}' ${APP_URL:-http://localhost:3000}/api/jobs/ingest/fred",
+    "job:correlations": "curl -XPOST -H 'Authorization: Bearer ${CRON_TOKEN}' ${APP_URL:-http://localhost:3000}/api/jobs/correlations",
+    "job:bias": "curl -XPOST -H 'Authorization: Bearer ${CRON_TOKEN}' ${APP_URL:-http://localhost:3000}/api/jobs/compute/bias",
+    "job:bootstrap": "pnpm job:ingest:fred && pnpm job:correlations && pnpm job:bias",
+    "job:maintenance": "curl -XPOST -H 'Authorization: Bearer ${CRON_TOKEN}' ${APP_URL:-http://localhost:3000}/api/jobs/maintenance",
+    "refresh": "tsx scripts/refresh-dashboard.ts",
+    "test:notifs": "bash scripts/test_notifications.sh"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.0.2",
+    "better-sqlite3": "^12.4.1",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "date-fns-tz": "^3.2.0",
+    "lucide-react": "^0.460.0",
+    "markdown-it": "^14.1.0",
+    "next": "14.2.5",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "slugify": "^1.6.6",
+    "tailwind-merge": "^2.5.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.19",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^20.10.0",
+    "@types/node-fetch": "^2.6.11",
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^19.2.2",
+    "@vitest/ui": "^1.6.0",
+    "autoprefixer": "^10.4.19",
+    "dotenv": "^17.2.3",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.5",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.10",
+    "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.20.6",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

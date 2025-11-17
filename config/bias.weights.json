@@ -1,0 +1,64 @@
+{
+  "global": {
+    "risk_regime": 0.30,
+    "usd_bias": 0.25,
+    "inflation_momentum": 0.15,
+    "growth_momentum": 0.15,
+    "external_balance": 0.10,
+    "rates_context": 0.05
+  },
+  "by_asset_class": {
+    "fx": {
+      "risk_regime": 0.25,
+      "usd_bias": 0.35,
+      "inflation_momentum": 0.10,
+      "growth_momentum": 0.15,
+      "external_balance": 0.10,
+      "rates_context": 0.05
+    },
+    "index": {
+      "risk_regime": 0.40,
+      "usd_bias": 0.10,
+      "inflation_momentum": 0.15,
+      "growth_momentum": 0.25,
+      "external_balance": 0.05,
+      "rates_context": 0.05
+    },
+    "metal": {
+      "risk_regime": 0.25,
+      "usd_bias": 0.25,
+      "inflation_momentum": 0.20,
+      "growth_momentum": 0.10,
+      "external_balance": 0.10,
+      "rates_context": 0.10
+    },
+    "crypto": {
+      "risk_regime": 0.45,
+      "usd_bias": 0.15,
+      "inflation_momentum": 0.10,
+      "growth_momentum": 0.15,
+      "external_balance": 0.00,
+      "rates_context": 0.15
+    },
+    "energy": {
+      "risk_regime": 0.30,
+      "usd_bias": 0.20,
+      "inflation_momentum": 0.15,
+      "growth_momentum": 0.20,
+      "external_balance": 0.05,
+      "rates_context": 0.10
+    }
+  },
+  "confidence": {
+    "min": 0.2,
+    "max": 0.95,
+    "coherence_bonus": 0.05,
+    "conflict_penalty": 0.10
+  },
+  "thresholds": {
+    "strong": 70,
+    "moderate": 40,
+    "neutral": 20
+  }
+}
+

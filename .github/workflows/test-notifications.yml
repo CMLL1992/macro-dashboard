@@ -1,0 +1,47 @@
+name: Test Notifications
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'lib/notifications/**'
+      - 'app/api/news/**'
+      - 'app/api/jobs/weekly/**'
+      - 'app/api/notifications/**'
+      - 'scripts/test_notifications.sh'
+
+jobs:
+  test-notifications:
+    runs-on: ubuntu-latest
+    
+    # Only run on main branch or manual dispatch (not on external PRs)
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      
+      - name: Install dependencies
+        run: pnpm install
+      
+      - name: Run notification tests
+        env:
+          BASE: ${{ secrets.NOTIFICATIONS_TEST_BASE_URL || 'http://localhost:3000' }}
+          ING: ${{ secrets.NOTIFICATIONS_TEST_INGEST_KEY }}
+        run: npm run test:notifs
+        continue-on-error: false
+
+

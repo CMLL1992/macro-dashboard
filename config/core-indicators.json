@@ -1,0 +1,190 @@
+{
+  "description": "Lista curada de 16 indicadores macroeconómicos de alto impacto reconocidos globalmente",
+  "version": "1.0.0",
+  "indicators": [
+    {
+      "key": "CPIAUCSL",
+      "name": "CPI YoY",
+      "category": "inflation",
+      "source": "FRED",
+      "seriesId": "CPIAUCSL",
+      "frequency": "M",
+      "transform": "yoy",
+      "weight": 0.10
+    },
+    {
+      "key": "CPILFESL",
+      "name": "Core CPI YoY",
+      "category": "inflation",
+      "source": "FRED",
+      "seriesId": "CPILFESL",
+      "frequency": "M",
+      "transform": "yoy",
+      "weight": 0.10
+    },
+    {
+      "key": "PCEPILFE",
+      "name": "Core PCE YoY",
+      "category": "inflation",
+      "source": "FRED",
+      "seriesId": "PCEPILFE",
+      "frequency": "M",
+      "transform": "yoy",
+      "weight": 0.10
+    },
+    {
+      "key": "PPIACO",
+      "name": "PPI YoY",
+      "category": "inflation",
+      "source": "FRED",
+      "seriesId": "PPIACO",
+      "frequency": "M",
+      "transform": "yoy",
+      "weight": 0.05
+    },
+    {
+      "key": "GDPC1",
+      "name": "GDP QoQ (Annualized)",
+      "category": "growth",
+      "source": "FRED",
+      "seriesId": "GDPC1",
+      "frequency": "Q",
+      "transform": "qoq_annualized",
+      "weight": 0.12
+    },
+    {
+      "key": "GDPC1_YOY",
+      "name": "GDP YoY",
+      "category": "growth",
+      "source": "FRED",
+      "seriesId": "GDPC1",
+      "frequency": "Q",
+      "transform": "yoy",
+      "weight": 0.08
+    },
+    {
+      "key": "INDPRO",
+      "name": "Industrial Production YoY (PMI Proxy)",
+      "category": "growth",
+      "source": "FRED",
+      "seriesId": "INDPRO",
+      "frequency": "M",
+      "transform": "yoy",
+      "weight": 0.08
+    },
+    {
+      "key": "RSXFS",
+      "name": "Retail Sales YoY (PMI Services Proxy)",
+      "category": "growth",
+      "source": "FRED",
+      "seriesId": "RSXFS",
+      "frequency": "M",
+      "transform": "yoy",
+      "weight": 0.06
+    },
+    {
+      "key": "PAYEMS",
+      "name": "Nonfarm Payrolls (NFP) Δ",
+      "category": "employment",
+      "source": "FRED",
+      "seriesId": "PAYEMS",
+      "frequency": "M",
+      "transform": "mom",
+      "weight": 0.10
+    },
+    {
+      "key": "UNRATE",
+      "name": "Unemployment Rate",
+      "category": "employment",
+      "source": "FRED",
+      "seriesId": "UNRATE",
+      "frequency": "M",
+      "transform": "raw",
+      "weight": 0.08
+    },
+    {
+      "key": "ICSA",
+      "name": "Initial Jobless Claims (4W MA)",
+      "category": "employment",
+      "source": "FRED",
+      "seriesId": "ICSA",
+      "frequency": "W",
+      "transform": "sma4w",
+      "weight": 0.04
+    },
+    {
+      "key": "FEDFUNDS",
+      "name": "Effective Fed Funds Rate",
+      "category": "monetary_policy",
+      "source": "FRED",
+      "seriesId": "FEDFUNDS",
+      "frequency": "M",
+      "transform": "raw",
+      "weight": 0.05
+    },
+    {
+      "key": "CURRENT_ACCOUNT_USD",
+      "name": "Current Account (USD)",
+      "category": "external",
+      "source": "WORLD_BANK",
+      "catalogIndicator": "CURRENT_ACCOUNT_USD",
+      "country": "USA",
+      "frequency": "A",
+      "transform": "raw",
+      "weight": 0.03
+    },
+    {
+      "key": "TRADE_BALANCE_USD",
+      "name": "Trade Balance (USD)",
+      "category": "external",
+      "source": "WORLD_BANK",
+      "catalogIndicator": "TRADE_BALANCE_USD",
+      "country": "USA",
+      "frequency": "A",
+      "transform": "raw",
+      "weight": 0.03
+    },
+    {
+      "key": "VIX",
+      "name": "VIX (Risk Modulator)",
+      "category": "risk",
+      "source": "FRED",
+      "seriesId": "VIXCLS",
+      "frequency": "D",
+      "transform": "raw",
+      "weight": 0.00,
+      "note": "Solo como modulador, no como driver principal"
+    }
+  ],
+  "categories": {
+    "inflation": {
+      "name": "Inflación",
+      "indicators": ["CPIAUCSL", "CPILFESL", "PCEPILFE", "PPIACO"]
+    },
+    "growth": {
+      "name": "Crecimiento",
+      "indicators": ["GDPC1", "GDPC1_YOY", "INDPRO", "RSXFS"]
+    },
+    "employment": {
+      "name": "Empleo",
+      "indicators": ["PAYEMS", "UNRATE", "ICSA"]
+    },
+    "monetary_policy": {
+      "name": "Política Monetaria",
+      "indicators": ["FEDFUNDS"]
+    },
+    "external": {
+      "name": "Sector Externo",
+      "indicators": ["CURRENT_ACCOUNT_USD", "TRADE_BALANCE_USD"]
+    },
+    "risk": {
+      "name": "Riesgo Global",
+      "indicators": ["VIX"]
+    }
+  }
+}
+
+
+
+
+

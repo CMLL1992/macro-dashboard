@@ -1,0 +1,59 @@
+{
+  "structure": {
+    "name": "Consumer Price Index, All items, Percent change, Annual",
+    "dimensions": {
+      "series": [
+        {
+          "id": "CL_INDICATOR",
+          "name": "Indicator",
+          "values": [
+            {
+              "id": "PCPIPCH",
+              "name": "Consumer Price Index, All items, Percent change, Annual"
+            }
+          ]
+        }
+      ],
+      "observation": [
+        {
+          "id": "TIME_PERIOD",
+          "name": "Time period",
+          "values": [
+            {
+              "id": "2023",
+              "name": "2023"
+            },
+            {
+              "id": "2022",
+              "name": "2022"
+            },
+            {
+              "id": "2021",
+              "name": "2021"
+            },
+            {
+              "id": "2020",
+              "name": "2020"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "data": {
+    "datasets": [
+      {
+        "series": {
+          "0:0:0:0": {
+            "observations": {
+              "0": [3.2],
+              "1": [8.0],
+              "2": [4.7],
+              "3": [1.2]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

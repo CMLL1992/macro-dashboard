@@ -1,0 +1,314 @@
+{
+  "numeric_map": { "DOVISH": 1, "NEUTRAL": 0, "HAWKISH": -1 },
+  "rules": [
+    {
+      "indicator_id": "yield_10y_2y_spread",
+      "unit": "pp",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 0.0, "inclusive_min": false, "inclusive_max": true },
+        { "posture": "NEUTRAL", "min": 0.0,  "max": 1.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 1.0,  "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Curva invertida (<0) = Dovish; normal 0–1 = Neutral; empinada >1 = Hawkish."
+    },
+    {
+      "indicator_id": "fed_funds_target",
+      "unit": "%",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 3.0, "inclusive_min": false, "inclusive_max": true },
+        { "posture": "NEUTRAL", "min": 3.0,  "max": 4.5, "inclusive_min": false, "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 4.5,  "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Nivel absoluto como proxy de postura de la Fed."
+    },
+    {
+      "indicator_id": "financial_conditions",
+      "unit": "z-score",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": -0.3, "inclusive_min": false, "inclusive_max": true },
+        { "posture": "NEUTRAL", "min": -0.3, "max": 0.2,  "inclusive_min": false, "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 0.2,  "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "NFCI < 0 suelto (dovish); > 0 apretado (hawkish)."
+    },
+    {
+      "indicator_id": "high_yield_spread",
+      "unit": "pp",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 3.0, "inclusive_min": false, "inclusive_max": true },
+        { "posture": "NEUTRAL", "min": 3.0,  "max": 5.0, "inclusive_min": false, "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 5.0,  "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Spreads altos = estrés de crédito = Hawkish."
+    },
+    {
+      "indicator_id": "breakeven_10y",
+      "unit": "%",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 2.0, "inclusive_min": false, "inclusive_max": true },
+        { "posture": "NEUTRAL", "min": 2.0,  "max": 2.5, "inclusive_min": false, "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 2.5,  "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Expectativas de inflación a 10y."
+    },
+    {
+      "indicator_id": "ism_manu_pmi",
+      "unit": "índice",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 50.0, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 50.0, "max": 55.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 55.0, "max": null,  "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Manufactura."
+    },
+    {
+      "indicator_id": "ism_serv_pmi",
+      "unit": "índice",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 50.0, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 50.0, "max": 55.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 55.0, "max": null,  "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Servicios."
+    },
+    {
+      "indicator_id": "consumer_conf_cb",
+      "unit": "índice",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 90.0,  "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 90.0, "max": 110.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 110.0,"max": null,  "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Conference Board."
+    },
+    {
+      "indicator_id": "michigan_sentiment",
+      "unit": "índice",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 70.0, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 70.0, "max": 85.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 85.0, "max": null,  "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Univ. Michigan."
+    },
+    {
+      "indicator_id": "building_permits",
+      "unit": "YoY %",
+      "transform": "YoY_percent",
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 0.0, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 0.0,  "max": 3.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 3.0,  "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Permisos de construcción, variación interanual."
+    },
+    {
+      "indicator_id": "housing_starts",
+      "unit": "YoY %",
+      "transform": "YoY_percent",
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 0.0, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 0.0,  "max": 3.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 3.0,  "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Inicios de vivienda YoY."
+    },
+    {
+      "indicator_id": "new_home_sales",
+      "unit": "YoY %",
+      "transform": "YoY_percent",
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 0.0, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 0.0,  "max": 3.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 3.0,  "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Ventas nuevas YoY."
+    },
+    {
+      "indicator_id": "core_capex_orders",
+      "unit": "YoY %",
+      "transform": "YoY_percent",
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 0.0, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 0.0,  "max": 3.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 3.0,  "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Capex empresarial núcleo (ex defense/air)."
+    },
+    {
+      "indicator_id": "gdp_real_yoy",
+      "unit": "YoY %",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 1.0,  "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 1.0,  "max": 2.5, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 2.5,  "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "PIB real interanual."
+    },
+    {
+      "indicator_id": "retail_sales",
+      "unit": "YoY %",
+      "transform": "YoY_percent",
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 0.0, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 0.0,  "max": 3.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 3.0,  "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Consumo minorista."
+    },
+    {
+      "indicator_id": "industrial_production",
+      "unit": "YoY %",
+      "transform": "YoY_percent",
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 0.0, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 0.0,  "max": 2.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 2.0,  "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Producción industrial."
+    },
+    {
+      "indicator_id": "capacity_utilization",
+      "unit": "%",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 78.0, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 78.0, "max": 80.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 80.0, "max": null,  "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Apretura de capacidad."
+    },
+    {
+      "indicator_id": "nfp_change",
+      "unit": "miles",
+      "transform": "monthly_change_from_level",
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 100.0, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 100.0,"max": 250.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 250.0,"max": null,  "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Cambio mensual en PAYEMS convertido a miles."
+    },
+    {
+      "indicator_id": "initial_claims",
+      "unit": "miles",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": 250.0, "max": null,  "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 200.0, "max": 250.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": null,  "max": 200.0, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Recesivo si >250k; <200k mercado laboral muy sólido (hawkish)."
+    },
+    {
+      "indicator_id": "jolts_openings",
+      "unit": "millones",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 7.0,  "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 7.0,  "max": 9.0,  "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 9.0,  "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Vacantes altas = mercado apretado (hawkish)."
+    },
+    {
+      "indicator_id": "pce_yoy",
+      "unit": "YoY %",
+      "transform": "YoY_percent_from_price_index",
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 2.5, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 2.5, "max": 3.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 3.0, "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Inflación titular PCE."
+    },
+    {
+      "indicator_id": "core_pce_yoy",
+      "unit": "YoY %",
+      "transform": "YoY_percent_from_price_index",
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 2.5, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 2.5, "max": 3.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 3.0, "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Inflación PCE subyacente."
+    },
+    {
+      "indicator_id": "cpi_yoy",
+      "unit": "YoY %",
+      "transform": "YoY_percent_from_price_index",
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 2.5, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 2.5, "max": 3.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 3.0, "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Inflación CPI titular."
+    },
+    {
+      "indicator_id": "core_cpi_yoy",
+      "unit": "YoY %",
+      "transform": "YoY_percent_from_price_index",
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 2.5, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 2.5, "max": 3.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 3.0, "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "CPI subyacente."
+    },
+    {
+      "indicator_id": "ppi_yoy",
+      "unit": "YoY %",
+      "transform": "YoY_percent_from_price_index",
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 2.5, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 2.5, "max": 3.0, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 3.0, "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Precios al productor."
+    },
+    {
+      "indicator_id": "unrate_u3",
+      "unit": "%",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": 4.5,  "max": null, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 4.0,  "max": 4.5, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": null,  "max": 4.0, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Desempleo U3."
+    },
+    {
+      "indicator_id": "avg_hourly_earnings_yoy",
+      "unit": "YoY %",
+      "transform": "YoY_percent",
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 3.5, "inclusive_min": false, "inclusive_max": false },
+        { "posture": "NEUTRAL", "min": 3.5, "max": 4.5, "inclusive_min": true,  "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 4.5, "max": null, "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Crecimiento salarial."
+    },
+    {
+      "indicator_id": "vix_index",
+      "unit": "índice",
+      "transform": null,
+      "bands": [
+        { "posture": "DOVISH",  "min": null, "max": 15.0, "inclusive_min": false, "inclusive_max": true },
+        { "posture": "NEUTRAL", "min": 15.0, "max": 25.0, "inclusive_min": false, "inclusive_max": true },
+        { "posture": "HAWKISH", "min": 25.0, "max": null,  "inclusive_min": false, "inclusive_max": false }
+      ],
+      "comment": "Riesgo de mercado/volatilidad."
+    }
+  ]
+}
+

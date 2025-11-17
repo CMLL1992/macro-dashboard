@@ -1,0 +1,16 @@
+{
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm build",
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/warmup",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/jobs/weekly",
+      "schedule": "0 17 * * 0"
+    }
+  ]
+}
+

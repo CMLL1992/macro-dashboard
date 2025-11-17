@@ -1,0 +1,283 @@
+[
+  {
+    "id": "yield_10y_2y_spread",
+    "name": "Curva 10Y–2Y (spread, %)",
+    "category": "LEADING",
+    "source": "FRED",
+    "code": "T10Y2Y",
+    "frequency": "DAILY",
+    "importance": "VERY_HIGH",
+    "weight": 0.04
+  },
+  {
+    "id": "fed_funds_target",
+    "name": "Tasa de Fondos Federales (%)",
+    "category": "LAGGING",
+    "source": "FRED",
+    "code": "FEDFUNDS",
+    "frequency": "DAILY",
+    "importance": "VERY_HIGH",
+    "weight": 0.04
+  },
+  {
+    "id": "financial_conditions",
+    "name": "Índice de Condiciones Financieras (Chicago Fed NFCI)",
+    "category": "LEADING",
+    "source": "FRED",
+    "code": "NFCI",
+    "frequency": "WEEKLY",
+    "importance": "HIGH",
+    "weight": 0.03
+  },
+  {
+    "id": "high_yield_spread",
+    "name": "Spread High Yield - Treasury (%)",
+    "category": "LEADING",
+    "source": "FRED",
+    "code": "BAMLH0A0HYM2",
+    "frequency": "DAILY",
+    "importance": "HIGH",
+    "weight": 0.03
+  },
+  {
+    "id": "breakeven_10y",
+    "name": "Inflación esperada a 10 años (Breakeven)",
+    "category": "LEADING",
+    "source": "FRED",
+    "code": "T10YIE",
+    "frequency": "DAILY",
+    "importance": "HIGH",
+    "weight": 0.03
+  },
+  {
+    "id": "ism_manu_pmi",
+    "name": "ISM Manufacturero (PMI)",
+    "category": "LEADING",
+    "source": "ISM",
+    "code": "United States Manufacturing PMI",
+    "frequency": "MONTHLY",
+    "importance": "VERY_HIGH",
+    "weight": 0.05
+  },
+  {
+    "id": "ism_serv_pmi",
+    "name": "ISM Servicios (PMI)",
+    "category": "LEADING",
+    "source": "ISM",
+    "code": "United States Services PMI",
+    "frequency": "MONTHLY",
+    "importance": "VERY_HIGH",
+    "weight": 0.05
+  },
+  {
+    "id": "consumer_conf_cb",
+    "name": "Confianza del consumidor (Conference Board)",
+    "category": "LEADING",
+    "source": "CONFBOARD",
+    "code": "Conference Board Consumer Confidence",
+    "frequency": "MONTHLY",
+    "importance": "HIGH",
+    "weight": 0.03
+  },
+  {
+    "id": "michigan_sentiment",
+    "name": "Confianza del consumidor (Univ. Michigan)",
+    "category": "LEADING",
+    "source": "FRED",
+    "code": "UMCSENT",
+    "frequency": "MONTHLY",
+    "importance": "HIGH",
+    "weight": 0.03
+  },
+  {
+    "id": "building_permits",
+    "name": "Permisos de construcción (YoY %)",
+    "category": "LEADING",
+    "source": "FRED",
+    "code": "PERMIT",
+    "frequency": "MONTHLY",
+    "importance": "MEDIUM",
+    "weight": 0.03
+  },
+  {
+    "id": "housing_starts",
+    "name": "Viviendas iniciadas (Housing Starts)",
+    "category": "LEADING",
+    "source": "FRED",
+    "code": "HOUST",
+    "frequency": "MONTHLY",
+    "importance": "MEDIUM",
+    "weight": 0.03
+  },
+  {
+    "id": "new_home_sales",
+    "name": "Ventas nuevas viviendas",
+    "category": "LEADING",
+    "source": "FRED",
+    "code": "HSN1F",
+    "frequency": "MONTHLY",
+    "importance": "MEDIUM",
+    "weight": 0.03
+  },
+  {
+    "id": "core_capex_orders",
+    "name": "Pedidos de bienes de capital (Core Capex Orders)",
+    "category": "LEADING",
+    "source": "FRED",
+    "code": "NCOC96",
+    "frequency": "MONTHLY",
+    "importance": "HIGH",
+    "weight": 0.03
+  },
+  {
+    "id": "gdp_real_yoy",
+    "name": "PIB real (YoY %)",
+    "category": "COINCIDENT",
+    "source": "FRED",
+    "code": "A191RL1Q225SBEA",
+    "frequency": "QUARTERLY",
+    "importance": "VERY_HIGH",
+    "weight": 0.05
+  },
+  {
+    "id": "retail_sales",
+    "name": "Ventas minoristas (YoY %)",
+    "category": "COINCIDENT",
+    "source": "FRED",
+    "code": "RSAFS",
+    "frequency": "MONTHLY",
+    "importance": "HIGH",
+    "weight": 0.03
+  },
+  {
+    "id": "industrial_production",
+    "name": "Producción industrial (YoY %)",
+    "category": "COINCIDENT",
+    "source": "FRED",
+    "code": "INDPRO",
+    "frequency": "MONTHLY",
+    "importance": "HIGH",
+    "weight": 0.03
+  },
+  {
+    "id": "capacity_utilization",
+    "name": "Utilización de capacidad (%)",
+    "category": "COINCIDENT",
+    "source": "FRED",
+    "code": "TCU",
+    "frequency": "MONTHLY",
+    "importance": "MEDIUM",
+    "weight": 0.02
+  },
+  {
+    "id": "nfp_change",
+    "name": "Nóminas No Agrícolas (NFP, miles)",
+    "category": "COINCIDENT",
+    "source": "FRED",
+    "code": "PAYEMS",
+    "frequency": "MONTHLY",
+    "importance": "VERY_HIGH",
+    "weight": 0.05
+  },
+  {
+    "id": "initial_claims",
+    "name": "Solicitudes iniciales de desempleo",
+    "category": "LEADING",
+    "source": "FRED",
+    "code": "ICSA",
+    "frequency": "WEEKLY",
+    "importance": "HIGH",
+    "weight": 0.03
+  },
+  {
+    "id": "jolts_openings",
+    "name": "Ofertas de empleo (JOLTS)",
+    "category": "COINCIDENT",
+    "source": "FRED",
+    "code": "JTSJOL",
+    "frequency": "MONTHLY",
+    "importance": "HIGH",
+    "weight": 0.03
+  },
+  {
+    "id": "pce_yoy",
+    "name": "Inflación PCE (YoY %)",
+    "category": "LAGGING",
+    "source": "FRED",
+    "code": "PCEPI",
+    "frequency": "MONTHLY",
+    "importance": "VERY_HIGH",
+    "weight": 0.04
+  },
+  {
+    "id": "core_pce_yoy",
+    "name": "Inflación PCE subyacente (YoY %)",
+    "category": "LAGGING",
+    "source": "FRED",
+    "code": "PCEPILFE",
+    "frequency": "MONTHLY",
+    "importance": "HIGH",
+    "weight": 0.03
+  },
+  {
+    "id": "cpi_yoy",
+    "name": "Inflación CPI (YoY %)",
+    "category": "LAGGING",
+    "source": "FRED",
+    "code": "CPIAUCSL",
+    "frequency": "MONTHLY",
+    "importance": "VERY_HIGH",
+    "weight": 0.04
+  },
+  {
+    "id": "core_cpi_yoy",
+    "name": "Inflación CPI subyacente (YoY %)",
+    "category": "LAGGING",
+    "source": "FRED",
+    "code": "CPILFESL",
+    "frequency": "MONTHLY",
+    "importance": "HIGH",
+    "weight": 0.03
+  },
+  {
+    "id": "ppi_yoy",
+    "name": "Índice de Precios al Productor (YoY %)",
+    "category": "LAGGING",
+    "source": "FRED",
+    "code": "PPIACO",
+    "frequency": "MONTHLY",
+    "importance": "HIGH",
+    "weight": 0.03
+  },
+  {
+    "id": "unrate_u3",
+    "name": "Desempleo U3 (%)",
+    "category": "LAGGING",
+    "source": "FRED",
+    "code": "UNRATE",
+    "frequency": "MONTHLY",
+    "importance": "VERY_HIGH",
+    "weight": 0.04
+  },
+  {
+    "id": "avg_hourly_earnings_yoy",
+    "name": "Salarios medios (YoY %)",
+    "category": "LAGGING",
+    "source": "FRED",
+    "code": "CES0500000003",
+    "frequency": "MONTHLY",
+    "importance": "MEDIUM",
+    "weight": 0.03
+  },
+  {
+    "id": "vix_index",
+    "name": "Volatilidad implícita S&P 500 (VIX)",
+    "category": "LEADING",
+    "source": "FRED",
+    "code": "VIXCLS",
+    "frequency": "DAILY",
+    "importance": "MEDIUM",
+    "weight": 0.02
+  }
+]
+

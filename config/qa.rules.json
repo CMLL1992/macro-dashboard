@@ -1,0 +1,19 @@
+{
+  "freshness_sla_days": 3,
+  "min_obs": {
+    "correlation_12m": 150,
+    "correlation_3m": 40
+  },
+  "warnings": {
+    "fx_sign": {
+      "usd_quote_positive_threshold": 0.30,
+      "usd_base_negative_threshold": -0.30
+    },
+    "regime_flip_days": 30
+  }
+}
+
+
+
+
+

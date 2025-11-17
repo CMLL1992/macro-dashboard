@@ -1,0 +1,44 @@
+name: Daily Macro Jobs
+
+on:
+  schedule:
+    # Actualización completa: FRED + Correlaciones + Bias
+    # Todos los días a las 06:00 UTC (07:00 Madrid invierno, 08:00 verano)
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ingest FRED
+        run: |
+          echo "🔄 Ingestando datos FRED..."
+          curl -sS -X POST \
+            -H "Authorization: Bearer $CRON_TOKEN" \
+            "${APP_URL}/api/jobs/ingest/fred" | jq '{ok, updatedSeriesCount, errors_count: (.errors | length)}' || echo "Error en ingest FRED"
+        env:
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+          APP_URL: ${{ secrets.APP_URL }}
+
+      - name: Correlations
+        run: |
+          echo "🔄 Calculando correlaciones..."
+          curl -sS -X POST \
+            -H "Authorization: Bearer $CRON_TOKEN" \
+            "${APP_URL}/api/jobs/correlations" | jq '{ok, updatedPairsCount}' || echo "Error en correlations"
+        env:
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+          APP_URL: ${{ secrets.APP_URL }}
+
+      - name: Compute Bias
+        run: |
+          echo "🔄 Calculando bias..."
+          curl -sS -X POST \
+            -H "Authorization: Bearer $CRON_TOKEN" \
+            "${APP_URL}/api/jobs/compute/bias" | jq '{ok}' || echo "Error en bias"
+        env:
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+          APP_URL: ${{ secrets.APP_URL }}
+
+

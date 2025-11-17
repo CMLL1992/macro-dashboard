@@ -1,0 +1,77 @@
+/**
+ * GET /api/notifications/metrics
+ * Returns notification metrics (counters)
+ */
+
+export const runtime = 'nodejs'
+
+import { NextResponse } from 'next/server'
+import { getAllMetrics, getAggregatedMetrics } from '@/lib/notifications/metrics'
+import { getDB } from '@/lib/db/schema'
+
+export async function GET() {
+  try {
+    const metrics = getAllMetrics()
+    const aggregated = getAggregatedMetrics()
+
+    // Get last sent timestamps
+    const db = getDB()
+    let lastNewsSentAt: string | null = null
+    let lastNarrativeChangeAt: string | null = null
+    let weeklyLastSentAt: string | null = null
+    let dailyLastSentAt: string | null = null
+
+    try {
+      // Last news notification
+      const lastNews = db.prepare(`
+        SELECT sent_at FROM notification_history
+        WHERE tipo = 'news' AND status = 'sent'
+        ORDER BY sent_at DESC LIMIT 1
+      `).get() as { sent_at: string } | undefined
+      lastNewsSentAt = lastNews?.sent_at || null
+
+      // Last narrative change
+      const lastNarrative = db.prepare(`
+        SELECT cambiado_en FROM narrative_state
+        WHERE narrativa_anterior IS NOT NULL
+        ORDER BY cambiado_en DESC LIMIT 1
+      `).get() as { cambiado_en: string } | undefined
+      lastNarrativeChangeAt = lastNarrative?.cambiado_en || null
+
+      // Weekly last sent
+      const weeklySent = db.prepare(`
+        SELECT sent_at FROM weekly_sent
+        ORDER BY sent_at DESC LIMIT 1
+      `).get() as { sent_at: string } | undefined
+      weeklyLastSentAt = weeklySent?.sent_at || null
+
+      // Daily digest last sent
+      const dailySent = db.prepare(`
+        SELECT sent_at FROM daily_digest_sent
+        ORDER BY sent_at DESC LIMIT 1
+      `).get() as { sent_at: string } | undefined
+      dailyLastSentAt = dailySent?.sent_at || null
+    } catch (err) {
+      console.warn('[notifications/metrics] Error getting last sent timestamps:', err)
+    }
+
+    return NextResponse.json({
+      metrics,
+      aggregated: {
+        ...aggregated,
+        last_news_sent_at: lastNewsSentAt,
+        last_narrative_change_at: lastNarrativeChangeAt,
+        weekly_last_sent_at: weeklyLastSentAt,
+        daily_last_sent_at: dailyLastSentAt,
+      },
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: 500 }
+    )
+  }
+}
+

@@ -1,0 +1,25 @@
+name: Macro Dashboard Automation
+
+# Este workflow está desactivado porque llama a endpoints que no existen
+# Se mantiene como referencia pero no se ejecuta
+# Usar daily-jobs.yml en su lugar
+
+on:
+  workflow_dispatch:  # Solo manual, no automático
+
+jobs:
+  # Job desactivado - endpoints no existen
+  disabled:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Note
+        run: |
+          echo "Este workflow está desactivado."
+          echo "Usar .github/workflows/daily-jobs.yml en su lugar."
+          echo "Endpoints disponibles:"
+          echo "  - /api/jobs/ingest/fred"
+          echo "  - /api/jobs/correlations"
+          echo "  - /api/jobs/compute/bias"
+          echo "  - /api/jobs/maintenance"
+          echo "  - /api/jobs/weekly"
+

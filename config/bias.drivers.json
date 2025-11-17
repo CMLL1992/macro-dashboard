@@ -1,0 +1,44 @@
+{
+  "risk_regime": {
+    "positive": "Entorno de {regime} favorece {asset_side}.",
+    "negative": "Entorno de {regime} penaliza {asset_side}.",
+    "neutral": "Régimen de riesgo neutro, impacto limitado."
+  },
+  "usd_bias": {
+    "positive": "Sesgo USD {usd_bias_dir}, lo que {effect} {symbol}.",
+    "negative": "Sesgo USD {usd_bias_dir}, lo que {effect} {symbol}.",
+    "neutral": "Sesgo USD neutral."
+  },
+  "inflation_momentum": {
+    "positive": "Inflación {infl_trend} recientemente, apoyo {asset_side}.",
+    "negative": "Inflación {infl_trend} recientemente, presión {asset_side_opposite}.",
+    "neutral": "Inflación estable, sin señal clara."
+  },
+  "growth_momentum": {
+    "positive": "Crecimiento {growth_trend} (IPI/PIB), apoya {asset_side}.",
+    "negative": "Crecimiento {growth_trend}, resta soporte a {asset_side}.",
+    "neutral": "Crecimiento estable."
+  },
+  "external_balance": {
+    "positive": "Balanza externa mejora (CA/Trade), respaldo estructural a {asset_side}.",
+    "negative": "Balanza externa se deteriora, riesgo para {asset_side_opposite}.",
+    "neutral": "Equilibrio externo sin cambios relevantes."
+  },
+  "rates_context": {
+    "positive": "Contexto de tipos/real al alza, favorece {rates_effect}.",
+    "negative": "Contexto de tipos/real a la baja, favorece {rates_effect}.",
+    "neutral": "Tipos estables, impacto acotado."
+  },
+  "summary": {
+    "long": "Sesgo macro **alcista** para {symbol} (score {score}).",
+    "short": "Sesgo macro **bajista** para {symbol} (score {score}).",
+    "neutral": "Sesgo macro **neutral** para {symbol} (score {score})."
+  }
+}
+
+
+
+
+
+
+

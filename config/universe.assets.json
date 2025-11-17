@@ -1,0 +1,99 @@
+[
+  {
+    "symbol": "EURUSD",
+    "class": "fx",
+    "base": "EUR",
+    "quote": "USD",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "short_usd",
+    "region": "EA"
+  },
+  {
+    "symbol": "GBPUSD",
+    "class": "fx",
+    "base": "GBP",
+    "quote": "USD",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "UK"
+  },
+  {
+    "symbol": "USDJPY",
+    "class": "fx",
+    "base": "USD",
+    "quote": "JPY",
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "long_usd",
+    "region": "JP"
+  },
+  {
+    "symbol": "AUDUSD",
+    "class": "fx",
+    "base": "AUD",
+    "quote": "USD",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "AU"
+  },
+  {
+    "symbol": "XAUUSD",
+    "class": "metal",
+    "base": "XAU",
+    "quote": "USD",
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "SPX",
+    "class": "index",
+    "base": null,
+    "quote": null,
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "US"
+  },
+  {
+    "symbol": "NDX",
+    "class": "index",
+    "base": null,
+    "quote": null,
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "US"
+  },
+  {
+    "symbol": "BTCUSDT",
+    "class": "crypto",
+    "base": "BTC",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "class": "crypto",
+    "base": "ETH",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "WTI",
+    "class": "energy",
+    "base": "WTI",
+    "quote": "USD",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "GLOBAL"
+  }
+]
+
+
+
+
+
+
+

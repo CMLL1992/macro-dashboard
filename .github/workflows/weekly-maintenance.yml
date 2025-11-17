@@ -1,0 +1,22 @@
+name: Weekly Maintenance
+
+on:
+  schedule:
+    # Ejecutar maintenance semanalmente los domingos a las 02:00 UTC (03:00 Madrid invierno, 04:00 verano)
+    - cron: "0 2 * * 0"
+  workflow_dispatch: {}
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Maintenance (VACUUM and cleanup)
+        run: |
+          echo "🔧 Ejecutando maintenance semanal..."
+          curl -sS -X POST \
+            -H "Authorization: Bearer $CRON_TOKEN" \
+            "${APP_URL}/api/jobs/maintenance" | jq '{success, duration_ms, integrity_check}' || echo "Error en maintenance"
+        env:
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+          APP_URL: ${{ secrets.APP_URL }}
+
