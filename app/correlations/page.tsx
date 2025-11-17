@@ -1,26 +1,11 @@
 export const dynamic = 'force-dynamic'
 
-import getCorrelationState, {
-  type CorrelationTrend,
-} from '@/domain/macro-engine/correlations'
+import getCorrelationState, { type CorrelationTrend } from '@/domain/macro-engine/correlations'
 import getBiasState from '@/domain/macro-engine/bias'
 import CorrelationTooltip from '@/components/CorrelationTooltip'
 import { Badge } from '@/components/ui/badge'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
 const USD_LABELS: Record<string, 'Fuerte' | 'Débil' | 'Neutral'> = {
@@ -50,10 +35,7 @@ const SHIFT_LABELS: Record<string, string> = {
 }
 
 export default async function CorrelationsPage() {
-  const [correlationState, biasState] = await Promise.all([
-    getCorrelationState(),
-    getBiasState(),
-  ])
+  const [correlationState, biasState] = await Promise.all([getCorrelationState(), getBiasState()])
 
   const { benchmark, summary, shifts, windows } = correlationState
   const usdBiasLabel = USD_LABELS[biasState.regime.usd_direction] ?? 'Neutral'
@@ -152,6 +134,7 @@ export default async function CorrelationsPage() {
                             usdBias={usdBiasLabel}
                             corr12m={shift?.corr12m ?? null}
                             corr3m={shift?.corr3m ?? null}
+                            usdBias={usdBiasLabel}
                           >
                             <span className="cursor-help font-mono">
                               {corrNow}
