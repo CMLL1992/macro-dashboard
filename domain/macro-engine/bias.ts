@@ -246,12 +246,9 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
   }
 
   const observations = getLatestMacroObservations()
-  const updatedAt =
-    diagnosis.lastUpdated?.length
-      ? new Date(diagnosis.lastUpdated)
-      : observations.latestDate
-        ? new Date(observations.latestDate)
-        : new Date()
+  // updatedAt siempre es la fecha/hora actual del cálculo (no la fecha de los datos)
+  // Esto refleja cuándo se calculó el bias state, no cuándo se actualizaron los datos macro
+  const updatedAt = new Date()
 
   const table: BiasRow[] = latestPoints.map((item: any) => {
     // Ensure date is converted from undefined to null for consistency
