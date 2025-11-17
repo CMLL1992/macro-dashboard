@@ -88,29 +88,37 @@ export async function getMacroDiagnosis() {
   const updatedHistories = getAllIndicatorHistories()
   
   const items = data.map(d => {
-    const posture = postureOf(d.key, d.value)
     const weightKey = MAP_KEY_TO_WEIGHT_KEY[d.key] ?? d.key
-    const weight = WEIGHTS[weightKey] ?? 0
     const history = updatedHistories.get(weightKey)
+    
+    // Use value from getAllLatestFromDB, fallback to indicator_history if null
+    const value = d.value ?? history?.value_current ?? null
+    const value_previous = history?.value_previous ?? null
+    // Use date from getAllLatestFromDB, fallback to indicator_history if null/undefined
+    const date = (d as any).date ?? history?.date_current ?? null
+    const date_previous = history?.date_previous ?? null
+    
+    const posture = postureOf(d.key, value)
+    const weight = WEIGHTS[weightKey] ?? 0
     
     // Calculate trend
     const trend = calculateTrend(
       weightKey,
-      d.value ?? null,
-      history?.value_previous ?? null
+      value ?? null,
+      value_previous ?? null
     )
     
     return {
       key: weightKey, // ID único (FRED series id canónico)
       seriesId: weightKey,
       label: d.label,
-      value: d.value,
-      value_previous: history?.value_previous ?? null,
-      date: (d as any).date,
-      date_previous: history?.date_previous ?? null,
+      value,
+      value_previous,
+      date,
+      date_previous,
       trend,
       posture,
-      numeric: d.value == null ? 0 : toNumeric(posture),
+      numeric: value == null ? 0 : toNumeric(posture),
       weight,
       category: categoryFor(weightKey),
       originalKey: d.key, // Preserve original key (e.g., 'gdp_yoy', 'cpi_yoy') for freshness calculation
