@@ -5,6 +5,7 @@ import {
   type BiasRow as LegacyTacticalRow,
 } from '@/domain/bias'
 import { getCorrMap } from '@/domain/corr-bridge'
+import { categoryFor } from '@/domain/categories'
 import type { LatestPoint } from '@/lib/fred'
 import {
   getMacroBias,
@@ -244,7 +245,7 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
     trend: item.trend ?? null,
     posture: item.posture ?? null,
     weight: item.weight ?? null,
-    category: item.category ?? null,
+    category: item.category ?? categoryFor(item.key ?? item.originalKey ?? ''),
     date: item.date ?? null,
     date_previous: item.date_previous ?? null,
     originalKey: item.originalKey ?? item.key ?? null,
@@ -456,6 +457,12 @@ export function getBiasTable(rows: BiasRow[]): BiasRow[] {
     posture: row.posture ?? null,
     value: row.value ?? null,
     value_previous: row.value_previous ?? null,
+    category: row.category ?? 'Otros',
+    label: row.label ?? row.key ?? '',
+    date: row.date ?? null,
+    weight: row.weight ?? null,
+    originalKey: row.originalKey ?? row.key ?? null,
+    unit: row.unit ?? null,
   }))
 }
 
