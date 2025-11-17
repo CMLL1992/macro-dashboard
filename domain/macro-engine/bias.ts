@@ -489,8 +489,13 @@ export function getBiasTable(rows: BiasRow[]): BiasRow[] {
 }
 
 export function getBiasTableTactical(rows: LegacyTacticalRow[]): TacticalBiasRow[] {
-  return rows.map((row) => {
-    const legacy = row as LegacyTacticalRow & { symbol?: string | null; benchmark?: string | null }
+  return rows.map((row: LegacyTacticalRow) => {
+    const legacy = row as LegacyTacticalRow & { 
+      symbol?: string | null
+      benchmark?: string | null
+      corr12m?: number | null
+      corr3m?: number | null
+    }
 
     return {
       pair: legacy.par,
@@ -552,7 +557,9 @@ export async function getBiasState(): Promise<BiasState> {
       tableTactical,
     }
   } catch (error) {
-    logger.error('[macro-engine/bias] Failed to build BiasState', { error })
+    logger.error('[macro-engine/bias] Failed to build BiasState', { 
+      error: error instanceof Error ? error.message : String(error) 
+    })
     throw error
   }
 }
