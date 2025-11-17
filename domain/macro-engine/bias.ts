@@ -184,27 +184,36 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
       const symbols = tacticalRows
         .map((row) => (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase())
         .filter((s) => s.length > 0)
+        .filter((s, i, arr) => arr.indexOf(s) === i) // Deduplicate
       
       if (symbols.length > 0) {
         const correlationsMap = getCorrelationsForSymbols(symbols, 'DXY')
+        // Only update if we got results (map might be empty on error, but that's OK)
         tacticalRows = tacticalRows.map((row) => {
           const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
           if (!symbol) return row
           
           const dbCorr = correlationsMap.get(symbol)
           // Use DB correlations if available, otherwise keep existing (from corrFromDB/corrMap)
-          return {
-            ...row,
-            corr12m: dbCorr?.corr12m ?? row.corr12m ?? null,
-            corr3m: dbCorr?.corr3m ?? row.corr3m ?? null,
+          // Only update if we have a valid correlation value
+          if (dbCorr && (dbCorr.corr12m != null || dbCorr.corr3m != null)) {
+            return {
+              ...row,
+              corr12m: dbCorr.corr12m ?? row.corr12m ?? null,
+              corr3m: dbCorr.corr3m ?? row.corr3m ?? null,
+            }
           }
+          // Keep existing correlations if DB didn't have them
+          return row
         })
       }
     } catch (error) {
       logger.warn('[macro-engine/bias] Failed to enrich correlations from DB', { 
-        error: error instanceof Error ? error.message : String(error) 
+        error: error instanceof Error ? error.message : String(error),
+        tacticalRowsCount: tacticalRows.length
       })
       // Continue without DB correlations, use existing ones from corrMap
+      // This is safe - we keep the original row with corrMap correlations
     }
   }
 

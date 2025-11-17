@@ -227,10 +227,114 @@ const buildUsdMarketInsights = (rows: TacticalRowSafe[]): UsdMarketInsights => {
 export default async function DashboardPage({ searchParams }: { searchParams?: Record<string, string> }) {
   void searchParams
 
-  const [biasState, correlationState] = await Promise.all([
-    getBiasState(),
-    getCorrelationState(),
-  ])
+  // Load data with error handling to prevent page blocking
+  let biasState: Awaited<ReturnType<typeof getBiasState>> | null = null
+  let correlationState: Awaited<ReturnType<typeof getCorrelationState>> | null = null
+  let loadError: string | null = null
+
+  try {
+    const results = await Promise.allSettled([
+      getBiasState(),
+      getCorrelationState(),
+    ])
+
+    if (results[0].status === 'fulfilled') {
+      biasState = results[0].value
+    } else {
+      loadError = `Error loading bias state: ${results[0].reason instanceof Error ? results[0].reason.message : String(results[0].reason)}`
+      console.error('[Dashboard] getBiasState failed:', results[0].reason)
+    }
+
+    if (results[1].status === 'fulfilled') {
+      correlationState = results[1].value
+    } else {
+      const corrError = `Error loading correlation state: ${results[1].reason instanceof Error ? results[1].reason.message : String(results[1].reason)}`
+      console.error('[Dashboard] getCorrelationState failed:', results[1].reason)
+      if (!loadError) loadError = corrError
+    }
+
+    // If both failed, we can't render the page
+    if (!biasState && !correlationState) {
+      return (
+        <main className="p-6">
+          <div className="max-w-5xl mx-auto">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-6">
+              <h1 className="text-xl font-semibold text-red-900 mb-2">Error al cargar datos</h1>
+              <p className="text-sm text-red-800">{loadError || 'Error desconocido al cargar el dashboard'}</p>
+              <p className="text-xs text-red-700 mt-2">Por favor, intenta recargar la página.</p>
+            </div>
+          </div>
+        </main>
+      )
+    }
+
+    // Provide fallback empty states if one fails
+    if (!biasState) {
+      biasState = {
+        updatedAt: new Date(),
+        regime: {
+          overall: 'Neutral',
+          usd_direction: 'Neutral',
+          quad: 'Expansivo',
+          liquidity: 'Medium',
+          credit: 'Medium',
+          risk: 'Neutral',
+        },
+        metrics: {
+          usdScore: 0,
+          quadScore: 0,
+          liquidityScore: 0,
+          creditScore: 0,
+          riskScore: 0,
+        },
+        table: [],
+        tableTactical: [],
+      }
+    }
+
+    if (!correlationState) {
+      correlationState = {
+        updatedAt: new Date(),
+        benchmark: 'DXY',
+        windows: ['3m', '6m', '12m', '24m'],
+        points: [],
+        shifts: [],
+        summary: [],
+      }
+    }
+  } catch (error) {
+    console.error('[Dashboard] Unexpected error:', error)
+    loadError = error instanceof Error ? error.message : 'Error inesperado'
+    // Provide minimal fallback states
+    biasState = {
+      updatedAt: new Date(),
+      regime: {
+        overall: 'Neutral',
+        usd_direction: 'Neutral',
+        quad: 'Expansivo',
+        liquidity: 'Medium',
+        credit: 'Medium',
+        risk: 'Neutral',
+      },
+      metrics: {
+        usdScore: 0,
+        quadScore: 0,
+        liquidityScore: null,
+        creditScore: null,
+        riskScore: null,
+      },
+      table: [],
+      tableTactical: [],
+    }
+    correlationState = {
+      updatedAt: new Date(),
+      benchmark: 'DXY',
+      windows: ['3m', '6m', '12m', '24m'],
+      points: [],
+      shifts: [],
+      summary: [],
+    }
+  }
 
 
   const indicatorRows = buildIndicatorRows(

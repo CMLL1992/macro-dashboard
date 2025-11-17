@@ -165,40 +165,82 @@ export function getCorrelationsForSymbols(symbols: string[], base: string = 'DXY
     return result
   }
 
-  // Initialize all symbols with null values
-  for (const symbol of symbols) {
-    result.set(symbol.toUpperCase(), {
-      corr12m: null,
-      corr3m: null,
-      asof12m: null,
-      asof3m: null,
-      n_obs12m: 0,
-      n_obs3m: 0,
-    })
-  }
-
-  // Single query for all symbols
-  const placeholders = symbols.map(() => '?').join(',')
-  const upperSymbols = symbols.map(s => s.toUpperCase())
-  const rows = db
-    .prepare(`SELECT * FROM correlations WHERE symbol IN (${placeholders}) AND base = ?`)
-    .all(...upperSymbols, base.toUpperCase()) as any[]
-
-  // Group by symbol
-  for (const row of rows) {
-    const symbol = row.symbol.toUpperCase()
-    const existing = result.get(symbol)
-    if (!existing) continue
-
-    if (row.window === '12m') {
-      existing.corr12m = row.value
-      existing.asof12m = row.asof
-      existing.n_obs12m = row.n_obs
-    } else if (row.window === '3m') {
-      existing.corr3m = row.value
-      existing.asof3m = row.asof
-      existing.n_obs3m = row.n_obs
+  try {
+    // Deduplicate and normalize symbols
+    const uniqueSymbols = Array.from(new Set(symbols.map(s => s.toUpperCase()).filter(s => s.length > 0)))
+    
+    if (uniqueSymbols.length === 0) {
+      return result
     }
+
+    // Initialize all symbols with null values
+    for (const symbol of uniqueSymbols) {
+      result.set(symbol, {
+        corr12m: null,
+        corr3m: null,
+        asof12m: null,
+        asof3m: null,
+        n_obs12m: 0,
+        n_obs3m: 0,
+      })
+    }
+
+    // For large symbol lists, batch the query (SQLite has a limit on IN clause size)
+    const BATCH_SIZE = 100
+    if (uniqueSymbols.length > BATCH_SIZE) {
+      // Process in batches
+      for (let i = 0; i < uniqueSymbols.length; i += BATCH_SIZE) {
+        const batch = uniqueSymbols.slice(i, i + BATCH_SIZE)
+        const placeholders = batch.map(() => '?').join(',')
+        const rows = db
+          .prepare(`SELECT * FROM correlations WHERE symbol IN (${placeholders}) AND base = ?`)
+          .all(...batch, base.toUpperCase()) as any[]
+
+        // Group by symbol
+        for (const row of rows) {
+          const symbol = row.symbol.toUpperCase()
+          const existing = result.get(symbol)
+          if (!existing) continue
+
+          if (row.window === '12m') {
+            existing.corr12m = row.value
+            existing.asof12m = row.asof
+            existing.n_obs12m = row.n_obs
+          } else if (row.window === '3m') {
+            existing.corr3m = row.value
+            existing.asof3m = row.asof
+            existing.n_obs3m = row.n_obs
+          }
+        }
+      }
+    } else {
+      // Single query for all symbols (fast path)
+      const placeholders = uniqueSymbols.map(() => '?').join(',')
+      const rows = db
+        .prepare(`SELECT * FROM correlations WHERE symbol IN (${placeholders}) AND base = ?`)
+        .all(...uniqueSymbols, base.toUpperCase()) as any[]
+
+      // Group by symbol
+      for (const row of rows) {
+        const symbol = row.symbol.toUpperCase()
+        const existing = result.get(symbol)
+        if (!existing) continue
+
+        if (row.window === '12m') {
+          existing.corr12m = row.value
+          existing.asof12m = row.asof
+          existing.n_obs12m = row.n_obs
+        } else if (row.window === '3m') {
+          existing.corr3m = row.value
+          existing.asof3m = row.asof
+          existing.n_obs3m = row.n_obs
+        }
+      }
+    }
+  } catch (error) {
+    // Log error but return empty map (caller will use fallback)
+    console.error('[getCorrelationsForSymbols] Query failed:', error)
+    // Return initialized map with null values (better than throwing)
   }
 
   return result
