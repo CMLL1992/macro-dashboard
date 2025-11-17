@@ -73,6 +73,7 @@ export async function getMacroDiagnosis() {
   }
   
   // Update histories with current values
+  // Also try to populate from indicator_history if getAllLatestFromDB returned null
   for (const point of data) {
     const weightKey = MAP_KEY_TO_WEIGHT_KEY[point.key] ?? point.key
     if (point.value != null && (point as any).date) {
@@ -82,6 +83,8 @@ export async function getMacroDiagnosis() {
         date: (point as any).date,
       })
     }
+    // If value is null but we have history, ensure history is preserved
+    // (This handles cases where transformations fail but we have cached data)
   }
   
   // Get updated histories after upserts
@@ -93,11 +96,22 @@ export async function getMacroDiagnosis() {
     
     // Use value from getAllLatestFromDB, fallback to indicator_history if null/undefined
     // Explicitly check for both null and undefined to ensure fallback works
-    const value = (d.value != null) ? d.value : (history?.value_current ?? null)
-    const value_previous = history?.value_previous ?? null
-    // Use date from getAllLatestFromDB, fallback to indicator_history if null/undefined
-    const date = ((d as any).date != null) ? (d as any).date : (history?.date_current ?? null)
-    const date_previous = history?.date_previous ?? null
+    // Also try original key if weightKey lookup fails (for cases where key mapping differs)
+    let value = (d.value != null) ? d.value : (history?.value_current ?? null)
+    let value_previous = history?.value_previous ?? null
+    let date = ((d as any).date != null) ? (d as any).date : (history?.date_current ?? null)
+    let date_previous = history?.date_previous ?? null
+    
+    // If still null and we have a different key, try looking up by original key
+    if (value == null && d.key !== weightKey) {
+      const historyByOriginalKey = updatedHistories.get(d.key.toUpperCase())
+      if (historyByOriginalKey?.value_current != null) {
+        value = historyByOriginalKey.value_current
+        value_previous = historyByOriginalKey.value_previous
+        date = historyByOriginalKey.date_current ?? date
+        date_previous = historyByOriginalKey.date_previous ?? date_previous
+      }
+    }
     
     const posture = postureOf(d.key, value)
     const weight = WEIGHTS[weightKey] ?? 0
