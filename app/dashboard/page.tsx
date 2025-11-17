@@ -232,21 +232,20 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     getCorrelationState(),
   ])
 
-  // DEBUG: Log biasState.table to inspect data structure
-  if (process.env.NODE_ENV === 'development') {
-    const sampleRow = biasState.table?.find((r: any) => r.key === 'CPIAUCSL')
-    console.log('[Dashboard DEBUG] Sample row from biasState.table:', {
-      key: sampleRow?.key,
-      label: sampleRow?.label,
-      value: sampleRow?.value,
-      value_previous: sampleRow?.value_previous,
-      date: sampleRow?.date,
-      date_previous: sampleRow?.date_previous,
-      full_row: sampleRow,
-    })
-    console.log('[Dashboard DEBUG] Total rows:', biasState.table?.length)
-    console.log('[Dashboard DEBUG] Rows with value:', biasState.table?.filter((r: any) => r.value != null).length)
-  }
+  // DEBUG: Log biasState.table to inspect data structure (ALWAYS, not just dev)
+  const sampleRow = biasState.table?.find((r: any) => r.key === 'CPIAUCSL')
+  console.log('[Dashboard DEBUG] Sample row from biasState.table:', JSON.stringify({
+    key: sampleRow?.key,
+    label: sampleRow?.label,
+    value: sampleRow?.value,
+    value_previous: sampleRow?.value_previous,
+    date: sampleRow?.date,
+    date_previous: sampleRow?.date_previous,
+    full_row: sampleRow,
+  }, null, 2))
+  console.log('[Dashboard DEBUG] Total rows:', biasState.table?.length)
+  console.log('[Dashboard DEBUG] Rows with value:', biasState.table?.filter((r: any) => r.value != null).length)
+  console.log('[Dashboard DEBUG] First 3 rows:', JSON.stringify(biasState.table?.slice(0, 3), null, 2))
 
   const indicatorRows = buildIndicatorRows(
     Array.isArray(biasState.table) ? biasState.table : []
@@ -384,6 +383,15 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
         {/* Tabla de indicadores macro */}
         <section className="rounded-lg border bg-white p-6">
           <h2 className="text-lg font-semibold mb-3">Indicadores macro</h2>
+          {/* TEMP DEBUG - Remove after fixing */}
+          <details className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded">
+            <summary className="cursor-pointer text-sm font-semibold text-yellow-800">
+              🔍 DEBUG: biasState.table (first 3 rows)
+            </summary>
+            <pre className="mt-2 text-xs overflow-auto max-h-96 bg-white p-2 border rounded">
+              {JSON.stringify(biasState.table?.slice(0, 3), null, 2)}
+            </pre>
+          </details>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
