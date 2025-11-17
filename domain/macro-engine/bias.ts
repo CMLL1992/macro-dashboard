@@ -175,6 +175,22 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
   )
 
   let tacticalRows = getBiasTableTactical(legacyRows)
+  
+  // Enrich tactical rows with correlations from DB (same as /api/bias does)
+  // This ensures correlations are populated even if corrFromDB didn't work
+  const { getCorrelationsForSymbol } = await import('@/lib/db/read')
+  tacticalRows = tacticalRows.map((row) => {
+    const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
+    if (!symbol) return row
+    
+    const dbCorr = getCorrelationsForSymbol(symbol, 'DXY')
+    // Use DB correlations if available, otherwise keep existing (from corrFromDB/corrMap)
+    return {
+      ...row,
+      corr12m: dbCorr.corr12m ?? row.corr12m ?? null,
+      corr3m: dbCorr.corr3m ?? row.corr3m ?? null,
+    }
+  })
 
   if (!tacticalRows.length) {
     const cached = getMacroTacticalBias()
