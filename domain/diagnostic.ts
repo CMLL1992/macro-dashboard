@@ -43,7 +43,11 @@ export async function getMacroDiagnosis() {
   let data: LatestPoint[] = getAllLatestFromDB()
   
   // Fallback: if enabled and data is missing, try FRED for missing indicators
-  if (USE_LIVE_SOURCES && data.some(d => d.value == null)) {
+  // Also try FRED if ALL values are null (indicator_history empty and transformations failed)
+  const hasAnyValue = data.some(d => d.value != null)
+  const allNull = data.every(d => d.value == null)
+  
+  if ((USE_LIVE_SOURCES || allNull) && (!hasAnyValue || data.some(d => d.value == null))) {
     try {
       const fredData = await getAllLatest()
       // Merge: use FRED data only for indicators missing from DB
@@ -54,9 +58,10 @@ export async function getMacroDiagnosis() {
           data.push(fredPoint)
         }
       }
+      console.log('[getMacroDiagnosis] FRED fallback applied, items with value:', data.filter(d => d.value != null).length)
     } catch (error) {
       // FRED failed, continue with DB data only
-      console.warn('FRED fallback failed, using DB data only:', error)
+      console.warn('[getMacroDiagnosis] FRED fallback failed, using DB data only:', error)
     }
   }
   
