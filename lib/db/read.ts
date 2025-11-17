@@ -242,9 +242,9 @@ export function getAllCorrelationsFromDB(base: string = 'DXY'): Array<{
     // Note: 6m and 24m are not stored in DB, only 12m and 3m
   }
 
-  // Convert to array format
+  // Convert to array format (symbols are already normalized in DB as uppercase)
   return Array.from(bySymbol.entries()).map(([activo, corr]) => ({
-    activo,
+    activo: activo.toUpperCase(), // Ensure uppercase normalization
     corr12: corr.corr12,
     corr3: corr.corr3,
     corr6: null, // Not stored in DB

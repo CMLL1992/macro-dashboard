@@ -109,25 +109,34 @@ async function getRawCorrelations(): Promise<RawCorrelationRecord[]> {
   }
 
   // PRIORITY 2: Fallback to corrMap (fast, in-memory)
+  // Normalize symbols to avoid duplicates (EURUSD, EUR/USD, eurusd, etc.)
   try {
     const corrMap = await getCorrMap()
     if (corrMap.size > 0) {
+      const { norm } = await import('@/lib/symbols')
+      const seenSymbols = new Set<string>()
+      
       corrMap.forEach((value, key) => {
+        // Normalize symbol to avoid duplicates
+        const normalized = norm(key)
+        if (!normalized || seenSymbols.has(normalized)) return
+        seenSymbols.add(normalized)
+        
         records.push(
           {
-            symbol: key,
+            symbol: normalized,
             benchmark: value.ref ?? DEFAULT_BENCHMARK,
             window: '3m',
             value: value.c3 ?? null,
           },
           {
-            symbol: key,
+            symbol: normalized,
             benchmark: value.ref ?? DEFAULT_BENCHMARK,
             window: '6m',
             value: value.c6 ?? null,
           },
           {
-            symbol: key,
+            symbol: normalized,
             benchmark: value.ref ?? DEFAULT_BENCHMARK,
             window: '12m',
             value: value.c12 ?? null,
@@ -146,13 +155,22 @@ async function getRawCorrelations(): Promise<RawCorrelationRecord[]> {
   // This should rarely happen in production since correlations should be pre-calculated
   try {
     const { getCorrelations } = await import('@/domain/corr-dashboard')
+    const { norm } = await import('@/lib/symbols')
     const rows = await getCorrelations()
+    const seenSymbols = new Set<string>()
+    
     for (const row of rows) {
       const symbol = row.activo
       if (!symbol) continue
+      
+      // Normalize symbol to avoid duplicates
+      const normalized = norm(symbol)
+      if (!normalized || seenSymbols.has(normalized)) continue
+      seenSymbols.add(normalized)
+      
       records.push(
         {
-          symbol,
+          symbol: normalized,
           benchmark: DEFAULT_BENCHMARK,
           window: '3m',
           value: (row as any).corr3 ?? null,
@@ -160,7 +178,7 @@ async function getRawCorrelations(): Promise<RawCorrelationRecord[]> {
           updatedAt: null,
         },
         {
-          symbol,
+          symbol: normalized,
           benchmark: DEFAULT_BENCHMARK,
           window: '6m',
           value: (row as any).corr6 ?? null,
@@ -168,7 +186,7 @@ async function getRawCorrelations(): Promise<RawCorrelationRecord[]> {
           updatedAt: null,
         },
         {
-          symbol,
+          symbol: normalized,
           benchmark: DEFAULT_BENCHMARK,
           window: '12m',
           value: row.corr12 ?? null,
@@ -176,7 +194,7 @@ async function getRawCorrelations(): Promise<RawCorrelationRecord[]> {
           updatedAt: null,
         },
         {
-          symbol,
+          symbol: normalized,
           benchmark: DEFAULT_BENCHMARK,
           window: '24m',
           value: row.corr24 ?? null,
@@ -203,13 +221,26 @@ function normalizeWindow(window: string): CorrelationWindow | null {
 
 function buildCorrelationPoints(raw: RawCorrelationRecord[]): CorrelationPoint[] {
   const points: CorrelationPoint[] = []
+  const seen = new Set<string>() // Deduplicate by symbol+benchmark+window
 
   for (const record of raw) {
     const window = normalizeWindow(record.window)
     if (!window) continue
+    
+    // Normalize symbol to uppercase (EURUSD, not EUR/USD or eurusd)
+    const symbol = (record.symbol || '').replace('/', '').toUpperCase()
+    if (!symbol) continue
+    
+    const benchmark = (record.benchmark || DEFAULT_BENCHMARK).toUpperCase()
+    const dedupKey = `${symbol}__${benchmark}__${window}`
+    
+    // Skip if we've already seen this combination
+    if (seen.has(dedupKey)) continue
+    seen.add(dedupKey)
+    
     points.push({
-      symbol: record.symbol,
-      benchmark: record.benchmark || DEFAULT_BENCHMARK,
+      symbol,
+      benchmark,
       window,
       value: typeof record.value === 'number' ? record.value : record.value ?? null,
       sampleSize:
