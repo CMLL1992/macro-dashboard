@@ -315,7 +315,7 @@ export default async function NoticiasPage() {
               )
             })}
         </div>
-      )}
+      ) : null}
 
       {/* Notas finales */}
       <div className="rounded-lg border bg-card p-6 mt-8">
