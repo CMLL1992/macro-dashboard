@@ -232,6 +232,22 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     getCorrelationState(),
   ])
 
+  // DEBUG: Log biasState.table to inspect data structure
+  if (process.env.NODE_ENV === 'development') {
+    const sampleRow = biasState.table?.find((r: any) => r.key === 'CPIAUCSL')
+    console.log('[Dashboard DEBUG] Sample row from biasState.table:', {
+      key: sampleRow?.key,
+      label: sampleRow?.label,
+      value: sampleRow?.value,
+      value_previous: sampleRow?.value_previous,
+      date: sampleRow?.date,
+      date_previous: sampleRow?.date_previous,
+      full_row: sampleRow,
+    })
+    console.log('[Dashboard DEBUG] Total rows:', biasState.table?.length)
+    console.log('[Dashboard DEBUG] Rows with value:', biasState.table?.filter((r: any) => r.value != null).length)
+  }
+
   const indicatorRows = buildIndicatorRows(
     Array.isArray(biasState.table) ? biasState.table : []
   )
