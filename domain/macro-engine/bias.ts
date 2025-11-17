@@ -67,9 +67,15 @@ export type BiasRow = {
 
 export type TacticalBiasRow = {
   pair: string
+  symbol?: string | null
   trend: string
   action: string
   confidence: string
+  tactico?: string | null
+  accion?: string | null
+  confianza?: string | null
+  motivo?: string | null
+  benchmark?: string | null
   corr12m?: number | null
   corr3m?: number | null
   motive?: string
@@ -454,15 +460,25 @@ export function getBiasTable(rows: BiasRow[]): BiasRow[] {
 }
 
 export function getBiasTableTactical(rows: LegacyTacticalRow[]): TacticalBiasRow[] {
-  return rows.map((row) => ({
-    pair: row.par,
-    trend: row.tactico ?? 'Neutral',
-    action: row.accion ?? 'Rango/táctico',
-    confidence: row.confianza ?? 'Media',
-    corr12m: row.corr12m ?? null,
-    corr3m: row.corr3m ?? null,
-    motive: row.motivo,
-  }))
+  return rows.map((row) => {
+    const legacy = row as LegacyTacticalRow & { symbol?: string | null; benchmark?: string | null }
+
+    return {
+      pair: legacy.par,
+      symbol: legacy.symbol ?? legacy.par ?? null,
+      trend: legacy.tactico ?? 'Neutral',
+      action: legacy.accion ?? 'Rango/táctico',
+      confidence: legacy.confianza ?? 'Media',
+      tactico: legacy.tactico ?? null,
+      accion: legacy.accion ?? null,
+      confianza: legacy.confianza ?? null,
+      motivo: legacy.motivo ?? null,
+      benchmark: legacy.benchmark ?? null,
+      corr12m: legacy.corr12m ?? null,
+      corr3m: legacy.corr3m ?? null,
+      motive: legacy.motivo,
+    }
+  })
 }
 
 export async function getBiasState(): Promise<BiasState> {
@@ -507,7 +523,7 @@ export async function getBiasState(): Promise<BiasState> {
       tableTactical,
     }
   } catch (error) {
-    logger.error('[macro-engine/bias] Failed to build BiasState', error)
+    logger.error('[macro-engine/bias] Failed to build BiasState', { error })
     throw error
   }
 }

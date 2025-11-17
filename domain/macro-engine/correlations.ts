@@ -113,7 +113,7 @@ async function getRawCorrelations(): Promise<RawCorrelationRecord[]> {
       )
     }
   } catch (error) {
-    logger.warn('[macro-engine/correlations] getCorrelations failed, falling back to corrMap', error)
+    logger.warn('[macro-engine/correlations] getCorrelations failed, falling back to corrMap', { error })
   }
 
   // Fallback to corrMap if needed (ensures we at least have 3m/6m/12m)
@@ -196,6 +196,7 @@ function detectCorrelationShifts(points: CorrelationPoint[]): CorrelationShift[]
     const corr3m = values.find((p) => p.window === '3m')?.value ?? null
     const delta =
       corr3m != null && corr12m != null ? corr3m - corr12m : null
+    const deltaAbs = typeof delta === 'number' ? Math.abs(delta) : null
 
     let regime: CorrelationShiftRegime = 'Weak'
 
@@ -203,13 +204,13 @@ function detectCorrelationShifts(points: CorrelationPoint[]): CorrelationShift[]
       regime = 'Weak'
     } else if (corr12m * corr3m < 0) {
       regime = 'Break'
-    } else if (Math.abs(delta) > 0.4) {
+    } else if (deltaAbs != null && deltaAbs > 0.4) {
       regime = 'Break'
     } else if (Math.abs(corr12m) < 0.3 && Math.abs(corr3m) < 0.3) {
       regime = 'Weak'
-    } else if (Math.abs(delta) <= 0.1) {
+    } else if (deltaAbs != null && deltaAbs <= 0.1) {
       regime = 'Stable'
-    } else if (delta > 0) {
+    } else if ((delta ?? 0) > 0) {
       regime = 'Reinforcing'
     } else {
       regime = 'Stable'
@@ -343,7 +344,7 @@ export async function getCorrelationState(): Promise<CorrelationState> {
       summary,
     }
   } catch (error) {
-    logger.error('[macro-engine/correlations] Failed to build CorrelationState', error)
+    logger.error('[macro-engine/correlations] Failed to build CorrelationState', { error })
     throw error
   }
 }

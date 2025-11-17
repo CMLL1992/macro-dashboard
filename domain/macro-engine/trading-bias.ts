@@ -278,7 +278,7 @@ export async function getTradingBiasState(): Promise<TradingBiasState> {
       },
     }
   } catch (error) {
-    logger.error('[macro-engine/trading-bias] Failed to build TradingBiasState', error)
+    logger.error('[macro-engine/trading-bias] Failed to build TradingBiasState', { error })
     throw error
   }
 }

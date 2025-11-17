@@ -23,6 +23,12 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
+const USD_LABELS: Record<string, 'Fuerte' | 'Débil' | 'Neutral'> = {
+  Bullish: 'Fuerte',
+  Bearish: 'Débil',
+  Neutral: 'Neutral',
+}
+
 function trendLabel(trend: CorrelationTrend) {
   switch (trend) {
     case 'Strengthening':
@@ -50,6 +56,7 @@ export default async function CorrelationsPage() {
   ])
 
   const { benchmark, summary, shifts, windows } = correlationState
+  const usdBiasLabel = USD_LABELS[biasState.regime.usd_direction] ?? 'Neutral'
 
   const getShiftFor = (symbol: string, bench: string) =>
     shifts.find((s) => s.symbol === symbol && s.benchmark === bench)
@@ -142,6 +149,7 @@ export default async function CorrelationsPage() {
                             correlation={row.correlationNow}
                             symbol={row.symbol}
                             window="3m"
+                            usdBias={usdBiasLabel}
                             corr12m={shift?.corr12m ?? null}
                             corr3m={shift?.corr3m ?? null}
                           >
