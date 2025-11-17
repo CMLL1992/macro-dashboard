@@ -91,11 +91,12 @@ export async function getMacroDiagnosis() {
     const weightKey = MAP_KEY_TO_WEIGHT_KEY[d.key] ?? d.key
     const history = updatedHistories.get(weightKey)
     
-    // Use value from getAllLatestFromDB, fallback to indicator_history if null
-    const value = d.value ?? history?.value_current ?? null
+    // Use value from getAllLatestFromDB, fallback to indicator_history if null/undefined
+    // Explicitly check for both null and undefined to ensure fallback works
+    const value = (d.value != null) ? d.value : (history?.value_current ?? null)
     const value_previous = history?.value_previous ?? null
     // Use date from getAllLatestFromDB, fallback to indicator_history if null/undefined
-    const date = (d as any).date ?? history?.date_current ?? null
+    const date = ((d as any).date != null) ? (d as any).date : (history?.date_current ?? null)
     const date_previous = history?.date_previous ?? null
     
     const posture = postureOf(d.key, value)
