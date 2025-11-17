@@ -55,10 +55,45 @@ const USD_LABELS: Record<string, 'Fuerte' | 'Débil' | 'Neutral'> = {
 }
 
 export default async function NarrativasPage() {
-  const [biasState, correlationState] = await Promise.all([
-    getBiasState(),
-    getCorrelationState(),
-  ])
+  let biasState: Awaited<ReturnType<typeof getBiasState>> | null = null
+  let correlationState: Awaited<ReturnType<typeof getCorrelationState>> | null = null
+  let error: string | null = null
+
+  try {
+    const results = await Promise.all([
+      getBiasState().catch((err) => {
+        logger.error('[NarrativasPage] getBiasState failed', { error: err instanceof Error ? err.message : String(err) })
+        throw err
+      }),
+      getCorrelationState().catch((err) => {
+        logger.error('[NarrativasPage] getCorrelationState failed', { error: err instanceof Error ? err.message : String(err) })
+        throw err
+      }),
+    ])
+    biasState = results[0]
+    correlationState = results[1]
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Error desconocido al cargar datos'
+    logger.error('[NarrativasPage] Failed to load data', { error })
+  }
+
+  if (error || !biasState || !correlationState) {
+    return (
+      <main className="p-6 max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold tracking-tight mb-4">Narrativas Macroeconómicas</h1>
+          <p className="text-lg text-muted-foreground mb-6">
+            Análisis detallado de las narrativas macroeconómicas que impulsan los movimientos de los activos financieros
+          </p>
+        </div>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-6">
+          <h2 className="text-lg font-semibold text-red-900 mb-2">Error al cargar datos</h2>
+          <p className="text-sm text-red-800">{error || 'Error desconocido'}</p>
+          <p className="text-xs text-red-700 mt-2">Por favor, intenta recargar la página o contacta al administrador.</p>
+        </div>
+      </main>
+    )
+  }
 
   const tacticalRows = Array.isArray(biasState.tableTactical) ? biasState.tableTactical : []
   const rows: NarrativeRow[] = buildNarrativeRows(tacticalRows, correlationState.shifts)

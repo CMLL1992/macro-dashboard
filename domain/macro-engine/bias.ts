@@ -176,21 +176,37 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
 
   let tacticalRows = getBiasTableTactical(legacyRows)
   
-  // Enrich tactical rows with correlations from DB (same as /api/bias does)
+  // Enrich tactical rows with correlations from DB (batch query to avoid N+1)
   // This ensures correlations are populated even if corrFromDB didn't work
-  const { getCorrelationsForSymbol } = await import('@/lib/db/read')
-  tacticalRows = tacticalRows.map((row) => {
-    const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
-    if (!symbol) return row
-    
-    const dbCorr = getCorrelationsForSymbol(symbol, 'DXY')
-    // Use DB correlations if available, otherwise keep existing (from corrFromDB/corrMap)
-    return {
-      ...row,
-      corr12m: dbCorr.corr12m ?? row.corr12m ?? null,
-      corr3m: dbCorr.corr3m ?? row.corr3m ?? null,
+  if (tacticalRows.length > 0) {
+    try {
+      const { getCorrelationsForSymbols } = await import('@/lib/db/read')
+      const symbols = tacticalRows
+        .map((row) => (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase())
+        .filter((s) => s.length > 0)
+      
+      if (symbols.length > 0) {
+        const correlationsMap = getCorrelationsForSymbols(symbols, 'DXY')
+        tacticalRows = tacticalRows.map((row) => {
+          const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
+          if (!symbol) return row
+          
+          const dbCorr = correlationsMap.get(symbol)
+          // Use DB correlations if available, otherwise keep existing (from corrFromDB/corrMap)
+          return {
+            ...row,
+            corr12m: dbCorr?.corr12m ?? row.corr12m ?? null,
+            corr3m: dbCorr?.corr3m ?? row.corr3m ?? null,
+          }
+        })
+      }
+    } catch (error) {
+      logger.warn('[macro-engine/bias] Failed to enrich correlations from DB', { 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+      // Continue without DB correlations, use existing ones from corrMap
     }
-  })
+  }
 
   if (!tacticalRows.length) {
     const cached = getMacroTacticalBias()

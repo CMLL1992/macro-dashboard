@@ -139,6 +139,119 @@ export function getCorrelationsForSymbol(symbol: string, base: string = 'DXY'): 
   return result
 }
 
+/**
+ * Get correlations for multiple symbols at once (batch query to avoid N+1)
+ * Returns a Map<symbol, {corr12m, corr3m, ...}>
+ */
+export function getCorrelationsForSymbols(symbols: string[], base: string = 'DXY'): Map<string, {
+  corr12m: number | null
+  corr3m: number | null
+  asof12m: string | null
+  asof3m: string | null
+  n_obs12m: number
+  n_obs3m: number
+}> {
+  const db = getDB()
+  const result = new Map<string, {
+    corr12m: number | null
+    corr3m: number | null
+    asof12m: string | null
+    asof3m: string | null
+    n_obs12m: number
+    n_obs3m: number
+  }>()
+
+  if (symbols.length === 0) {
+    return result
+  }
+
+  // Initialize all symbols with null values
+  for (const symbol of symbols) {
+    result.set(symbol.toUpperCase(), {
+      corr12m: null,
+      corr3m: null,
+      asof12m: null,
+      asof3m: null,
+      n_obs12m: 0,
+      n_obs3m: 0,
+    })
+  }
+
+  // Single query for all symbols
+  const placeholders = symbols.map(() => '?').join(',')
+  const upperSymbols = symbols.map(s => s.toUpperCase())
+  const rows = db
+    .prepare(`SELECT * FROM correlations WHERE symbol IN (${placeholders}) AND base = ?`)
+    .all(...upperSymbols, base.toUpperCase()) as any[]
+
+  // Group by symbol
+  for (const row of rows) {
+    const symbol = row.symbol.toUpperCase()
+    const existing = result.get(symbol)
+    if (!existing) continue
+
+    if (row.window === '12m') {
+      existing.corr12m = row.value
+      existing.asof12m = row.asof
+      existing.n_obs12m = row.n_obs
+    } else if (row.window === '3m') {
+      existing.corr3m = row.value
+      existing.asof3m = row.asof
+      existing.n_obs3m = row.n_obs
+    }
+  }
+
+  return result
+}
+
+/**
+ * Get all correlations from database (fast, reads from cached table)
+ * Returns array compatible with CorrRow format
+ */
+export function getAllCorrelationsFromDB(base: string = 'DXY'): Array<{
+  activo: string
+  corr12: number | null
+  corr3: number | null
+  corr6: number | null
+  corr24: number | null
+}> {
+  const db = getDB()
+  const rows = db
+    .prepare('SELECT symbol, window, value FROM correlations WHERE base = ? AND value IS NOT NULL')
+    .all(base.toUpperCase()) as Array<{ symbol: string; window: string; value: number }>
+
+  // Group by symbol
+  const bySymbol = new Map<string, {
+    corr12: number | null
+    corr3: number | null
+    corr6: number | null
+    corr24: number | null
+  }>()
+
+  for (const row of rows) {
+    const symbol = row.symbol
+    if (!bySymbol.has(symbol)) {
+      bySymbol.set(symbol, { corr12: null, corr3: null, corr6: null, corr24: null })
+    }
+    const entry = bySymbol.get(symbol)!
+    if (row.window === '12m') {
+      entry.corr12 = row.value
+    } else if (row.window === '3m') {
+      entry.corr3 = row.value
+    }
+    // Note: 6m and 24m are not stored in DB, only 12m and 3m
+  }
+
+  // Convert to array format
+  return Array.from(bySymbol.entries()).map(([activo, corr]) => ({
+    activo,
+    corr12: corr.corr12,
+    corr3: corr.corr3,
+    corr6: null, // Not stored in DB
+    corr24: null, // Not stored in DB
+  }))
+}
+
 export type MacroBiasRecord = {
   symbol: string
   score: number

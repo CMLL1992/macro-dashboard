@@ -71,8 +71,81 @@ const clamp = (value: number, min = 0, max = 1) =>
 async function getRawCorrelations(): Promise<RawCorrelationRecord[]> {
   const records: RawCorrelationRecord[] = []
 
-  // Prefer cached DB correlations (domain/corr-dashboard)
+  // PRIORITY 1: Read from database (fast, cached)
   try {
+    const { getAllCorrelationsFromDB } = await import('@/lib/db/read')
+    const dbRows = getAllCorrelationsFromDB(DEFAULT_BENCHMARK)
+    
+    if (dbRows.length > 0) {
+      for (const row of dbRows) {
+        const symbol = row.activo
+        if (!symbol) continue
+        records.push(
+          {
+            symbol,
+            benchmark: DEFAULT_BENCHMARK,
+            window: '3m',
+            value: row.corr3 ?? null,
+            sampleSize: null,
+            updatedAt: null,
+          },
+          {
+            symbol,
+            benchmark: DEFAULT_BENCHMARK,
+            window: '12m',
+            value: row.corr12 ?? null,
+            sampleSize: null,
+            updatedAt: null,
+          }
+        )
+      }
+      // If we have DB data, return early (don't call slow getCorrelations())
+      if (records.length > 0) {
+        return records
+      }
+    }
+  } catch (error) {
+    logger.warn('[macro-engine/correlations] getAllCorrelationsFromDB failed', { error })
+  }
+
+  // PRIORITY 2: Fallback to corrMap (fast, in-memory)
+  try {
+    const corrMap = await getCorrMap()
+    if (corrMap.size > 0) {
+      corrMap.forEach((value, key) => {
+        records.push(
+          {
+            symbol: key,
+            benchmark: value.ref ?? DEFAULT_BENCHMARK,
+            window: '3m',
+            value: value.c3 ?? null,
+          },
+          {
+            symbol: key,
+            benchmark: value.ref ?? DEFAULT_BENCHMARK,
+            window: '6m',
+            value: value.c6 ?? null,
+          },
+          {
+            symbol: key,
+            benchmark: value.ref ?? DEFAULT_BENCHMARK,
+            window: '12m',
+            value: value.c12 ?? null,
+          }
+        )
+      })
+      if (records.length > 0) {
+        return records
+      }
+    }
+  } catch (error) {
+    logger.warn('[macro-engine/correlations] getCorrMap failed', { error })
+  }
+
+  // PRIORITY 3: Last resort - call slow getCorrelations() (only if DB and corrMap both fail)
+  // This should rarely happen in production since correlations should be pre-calculated
+  try {
+    const { getCorrelations } = await import('@/domain/corr-dashboard')
     const rows = await getCorrelations()
     for (const row of rows) {
       const symbol = row.activo
@@ -113,34 +186,7 @@ async function getRawCorrelations(): Promise<RawCorrelationRecord[]> {
       )
     }
   } catch (error) {
-    logger.warn('[macro-engine/correlations] getCorrelations failed, falling back to corrMap', { error })
-  }
-
-  // Fallback to corrMap if needed (ensures we at least have 3m/6m/12m)
-  if (!records.length) {
-    const corrMap = await getCorrMap()
-    corrMap.forEach((value, key) => {
-      records.push(
-        {
-          symbol: key,
-          benchmark: value.ref ?? DEFAULT_BENCHMARK,
-          window: '3m',
-          value: value.c3 ?? null,
-        },
-        {
-          symbol: key,
-          benchmark: value.ref ?? DEFAULT_BENCHMARK,
-          window: '6m',
-          value: value.c6 ?? null,
-        },
-        {
-          symbol: key,
-          benchmark: value.ref ?? DEFAULT_BENCHMARK,
-          window: '12m',
-          value: value.c12 ?? null,
-        }
-      )
-    })
+    logger.warn('[macro-engine/correlations] getCorrelations failed (slow fallback)', { error })
   }
 
   return records
