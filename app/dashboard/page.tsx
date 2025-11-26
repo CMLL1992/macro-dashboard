@@ -1,372 +1,61 @@
-import getBiasState from '@/domain/macro-engine/bias'
-import getCorrelationState from '@/domain/macro-engine/correlations'
+import { getDashboardData, type DashboardData } from '@/lib/dashboard-data'
 import { CATEGORY_ORDER } from '@/domain/categories'
-import { detectScenarios } from '@/domain/scenarios'
 import React from 'react'
 import { isStaleByFrequency, getFrequencyLabel, SLA_BY_FREQUENCY } from '@/lib/utils/freshness'
 import { getIndicatorSource } from '@/lib/sources'
 import TacticalTablesClient from '@/components/TacticalTablesClient'
 import DateDisplay from '@/components/DateDisplay'
+import { TableSkeleton, RegimeSkeleton, ScenariosSkeleton } from '@/components/DashboardSkeleton'
 
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
+// Cache for 5 minutes (300 seconds)
+// Macro data changes daily/weekly, so 5 minutes is safe
+export const revalidate = 300
 
-const USD_LABELS: Record<string, 'Fuerte' | 'Débil' | 'Neutral'> = {
-  Bullish: 'Fuerte',
-  Bearish: 'Débil',
-  Neutral: 'Neutral',
-}
-
-const normalizeSymbol = (symbol?: string | null) =>
-  symbol ? symbol.replace('/', '').toUpperCase() : ''
-
-type IndicatorRow = {
-  key: string
-  label: string
-  category: string
-  previous: number | null
-  value: number | null
-  trend: string | null
-  posture: string | null
-  weight: number | null
-  date: string | null
-  originalKey?: string | null
-  unit?: string | null
-}
-
-type TacticalRowSafe = {
-  pair: string
-  trend: string
-  action: string
-  confidence: string
-  corr12m?: number | null
-  corr3m?: number | null
-}
-
-const buildIndicatorRows = (table: any[]): IndicatorRow[] =>
-  table.map((row) => ({
-    key: row.key ?? row.originalKey ?? '',
-    label: row.label ?? row.key ?? '',
-    category: row.category ?? 'Otros',
-    previous: row.value_previous ?? row.previous ?? null,
-    value: row.value ?? null,
-    trend: row.trend ?? null,
-    posture: row.posture ?? null,
-    weight: row.weight ?? null,
-    date: row.date ?? null,
-    originalKey: row.originalKey ?? row.key ?? null,
-    unit: row.unit ?? null,
-  }))
-
-const buildScenarioItems = (table: any[]) =>
-  table.map((row) => ({
-    key: row.key ?? row.originalKey ?? '',
-    label: row.label ?? row.key ?? '',
-    value: row.value ?? null,
-    value_previous: row.value_previous ?? null,
-    trend: row.trend ?? null,
-    posture: row.posture ?? null,
-    weight: row.weight ?? null,
-    category: row.category ?? 'Otros',
-    date: row.date ?? null,
-    originalKey: row.originalKey ?? row.key ?? null,
-  }))
-
-const buildTacticalSafe = (rows: any[]): TacticalRowSafe[] =>
-  rows.map((row) => ({
-    pair: row.pair ?? row.par ?? row.symbol ?? '',
-    trend: row.trend ?? row.tactico ?? 'Neutral',
-    action: row.action ?? row.accion ?? 'Rango/táctico',
-    confidence: row.confidence ?? row.confianza ?? 'Media',
-    corr12m: row.corr12m ?? null,
-    corr3m: row.corr3m ?? null,
-  }))
-
-const deriveLatestDataDate = (rows: IndicatorRow[]): string | null => {
-  let latest: string | null = null
-  for (const row of rows) {
-    if (!row.date) continue
-    if (!latest || row.date > latest) {
-      latest = row.date
-    }
-  }
-  return latest
-}
-
-type CorrInsight = {
-  usdBiasSignal: string
-  strongPairs: string[]
-  decoupledPairs: string[]
-}
-
-const buildCorrInsight = (tacticalRows: any[]): CorrInsight => {
-  if (!Array.isArray(tacticalRows) || tacticalRows.length === 0) {
-    return {
-      usdBiasSignal: 'Sin señal clara (no hay datos suficientes)',
-      strongPairs: [],
-      decoupledPairs: [],
-    }
-  }
-
-  const MIN_STRONG = 0.6
-  const MIN_DECOUPLED_12 = 0.4
-  const MAX_DECOUPLED_3 = 0.25
-
-  const validRows = tacticalRows.filter(
-    (r: any) => typeof r.corr12m === 'number' || typeof r.corr3m === 'number'
-  )
-
-  const strong12 = validRows.filter(
-    (r: any) => typeof r.corr12m === 'number' && Math.abs(r.corr12m) >= MIN_STRONG
-  )
-
-  const pos = strong12.filter((r: any) => (r.corr12m as number) > 0).length
-  const neg = strong12.filter((r: any) => (r.corr12m as number) < 0).length
-
-  let usdBiasSignal = 'Señal mixta / indefinida'
-  if (pos + neg === 0) {
-    usdBiasSignal = 'Sin señal clara (pocas correlaciones fuertes con el USD)'
-  } else if (pos >= 2 * neg) {
-    usdBiasSignal = 'Conjunto de activos muy alineado con un USD fuerte'
-  } else if (neg >= 2 * pos) {
-    usdBiasSignal = 'Conjunto de activos muy alineado con un USD débil'
-  } else {
-    usdBiasSignal = 'Señal mixta: hay correlaciones fuertes en ambos sentidos'
-  }
-
-  const decoupled = validRows.filter(
-    (r: any) =>
-      typeof r.corr12m === 'number' &&
-      Math.abs(r.corr12m as number) >= MIN_DECOUPLED_12 &&
-      (r.corr3m == null || Math.abs(r.corr3m as number) <= MAX_DECOUPLED_3)
-  )
-
-  const strongPairs = strong12
-    .slice()
-    .sort((a: any, b: any) => String(a.pair ?? a.par).localeCompare(String(b.pair ?? b.par)))
-    .map((r: any) => String(r.pair ?? r.par ?? '—'))
-
-  const decoupledPairs = decoupled
-    .slice()
-    .sort((a: any, b: any) => String(a.pair ?? a.par).localeCompare(String(b.pair ?? b.par)))
-    .map((r: any) => String(r.pair ?? r.par ?? '—'))
-
-  return { usdBiasSignal, strongPairs, decoupledPairs }
-}
-
-type UsdMarketInsights = {
-  topPairsSummary: string
-  actionBiasSummary: string
-  divergenceSummary: string
-}
-
-const buildUsdMarketInsights = (rows: TacticalRowSafe[]): UsdMarketInsights => {
-  if (!rows.length) {
-    return {
-      topPairsSummary: 'Sin pares destacados (no hay datos).',
-      actionBiasSummary: 'Sin sesgo detectado (faltan pares USD).',
-      divergenceSummary: 'Sin divergencias relevantes.',
-    }
-  }
-
-  const corrRows = rows
-    .filter((row) => typeof row.corr12m === 'number')
-    .sort(
-      (a, b) =>
-        Math.abs((b.corr12m as number) ?? 0) - Math.abs((a.corr12m as number) ?? 0)
-    )
-
-  const topPairs = corrRows
-    .slice(0, 2)
-    .map((row) => `${row.pair || '—'} (${(row.corr12m as number).toFixed(2)})`)
-
-  const topPairsSummary = topPairs.length
-    ? `Pares con correlación USD más marcada: ${topPairs.join(', ')}.`
-    : 'Sin pares con correlación fuerte frente al USD.'
-
-  const usdRows = rows.filter((row) =>
-    (row.pair || '').toUpperCase().includes('USD')
-  )
-  const buyBias = usdRows.filter((row) =>
-    (row.action || '').toLowerCase().includes('compr')
-  ).length
-  const sellBias = usdRows.filter((row) =>
-    (row.action || '').toLowerCase().includes('venta')
-  ).length
-
-  let actionBiasSummary = 'Sin sesgo dominante en pares USD.'
-  if (usdRows.length > 0) {
-    if (buyBias >= sellBias * 1.5) {
-      actionBiasSummary = 'Predomina búsqueda de compras en pares vinculados al USD.'
-    } else if (sellBias >= buyBias * 1.5) {
-      actionBiasSummary = 'Predomina búsqueda de ventas en pares vinculados al USD.'
-    } else {
-      actionBiasSummary = 'Sesgo mixto: compras y ventas equilibradas en pares USD.'
-    }
-  }
-
-  const divergenceRows = rows.filter(
-    (row) =>
-      typeof row.corr12m === 'number' &&
-      typeof row.corr3m === 'number' &&
-      (row.corr12m as number) * (row.corr3m as number) < 0 &&
-      Math.abs(row.corr12m as number) >= 0.4 &&
-      Math.abs(row.corr3m as number) >= 0.2
-  )
-
-  const divergenceSummary = divergenceRows.length
-    ? `Divergencia destacada en: ${divergenceRows
-        .slice(0, 3)
-        .map((row) => row.pair || '—')
-        .join(', ')}${divergenceRows.length > 3 ? ` (+${divergenceRows.length - 3} más)` : ''}.`
-    : 'Correlaciones 3m alineadas con las de 12m.'
-
-  return { topPairsSummary, actionBiasSummary, divergenceSummary }
-}
+// Types and helper functions are now in lib/dashboard-data.ts
 
 export default async function DashboardPage({ searchParams }: { searchParams?: Record<string, string> }) {
   void searchParams
 
-  // Load data with error handling to prevent page blocking
-  let biasState: Awaited<ReturnType<typeof getBiasState>> | null = null
-  let correlationState: Awaited<ReturnType<typeof getCorrelationState>> | null = null
-  let loadError: string | null = null
-
+  // Get all dashboard data from database (single source of truth)
+  let data: DashboardData
+>>>>>>> eee2a64 (fix: corregir claves duplicadas en tabla de indicadores y usar isStale del backend)
   try {
-    const results = await Promise.allSettled([
-      getBiasState(),
-      getCorrelationState(),
-    ])
-
-    if (results[0].status === 'fulfilled') {
-      biasState = results[0].value
-    } else {
-      loadError = `Error loading bias state: ${results[0].reason instanceof Error ? results[0].reason.message : String(results[0].reason)}`
-      console.error('[Dashboard] getBiasState failed:', results[0].reason)
-    }
-
-    if (results[1].status === 'fulfilled') {
-      correlationState = results[1].value
-    } else {
-      const corrError = `Error loading correlation state: ${results[1].reason instanceof Error ? results[1].reason.message : String(results[1].reason)}`
-      console.error('[Dashboard] getCorrelationState failed:', results[1].reason)
-      if (!loadError) loadError = corrError
-    }
-
-    // If both failed, we can't render the page
-    if (!biasState && !correlationState) {
-      return (
-        <main className="p-6">
-          <div className="max-w-5xl mx-auto">
-            <div className="rounded-lg border border-red-200 bg-red-50 p-6">
-              <h1 className="text-xl font-semibold text-red-900 mb-2">Error al cargar datos</h1>
-              <p className="text-sm text-red-800">{loadError || 'Error desconocido al cargar el dashboard'}</p>
-              <p className="text-xs text-red-700 mt-2">Por favor, intenta recargar la página.</p>
-            </div>
+    data = await getDashboardData()
+  } catch (error) {
+    console.error('[Dashboard] Error loading data:', error)
+    // Return skeleton on error to prevent blank page
+    return (
+      <main className="p-6">
+        <div className="max-w-5xl mx-auto space-y-6">
+          <RegimeSkeleton />
+          <ScenariosSkeleton />
+          <section className="rounded-lg border bg-white p-6">
+            <h2 className="text-lg font-semibold mb-3">Indicadores macro</h2>
+            <TableSkeleton rows={10} />
+          </section>
+          <div className="rounded-lg border bg-red-50 p-4 text-red-800">
+            <p className="font-semibold">Error al cargar datos</p>
+            <p className="text-sm mt-1">
+              {error instanceof Error ? error.message : 'Error desconocido'}
+            </p>
           </div>
-        </main>
-      )
-    }
-
-    // Provide fallback empty states if one fails
-    if (!biasState) {
-      biasState = {
-        updatedAt: new Date(),
-        regime: {
-          overall: 'Neutral',
-          usd_direction: 'Neutral',
-          quad: 'Expansivo',
-          liquidity: 'Medium',
-          credit: 'Medium',
-          risk: 'Neutral',
-        },
-        metrics: {
-          usdScore: 0,
-          quadScore: 0,
-          liquidityScore: null,
-          creditScore: null,
-          riskScore: null,
-        },
-        table: [],
-        tableTactical: [],
-      }
-    }
-
-    if (!correlationState) {
-      correlationState = {
-        updatedAt: new Date(),
-        benchmark: 'DXY',
-        windows: ['3m', '6m', '12m', '24m'],
-        points: [],
-        shifts: [],
-        summary: [],
-      }
-    }
-  } catch (error) {
-    console.error('[Dashboard] Unexpected error:', error)
-    loadError = error instanceof Error ? error.message : 'Error inesperado'
-    // Provide minimal fallback states
-    biasState = {
-      updatedAt: new Date(),
-      regime: {
-        overall: 'Neutral',
-        usd_direction: 'Neutral',
-        quad: 'Expansivo',
-        liquidity: 'Medium',
-        credit: 'Medium',
-        risk: 'Neutral',
-      },
-      metrics: {
-        usdScore: 0,
-        quadScore: 0,
-        liquidityScore: null,
-        creditScore: null,
-        riskScore: null,
-      },
-      table: [],
-      tableTactical: [],
-    }
-    correlationState = {
-      updatedAt: new Date(),
-      benchmark: 'DXY',
-      windows: ['3m', '6m', '12m', '24m'],
-      points: [],
-      shifts: [],
-      summary: [],
-    }
+        </div>
+      </main>
+    )
   }
 
-
-  const indicatorRows = buildIndicatorRows(
-    Array.isArray(biasState.table) ? biasState.table : []
-  )
-  const scenarioItems = buildScenarioItems(
-    Array.isArray(biasState.table) ? biasState.table : []
-  )
-  const tacticalRows = Array.isArray(biasState.tableTactical)
-    ? biasState.tableTactical
-    : []
-  const tacticalRowsSafe = buildTacticalSafe(tacticalRows)
-
-  let scenarios: any[] = []
-  try {
-    scenarios = detectScenarios(scenarioItems, biasState.regime.overall)
-  } catch (error) {
-    console.warn('[Dashboard] detectScenarios failed, using empty array', error)
-    scenarios = []
-  }
-
-  const corrInsight = buildCorrInsight(tacticalRows)
-  const usdMarketInsights = buildUsdMarketInsights(tacticalRowsSafe)
-
-  const usd = USD_LABELS[biasState.regime.usd_direction] ?? biasState.regime.usd_direction
-  const quad = biasState.regime.quad
-  const correlationsCount = correlationState.summary.length
-  const latestDataDate = deriveLatestDataDate(indicatorRows)
-  const updatedAtIso = biasState.updatedAt
-    ? new Date(biasState.updatedAt).toISOString()
-    : null
-  const overallRegime = biasState.regime.overall
+  // Extract data for easier access
+  const {
+    regime,
+    indicators: indicatorRows,
+    tacticalRows: tacticalRowsSafe,
+    scenarios,
+    correlations,
+    corrInsight,
+    usdMarketInsights,
+    latestDataDate,
+    updatedAt,
+  } = data
 
   return (
     <main className="p-6">
@@ -379,22 +68,22 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
           </p>
           <div className="flex flex-wrap items-center gap-2 text-sm mb-2">
             <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
-              Régimen: <strong>{overallRegime}</strong>
+              Régimen: <strong>{regime.overall}</strong>
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
-              USD: <strong>{usd}</strong>
+              USD: <strong>{regime.usd_label}</strong>
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
-              Cuadrante: <strong>{quad}</strong>
+              Cuadrante: <strong>{regime.quad}</strong>
             </span>
           </div>
           <div className="text-xs text-gray-600 mb-3">
-            Indicadores (items): {indicatorRows.length} · Pares tácticos: {tacticalRowsSafe.length} · Escenarios detectados: {scenarios.length} · Correlaciones: {correlationsCount}
+            Indicadores (items): {indicatorRows.length} · Pares tácticos: {tacticalRowsSafe.length} · Escenarios detectados: {scenarios.length} · Correlaciones: {correlations.count}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
             <span className="inline-flex items-center gap-2 rounded-full border px-2 py-0.5">
               <DateDisplay
-                isoString={updatedAtIso}
+                isoString={updatedAt}
                 format="datetime"
                 label="Última actualización de datos macro"
                 showTimezone={true}
@@ -453,7 +142,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
         {/* Escenarios simplificados */}
         <section className="rounded-lg border bg-white p-6">
           <h2 className="text-lg font-semibold mb-3">Escenarios (UI test)</h2>
-          {scenarios.length === 0 ? (
+          {!scenarios || scenarios.length === 0 ? (
             <p className="text-sm text-gray-500">Sin escenarios detectados.</p>
           ) : (
             <ul className="space-y-3">
@@ -473,24 +162,42 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
         {/* Tabla de indicadores macro */}
         <section className="rounded-lg border bg-white p-6">
           <h2 className="text-lg font-semibold mb-3">Indicadores macro</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left">Variable</th>
-                  <th className="px-3 py-2 text-left">Dato anterior</th>
-                  <th className="px-3 py-2 text-left">Dato actual</th>
-                  <th className="px-3 py-2 text-left">Evolución</th>
-                  <th className="px-3 py-2 text-left">Postura</th>
-                  <th className="px-3 py-2 text-left">Peso</th>
-                  <th className="px-3 py-2 text-left">Fecha</th>
-                </tr>
-              </thead>
-              <tbody>
-                {CATEGORY_ORDER.map((cat) => {
-                  const categoryRows = indicatorRows.filter((row) => row.category === cat)
+          {!indicatorRows || indicatorRows.length === 0 ? (
+            <TableSkeleton rows={10} />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Variable</th>
+                    <th className="px-3 py-2 text-left">Dato anterior</th>
+                    <th className="px-3 py-2 text-left">Dato actual</th>
+                    <th className="px-3 py-2 text-left">Evolución</th>
+                    <th className="px-3 py-2 text-left">Postura</th>
+                    <th className="px-3 py-2 text-left">Peso</th>
+                    <th className="px-3 py-2 text-left">Fecha</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {CATEGORY_ORDER.map((cat) => {
+                    const categoryRows = indicatorRows.filter((row) => row.category === cat)
 
-                  if (!categoryRows.length) {
+                    if (!categoryRows.length) {
+                      return (
+                        <React.Fragment key={cat}>
+                          <tr className="bg-gray-50 border-t">
+                            <td colSpan={7} className="text-sm font-semibold uppercase tracking-wide py-2 px-3">
+                              {cat}
+                            </td>
+                          </tr>
+                          <tr className="border-t">
+                            <td colSpan={7} className="px-3 py-2 text-center text-gray-400 text-sm">
+                              No hay indicadores en esta categoría
+                            </td>
+                          </tr>
+                        </React.Fragment>
+                      )
+                    }
                     return (
                       <React.Fragment key={cat}>
                         <tr className="bg-gray-50 border-t">
@@ -498,22 +205,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                             {cat}
                           </td>
                         </tr>
-                        <tr className="border-t">
-                          <td colSpan={7} className="px-3 py-2 text-center text-gray-400 text-sm">
-                            No hay indicadores en esta categoría
-                          </td>
-                        </tr>
-                      </React.Fragment>
-                    )
-                  }
-                  return (
-                    <React.Fragment key={cat}>
-                      <tr className="bg-gray-50 border-t">
-                        <td colSpan={7} className="text-sm font-semibold uppercase tracking-wide py-2 px-3">
-                          {cat}
-                        </td>
-                      </tr>
-                      {categoryRows.map((row) => {
+                        {categoryRows.map((row) => {
                         const isPayemsDelta =
                           typeof row.label === 'string' && row.label.includes('Payrolls Δ')
 
@@ -539,8 +231,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                             ? 'bg-gray-500/10 text-gray-700'
                             : 'bg-gray-500/10 text-gray-500'
 
-                        return (
-                          <tr key={String(row.key)} className="border-t">
+                          return (
+                            <tr key={`${row.originalKey || row.key}-${row.date || 'no-date'}`} className="border-t">
                             <td className="px-4 py-2">
                               <div className="flex items-center gap-1">
                                 <span>{row.label}</span>
@@ -605,26 +297,14 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                             <td className="px-4 py-2">
                               <div className="flex items-center gap-2">
                                 <span>{row.date ?? '—'}</span>
-                                {row.date && (() => {
-                                  const indicatorKey = row.originalKey || row.key.toLowerCase()
-                                  const freshness = isStaleByFrequency(row.date, indicatorKey)
-                                  if (!freshness.isStale) return null
-
-                                  const freqLabel = getFrequencyLabel(freshness.frequency)
-                                  const sla = SLA_BY_FREQUENCY[freshness.frequency]
-                                  const slaLabel = sla.useBusinessDays
-                                    ? `${sla.maxDays} días hábiles`
-                                    : `${sla.maxDays} días naturales`
-
-                                  return (
-                                    <span
-                                      className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-[11px] px-1.5 py-0.5"
-                                      title={`Serie ${freqLabel}; último dato: ${row.date}; SLA: ${slaLabel}`}
-                                    >
-                                      Desactualizado
-                                    </span>
-                                  )
-                                })()}
+                                {row.isStale && row.date && (
+                                  <span
+                                    className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-[11px] px-1.5 py-0.5"
+                                    title={`Dato desactualizado según frecuencia de la serie; último dato: ${row.date}`}
+                                  >
+                                    Desactualizado
+                                  </span>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -632,13 +312,21 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                       })}
                     </React.Fragment>
                   )
-                })}
-              </tbody>
-            </table>
-          </div>
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
         </section>
 
-        <TacticalTablesClient rows={tacticalRowsSafe} />
+        {tacticalRowsSafe && tacticalRowsSafe.length > 0 ? (
+          <TacticalTablesClient rows={tacticalRowsSafe} />
+        ) : (
+          <section className="rounded-lg border bg-white p-6">
+            <h2 className="text-lg font-semibold mb-3">Pares tácticos</h2>
+            <p className="text-sm text-gray-500">Cargando datos tácticos...</p>
+          </section>
+        )}
       </div>
     </main>
   )
