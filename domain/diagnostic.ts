@@ -2,9 +2,7 @@ import { getAllLatest, type LatestPoint } from '@/lib/fred'
 import { postureOf, weightedScore, diagnose, WEIGHTS, toNumeric } from './posture'
 import { categoryFor, CATEGORY_ORDER, type Category } from './categories'
 import { calculateTrend, type Trend } from './trend'
-import { upsertIndicatorHistory } from '@/lib/db/upsert'
-import { getAllIndicatorHistories } from '@/lib/db/read'
-import { getAllLatestFromDB } from '@/lib/db/read-macro'
+import { getAllLatestFromDBWithPrev, type LatestPointWithPrev } from '@/lib/db/read-macro'
 
 // Feature flag: desactivar llamadas directas a FRED por defecto
 const USE_LIVE_SOURCES = process.env.USE_LIVE_SOURCES === 'true'
@@ -37,10 +35,11 @@ const MAP_KEY_TO_WEIGHT_KEY: Record<string, string> = {
 /**
  * Get macro diagnosis from SQLite (primary source)
  * Falls back to FRED only if USE_LIVE_SOURCES=true and data is missing
+ * Now uses robust date-based previous/current calculation
  */
 export async function getMacroDiagnosis() {
-  // Primary: read from SQLite
-  let data: LatestPoint[] = getAllLatestFromDB()
+  // Primary: read from SQLite with robust previous/current calculation
+  let data: LatestPointWithPrev[] = getAllLatestFromDBWithPrev()
   
   // Fallback: if enabled and data is missing, try FRED for missing indicators
   // Also try FRED if ALL values are null (indicator_history empty and transformations failed)
@@ -55,7 +54,13 @@ export async function getMacroDiagnosis() {
       for (const fredPoint of fredData) {
         if (!dbMap.has(fredPoint.key) || dbMap.get(fredPoint.key)?.value == null) {
           data = data.filter(d => d.key !== fredPoint.key)
-          data.push(fredPoint)
+          // Convert to LatestPointWithPrev format (no previous data from FRED fallback)
+          data.push({
+            ...fredPoint,
+            value_previous: null,
+            date_previous: null,
+            isStale: true, // Assume stale if coming from FRED fallback
+          })
         }
       }
       console.log('[getMacroDiagnosis] FRED fallback applied, items with value:', data.filter(d => d.value != null).length)
@@ -66,7 +71,7 @@ export async function getMacroDiagnosis() {
   }
   
   // De-duplicate by key (evita duplicados como GDP YoY apareciendo dos veces)
-  const uniqueByKey = new Map<string, LatestPoint>()
+  const uniqueByKey = new Map<string, LatestPointWithPrev>()
   for (const d of data) {
     uniqueByKey.set(d.key, d)
   }
@@ -77,71 +82,33 @@ export async function getMacroDiagnosis() {
     if (d.key === 'gdp_qoq') d.label = 'PIB Trimestral (GDP QoQ Anualizado)'
   }
   
-  // Update histories with current values
-  // Also try to populate from indicator_history if getAllLatestFromDB returned null
-  for (const point of data) {
-    const weightKey = MAP_KEY_TO_WEIGHT_KEY[point.key] ?? point.key
-    if (point.value != null && (point as any).date) {
-      upsertIndicatorHistory({
-        indicatorKey: weightKey,
-        value: point.value,
-        date: (point as any).date,
-      })
-    }
-    // If value is null but we have history, ensure history is preserved
-    // (This handles cases where transformations fail but we have cached data)
-  }
-  
-  // Get updated histories after upserts
-  const updatedHistories = getAllIndicatorHistories()
-  
   const items = data.map(d => {
+    const posture = postureOf(d.key, d.value ?? null)
     const weightKey = MAP_KEY_TO_WEIGHT_KEY[d.key] ?? d.key
-    const history = updatedHistories.get(weightKey)
-    
-    // Use value from getAllLatestFromDB, fallback to indicator_history if null/undefined
-    // Explicitly check for both null and undefined to ensure fallback works
-    // Also try original key if weightKey lookup fails (for cases where key mapping differs)
-    let value = (d.value != null) ? d.value : (history?.value_current ?? null)
-    let value_previous = history?.value_previous ?? null
-    let date = ((d as any).date != null) ? (d as any).date : (history?.date_current ?? null)
-    let date_previous = history?.date_previous ?? null
-    
-    // If still null and we have a different key, try looking up by original key
-    if (value == null && d.key !== weightKey) {
-      const historyByOriginalKey = updatedHistories.get(d.key.toUpperCase())
-      if (historyByOriginalKey?.value_current != null) {
-        value = historyByOriginalKey.value_current
-        value_previous = historyByOriginalKey.value_previous
-        date = historyByOriginalKey.date_current ?? date
-        date_previous = historyByOriginalKey.date_previous ?? date_previous
-      }
-    }
-    
-    const posture = postureOf(d.key, value)
     const weight = WEIGHTS[weightKey] ?? 0
     
-    // Calculate trend
+    // Calculate trend using robust previous value
     const trend = calculateTrend(
       weightKey,
-      value ?? null,
-      value_previous ?? null
+      d.value ?? null,
+      d.value_previous ?? null
     )
     
     return {
       key: weightKey, // ID único (FRED series id canónico)
       seriesId: weightKey,
       label: d.label,
-      value,
-      value_previous,
-      date,
-      date_previous,
+      value: d.value,
+      value_previous: d.value_previous ?? null,
+      date: d.date,
+      date_previous: d.date_previous ?? null,
       trend,
       posture,
-      numeric: value == null ? 0 : toNumeric(posture),
+      numeric: d.value == null ? 0 : toNumeric(posture),
       weight,
       category: categoryFor(weightKey),
       originalKey: d.key, // Preserve original key (e.g., 'gdp_yoy', 'cpi_yoy') for freshness calculation
+      isStale: d.isStale ?? false, // Include stale flag for UI
     }
   })
 
