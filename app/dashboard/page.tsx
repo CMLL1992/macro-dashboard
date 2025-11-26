@@ -18,7 +18,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
 
   // Get all dashboard data from database (single source of truth)
   let data: DashboardData
->>>>>>> eee2a64 (fix: corregir claves duplicadas en tabla de indicadores y usar isStale del backend)
   try {
     data = await getDashboardData()
   } catch (error) {
