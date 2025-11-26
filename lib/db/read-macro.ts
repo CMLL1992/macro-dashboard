@@ -6,6 +6,7 @@
 import { getDB } from './schema'
 import { labelOf, yoy, mom, last, sma } from '@/lib/fred'
 import type { LatestPoint, SeriesPoint } from '@/lib/fred'
+import { computePrevCurr, isStale, getFrequency, type Observation } from '@/lib/macro/prev-curr'
 
 // Mapa de claves internas a series_id en macro_observations
 export const KEY_TO_SERIES_ID: Record<string, string> = {
@@ -43,6 +44,53 @@ function getSeriesObservations(seriesId: string): SeriesPoint[] {
 }
 
 /**
+ * Get series frequency from macro_series table
+ */
+function getSeriesFrequency(seriesId: string): string | null {
+  const db = getDB()
+  try {
+    const row = db
+      .prepare('SELECT frequency FROM macro_series WHERE series_id = ?')
+      .get(seriesId) as { frequency: string } | undefined
+    
+    return row?.frequency ?? null
+  } catch (error) {
+    return null
+  }
+}
+
+/**
+ * Get previous and current values for a series using robust date-based calculation
+ */
+export function getSeriesPrevCurr(seriesId: string): {
+  previous: { date: string; value: number } | null
+  current: { date: string; value: number } | null
+  isStale: boolean
+} {
+  const observations = getSeriesObservations(seriesId)
+  const frequency = getSeriesFrequency(seriesId)
+  
+  if (observations.length === 0) {
+    return { previous: null, current: null, isStale: true }
+  }
+
+  // Convert to Observation format
+  const obs: Observation[] = observations.map(o => ({
+    date: o.date,
+    value: o.value,
+  }))
+
+  const { previous, current } = computePrevCurr(obs)
+  const stale = isStale(current?.date ?? null, getFrequency(frequency))
+
+  return {
+    previous: previous ? { date: previous.date, value: previous.value } : null,
+    current: current ? { date: current.date, value: current.value } : null,
+    isStale: stale,
+  }
+}
+
+/**
  * Get latest observation for a series from macro_observations
  */
 function getLatestObservation(seriesId: string): { date: string; value: number } | null {
@@ -59,9 +107,19 @@ function getLatestObservation(seriesId: string): { date: string; value: number }
 }
 
 /**
+ * Extended LatestPoint with previous value information
+ */
+export type LatestPointWithPrev = LatestPoint & {
+  value_previous?: number | null
+  date_previous?: string | null
+  isStale?: boolean
+}
+
+/**
  * Get all macro indicators from SQLite (primary source)
  * Returns LatestPoint[] compatible with getAllLatest() format
  * Applies transformations (YoY, QoQ, MoM) as needed
+ * Now includes robust previous/current calculation based on dates
  */
 export function getAllLatestFromDB(): LatestPoint[] {
   const results: LatestPoint[] = []
@@ -107,41 +165,50 @@ export function getAllLatestFromDB(): LatestPoint[] {
     let value: number | null = null
     let date: string | undefined = undefined
     let unit: string | undefined
+    let transformedSeries: SeriesPoint[] = []
 
     // Apply transformations based on key
     if (key.includes('_yoy')) {
       // Calculate YoY
-      const yoySeries = yoy(series)
-      const lastPoint = last(yoySeries)
+      transformedSeries = yoy(series)
+      const lastPoint = last(transformedSeries)
       value = lastPoint?.value ?? null
       date = lastPoint?.date
       unit = '%'
     } else if (key === 'gdp_qoq') {
       // Calculate QoQ annualized
       if (series.length >= 2) {
-        const recent = series[series.length - 1]
-        const prev = series[series.length - 2]
-        if (prev.value !== 0) {
-          value = ((recent.value / prev.value) ** 4 - 1) * 100
-          date = recent.date
+        const qoqSeries: SeriesPoint[] = []
+        for (let i = 1; i < series.length; i++) {
+          const recent = series[i]
+          const prev = series[i - 1]
+          if (prev.value !== 0) {
+            const qoqValue = ((recent.value / prev.value) ** 4 - 1) * 100
+            qoqSeries.push({ date: recent.date, value: qoqValue })
+          }
         }
+        transformedSeries = qoqSeries
+        const lastPoint = last(qoqSeries)
+        value = lastPoint?.value ?? null
+        date = lastPoint?.date
       }
       unit = '%'
     } else if (key === 'payems_delta') {
       // Calculate MoM delta
-      const momSeries = mom(series)
-      const lastPoint = last(momSeries)
+      transformedSeries = mom(series)
+      const lastPoint = last(transformedSeries)
       value = lastPoint?.value ?? null
       date = lastPoint?.date
       unit = 'k'
     } else if (key === 'claims_4w') {
       // Calculate 4-week SMA
-      const smaSeries = sma(series, 4)
-      const lastPoint = last(smaSeries)
+      transformedSeries = sma(series, 4)
+      const lastPoint = last(transformedSeries)
       value = lastPoint?.value ?? null
       date = lastPoint?.date
     } else {
       // Direct value (unrate, fedfunds, t10y2y, vix)
+      transformedSeries = series
       const lastPoint = last(series)
       value = lastPoint?.value ?? null
       date = lastPoint?.date
@@ -154,6 +221,103 @@ export function getAllLatestFromDB(): LatestPoint[] {
       value,
       date,
       unit,
+    })
+  }
+
+  return results
+}
+
+/**
+ * Get all macro indicators with previous values calculated robustly
+ * This is the function that should be used for dashboard data
+ */
+export function getAllLatestFromDBWithPrev(): LatestPointWithPrev[] {
+  const results: LatestPointWithPrev[] = []
+
+  // Labels canónicos por clave interna
+  const KEY_LABELS: Record<string, string> = {
+    cpi_yoy: 'Inflación CPI (YoY)',
+    corecpi_yoy: 'Inflación Core CPI (YoY)',
+    pce_yoy: 'Inflación PCE (YoY)',
+    corepce_yoy: 'Inflación Core PCE (YoY)',
+    ppi_yoy: 'Índice de Precios al Productor (PPI YoY)',
+    gdp_yoy: 'PIB Interanual (GDP YoY)',
+    gdp_qoq: 'PIB Trimestral (GDP QoQ Anualizado)',
+    indpro_yoy: 'Producción Industrial (YoY)',
+    retail_yoy: 'Ventas Minoristas (YoY)',
+    payems_delta: 'Nóminas No Agrícolas (NFP Δ miles)',
+    unrate: 'Tasa de Desempleo (U3)',
+    claims_4w: 'Solicitudes Iniciales de Subsidio por Desempleo (Media 4 semanas)',
+    t10y2y: 'Curva 10Y–2Y (spread %)',
+    fedfunds: 'Tasa Efectiva de Fondos Federales',
+    vix: 'Índice de Volatilidad VIX',
+  }
+
+  for (const [key, seriesId] of Object.entries(KEY_TO_SERIES_ID)) {
+    const series = getSeriesObservations(seriesId)
+    const frequency = getSeriesFrequency(seriesId)
+    
+    if (series.length === 0) {
+      results.push({
+        key,
+        label: KEY_LABELS[key] ?? labelOf(seriesId),
+        value: null,
+        date: undefined,
+        unit: key.includes('_yoy') || key.includes('_qoq') ? '%' : undefined,
+        value_previous: null,
+        date_previous: null,
+        isStale: true,
+      })
+      continue
+    }
+
+    let transformedSeries: SeriesPoint[] = []
+    let unit: string | undefined
+
+    // Apply transformations based on key
+    if (key.includes('_yoy')) {
+      transformedSeries = yoy(series)
+      unit = '%'
+    } else if (key === 'gdp_qoq') {
+      const qoqSeries: SeriesPoint[] = []
+      for (let i = 1; i < series.length; i++) {
+        const recent = series[i]
+        const prev = series[i - 1]
+        if (prev.value !== 0) {
+          const qoqValue = ((recent.value / prev.value) ** 4 - 1) * 100
+          qoqSeries.push({ date: recent.date, value: qoqValue })
+        }
+      }
+      transformedSeries = qoqSeries
+      unit = '%'
+    } else if (key === 'payems_delta') {
+      transformedSeries = mom(series)
+      unit = 'k'
+    } else if (key === 'claims_4w') {
+      transformedSeries = sma(series, 4)
+    } else {
+      transformedSeries = series
+      if (key === 'unrate' || key === 'fedfunds' || key === 't10y2y') unit = '%'
+    }
+
+    // Calculate previous/current from transformed series using robust date-based logic
+    const obs: Observation[] = transformedSeries.map(s => ({
+      date: s.date,
+      value: s.value,
+    }))
+
+    const { previous, current } = computePrevCurr(obs)
+    const stale = isStale(current?.date ?? null, getFrequency(frequency))
+
+    results.push({
+      key,
+      label: KEY_LABELS[key] ?? labelOf(seriesId),
+      value: current?.value ?? null,
+      date: current?.date,
+      unit,
+      value_previous: previous?.value ?? null,
+      date_previous: previous?.date ?? null,
+      isStale: stale,
     })
   }
 
