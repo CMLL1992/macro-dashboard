@@ -39,6 +39,7 @@
     "node_modules",
     "apps/web",
     "scripts/ingest-all-missing.ts",
-    "scripts/test-missing-indicators.ts"
+    "scripts/test-missing-indicators.ts",
+    "scripts/run-jobs-production.ts"
   ]
 }

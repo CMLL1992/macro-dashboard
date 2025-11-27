@@ -71,9 +71,9 @@ export type DashboardData = {
   metrics: {
     usdScore: number
     quadScore: number
-    liquidityScore: number
-    creditScore: number
-    riskScore: number
+    liquidityScore: number | null
+    creditScore: number | null
+    riskScore: number | null
   }
   
   // Datos principales
