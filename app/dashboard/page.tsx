@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 import { getDashboardData, type DashboardData } from '@/lib/dashboard-data'
 import { CATEGORY_ORDER } from '@/domain/categories'
