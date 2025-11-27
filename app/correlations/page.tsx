@@ -134,7 +134,6 @@ export default async function CorrelationsPage() {
                             usdBias={usdBiasLabel}
                             corr12m={shift?.corr12m ?? null}
                             corr3m={shift?.corr3m ?? null}
-                            usdBias={usdBiasLabel}
                           >
                             <span className="cursor-help font-mono">
                               {corrNow}
