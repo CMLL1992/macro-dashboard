@@ -218,7 +218,7 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
   }
 
   if (!tacticalRows.length) {
-    const cached = getMacroTacticalBias()
+    const cached = await getMacroTacticalBias()
     if (cached.length) {
       tacticalRows = cached.map((row) => {
         const direction = row.direction ?? 'neutral'
@@ -243,7 +243,7 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
         }
       })
     } else {
-      const spx = getMacroBias('SPX')
+      const spx = await getMacroBias('SPX')
       if (spx?.bias) {
         tacticalRows = [
           {
@@ -270,7 +270,7 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
     }
   }
 
-  const observations = getLatestMacroObservations()
+  const observations = await getLatestMacroObservations()
   // updatedAt siempre es la fecha/hora actual del cálculo (no la fecha de los datos)
   // Esto refleja cuándo se calculó el bias state, no cuándo se actualizaron los datos macro
   const updatedAt = new Date()

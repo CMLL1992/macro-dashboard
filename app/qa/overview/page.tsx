@@ -7,13 +7,13 @@ import universeAssets from '@/config/universe.assets.json'
 import { getMacroBias } from '@/lib/db/read'
 import { evaluateAllInvariants } from '@/lib/quality/invariants'
 
-export default function QAOverviewPage() {
-  const rows = (universeAssets as any[]).map((a) => {
-    const mb = getMacroBias(a.symbol)
+export default async function QAOverviewPage() {
+  const rows = await Promise.all((universeAssets as any[]).map(async (a) => {
+    const mb = await getMacroBias(a.symbol)
     if (!mb) return { symbol: a.symbol, report: null }
     const report = evaluateAllInvariants({ symbol: a.symbol, bias: mb.bias, nowTs: new Date().toISOString() })
     return { symbol: a.symbol, report }
-  })
+  }))
 
   return (
     <main className="p-6">

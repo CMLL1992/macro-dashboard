@@ -41,15 +41,21 @@ export function getMacroSeries(seriesId: string): MacroSeries | null {
 /**
  * Get latest macro bias from cache
  */
-export function getMacroBias(symbol: string): {
+export async function getMacroBias(symbol: string): Promise<{
   bias: MacroBias
   narrative: BiasNarrative | null
-} | null {
-  const db = getDB()
-
-  const row = db
-    .prepare('SELECT * FROM macro_bias WHERE symbol = ?')
-    .get(symbol.toUpperCase()) as any
+} | null> {
+  let row: any
+  
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
+    row = await db.prepare('SELECT * FROM macro_bias WHERE symbol = ?').get(symbol.toUpperCase())
+  } else {
+    const db = getDB()
+    row = db
+      .prepare('SELECT * FROM macro_bias WHERE symbol = ?')
+      .get(symbol.toUpperCase()) as any
+  }
 
   if (!row) return null
 
@@ -371,12 +377,20 @@ export type MacroBiasRecord = {
   computed_at: string
 }
 
-export function getMacroTacticalBias(): MacroBiasRecord[] {
-  const db = getDB()
+export async function getMacroTacticalBias(): Promise<MacroBiasRecord[]> {
   try {
-    const rows = db
-      .prepare('SELECT symbol, score, direction, confidence, drivers_json, computed_at FROM macro_bias ORDER BY symbol ASC')
-      .all() as Array<{
+    let rows: Array<{
+      symbol: string
+      score: number
+      direction: string
+      confidence: number
+      drivers_json: string
+      computed_at: string
+    }>
+    
+    if (isUsingTurso()) {
+      const db = getUnifiedDB()
+      rows = await db.prepare('SELECT symbol, score, direction, confidence, drivers_json, computed_at FROM macro_bias ORDER BY symbol ASC').all() as Array<{
         symbol: string
         score: number
         direction: string
@@ -384,6 +398,19 @@ export function getMacroTacticalBias(): MacroBiasRecord[] {
         drivers_json: string
         computed_at: string
       }>
+    } else {
+      const db = getDB()
+      rows = db
+        .prepare('SELECT symbol, score, direction, confidence, drivers_json, computed_at FROM macro_bias ORDER BY symbol ASC')
+        .all() as Array<{
+          symbol: string
+          score: number
+          direction: string
+          confidence: number
+          drivers_json: string
+          computed_at: string
+        }>
+    }
 
     return rows.map((row) => ({
       symbol: row.symbol,
@@ -421,11 +448,18 @@ export type LatestMacroObservations = {
   series: Map<string, LatestObservationSnapshot>
 }
 
-export function getLatestMacroObservations(): LatestMacroObservations {
-  const db = getDB()
-  const rows = db
-    .prepare('SELECT series_id, date, value FROM macro_observations ORDER BY series_id, date DESC')
-    .all() as Array<{ series_id: string; date: string; value: number | null }>
+export async function getLatestMacroObservations(): Promise<LatestMacroObservations> {
+  let rows: Array<{ series_id: string; date: string; value: number | null }>
+  
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
+    rows = await db.prepare('SELECT series_id, date, value FROM macro_observations ORDER BY series_id, date DESC').all() as Array<{ series_id: string; date: string; value: number | null }>
+  } else {
+    const db = getDB()
+    rows = db
+      .prepare('SELECT series_id, date, value FROM macro_observations ORDER BY series_id, date DESC')
+      .all() as Array<{ series_id: string; date: string; value: number | null }>
+  }
 
   const series = new Map<string, LatestObservationSnapshot>()
   let globalLatest: string | null = null

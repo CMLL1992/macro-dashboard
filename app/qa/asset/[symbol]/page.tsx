@@ -9,7 +9,7 @@ export default async function QAAssetPage({ params }: { params: { symbol: string
   const asset = (universeAssets as AssetMeta[]).find((a) => a.symbol === symbol)
   if (!asset) return notFound()
 
-  const biasRes = getMacroBias(symbol)
+  const biasRes = await getMacroBias(symbol)
   const bias = biasRes?.bias || null
 
   let invSummary = { pass: 0, warn: 0, fail: 0, results: [] as any[] }

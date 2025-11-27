@@ -20,7 +20,7 @@ export async function GET(
   const symbol = params.symbol.toUpperCase()
 
   try {
-    const result = getMacroBias(symbol)
+    const result = await getMacroBias(symbol)
 
     if (!result) {
       return NextResponse.json(
