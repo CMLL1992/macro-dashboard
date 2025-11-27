@@ -24,7 +24,7 @@ export interface TradingPlaybook {
 }
 
 type AssetCorrelationConfig = {
-  correlationSign: number // -1 for inverse, +1 for direct
+  correlationSign?: number // -1 for inverse, +1 for direct (optional when base is true)
   base?: boolean // true for DXY itself
 }
 
