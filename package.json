@@ -32,6 +32,7 @@
     "test:notifs": "bash scripts/test_notifications.sh"
   },
   "dependencies": {
+    "@libsql/client": "^0.15.15",
     "@radix-ui/react-slot": "^1.0.2",
     "better-sqlite3": "^12.4.1",
     "class-variance-authority": "^0.7.0",

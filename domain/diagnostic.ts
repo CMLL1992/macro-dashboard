@@ -39,7 +39,7 @@ const MAP_KEY_TO_WEIGHT_KEY: Record<string, string> = {
  */
 export async function getMacroDiagnosis() {
   // Primary: read from SQLite with robust previous/current calculation
-  let data: LatestPointWithPrev[] = getAllLatestFromDBWithPrev()
+  let data: LatestPointWithPrev[] = await getAllLatestFromDBWithPrev()
   
   // Fallback: if enabled and data is missing, try FRED for missing indicators
   // Also try FRED if ALL values are null (indicator_history empty and transformations failed)

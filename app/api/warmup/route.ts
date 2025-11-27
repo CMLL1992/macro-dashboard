@@ -66,7 +66,7 @@ export async function GET() {
           lastUpdated: observations[observations.length - 1]?.date || undefined,
         }
 
-        upsertMacroSeries(macroSeries)
+        await upsertMacroSeries(macroSeries)
         updatedSeriesCount++
 
         console.log(`[warmup] ingested ${series.id} (${observations.length} points)`)

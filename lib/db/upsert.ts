@@ -1,65 +1,114 @@
 /**
  * Upsert utilities for idempotent persistence
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
 
 import { getDB } from './schema'
+import { getUnifiedDB, isUsingTurso } from './unified-db'
 import type { MacroSeries } from '@/lib/types/macro'
 import type { MacroBias } from '@/lib/bias/types'
 import type { BiasNarrative } from '@/lib/bias/explain'
 
 /**
  * Upsert macro series and observations
+ * Automatically uses Turso if configured, otherwise better-sqlite3
  */
-export function upsertMacroSeries(series: MacroSeries): void {
-  const db = getDB()
-
-  // Upsert series
-  const insertSeries = db.prepare(`
-    INSERT INTO macro_series (series_id, source, name, frequency, unit, last_updated)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(series_id) DO UPDATE SET
-      name = excluded.name,
-      frequency = excluded.frequency,
-      unit = excluded.unit,
-      last_updated = excluded.last_updated
-  `)
-
-  insertSeries.run(
-    series.id,
-    series.source,
-    series.name,
-    series.frequency,
-    series.unit || null,
-    series.lastUpdated || null
-  )
-
-  // Upsert observations
-  const insertObs = db.prepare(`
-    INSERT INTO macro_observations (series_id, date, value)
-    VALUES (?, ?, ?)
-    ON CONFLICT(series_id, date) DO UPDATE SET value = excluded.value
-  `)
-
-  const deleteOld = db.prepare(`
-    DELETE FROM macro_observations WHERE series_id = ? AND date NOT IN (
-      ${series.data.map(() => '?').join(',')}
+export async function upsertMacroSeries(series: MacroSeries): Promise<void> {
+  if (isUsingTurso()) {
+    // Use Turso (async)
+    const db = getUnifiedDB()
+    
+    // Upsert series
+    await db.prepare(`
+      INSERT INTO macro_series (series_id, source, name, frequency, unit, last_updated)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(series_id) DO UPDATE SET
+        name = excluded.name,
+        frequency = excluded.frequency,
+        unit = excluded.unit,
+        last_updated = excluded.last_updated
+    `).run(
+      series.id,
+      series.source,
+      series.name,
+      series.frequency,
+      series.unit || null,
+      series.lastUpdated || null
     )
-  `)
-
-  const transaction = db.transaction(() => {
-    // Insert/update observations
+    
+    // Upsert observations
+    const insertObs = db.prepare(`
+      INSERT INTO macro_observations (series_id, date, value)
+      VALUES (?, ?, ?)
+      ON CONFLICT(series_id, date) DO UPDATE SET value = excluded.value
+    `)
+    
+    // Insert/update all observations
     for (const point of series.data) {
-      insertObs.run(series.id, point.date, point.value)
+      await insertObs.run(series.id, point.date, point.value)
     }
-
-    // Delete old observations not in current data
-    const dates = series.data.map((p) => p.date)
-    if (dates.length > 0) {
-      deleteOld.run(series.id, ...dates)
+    
+    // Delete old observations not in current data (if any)
+    if (series.data.length > 0) {
+      const dates = series.data.map((p) => p.date)
+      const placeholders = dates.map(() => '?').join(',')
+      await db.prepare(`
+        DELETE FROM macro_observations 
+        WHERE series_id = ? AND date NOT IN (${placeholders})
+      `).run(series.id, ...dates)
     }
-  })
+  } else {
+    // Use better-sqlite3 (sync)
+    const db = getDB()
 
-  transaction()
+    // Upsert series
+    const insertSeries = db.prepare(`
+      INSERT INTO macro_series (series_id, source, name, frequency, unit, last_updated)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(series_id) DO UPDATE SET
+        name = excluded.name,
+        frequency = excluded.frequency,
+        unit = excluded.unit,
+        last_updated = excluded.last_updated
+    `)
+
+    insertSeries.run(
+      series.id,
+      series.source,
+      series.name,
+      series.frequency,
+      series.unit || null,
+      series.lastUpdated || null
+    )
+
+    // Upsert observations
+    const insertObs = db.prepare(`
+      INSERT INTO macro_observations (series_id, date, value)
+      VALUES (?, ?, ?)
+      ON CONFLICT(series_id, date) DO UPDATE SET value = excluded.value
+    `)
+
+    const deleteOld = db.prepare(`
+      DELETE FROM macro_observations WHERE series_id = ? AND date NOT IN (
+        ${series.data.map(() => '?').join(',')}
+      )
+    `)
+
+    const transaction = db.transaction(() => {
+      // Insert/update observations
+      for (const point of series.data) {
+        insertObs.run(series.id, point.date, point.value)
+      }
+
+      // Delete old observations not in current data
+      const dates = series.data.map((p) => p.date)
+      if (dates.length > 0) {
+        deleteOld.run(series.id, ...dates)
+      }
+    })
+
+    transaction()
+  }
 }
 
 /**

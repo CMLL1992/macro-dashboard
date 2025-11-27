@@ -1,6 +1,11 @@
 /**
  * Database schema for automation
- * Using SQLite with better-sqlite3
+ * Using SQLite with better-sqlite3 (local) or Turso (production)
+ * 
+ * Automatically detects Turso if TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are set
+ * Falls back to better-sqlite3 if Turso is not configured
+ * 
+ * For persistent database in production, configure Turso (see CONFIGURAR-TURSO.md)
  */
 
 import 'server-only'
@@ -8,6 +13,7 @@ import 'server-only'
 import Database from 'better-sqlite3'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
+import { getUnifiedDB, initializeSchemaUnified, isUsingTurso } from './unified-db'
 
 // Detectar Vercel de forma robusta: Vercel siempre proporciona VERCEL, VERCEL_ENV o VERCEL_URL
 // En Vercel (producción/preview): usar /tmp (único directorio escribible)
@@ -55,15 +61,89 @@ function getDBPath(): string {
 // NOTA: Los logs se hacen dentro de getDB() para evitar ejecución durante el build
 
 let db: Database.Database | null = null
+let schemaInitialized = false
 
+/**
+ * Get database instance
+ * Automatically uses Turso if configured, otherwise better-sqlite3
+ * 
+ * NOTE: If using Turso, this returns a wrapper that simulates better-sqlite3 API
+ * but uses Turso internally. All operations are async when using Turso.
+ */
 export function getDB(): Database.Database {
+  // Check if Turso is configured
+  if (isUsingTurso()) {
+    // Initialize schema if not already done
+    if (!schemaInitialized) {
+      initializeSchemaUnified().catch(err => {
+        console.error('[db] Error initializing Turso schema:', err)
+      })
+      schemaInitialized = true
+    }
+    
+    // Return a wrapper that simulates better-sqlite3 API but uses Turso
+    // This is a compatibility layer - actual Turso operations are async
+    const unifiedDb = getUnifiedDB()
+    
+    return {
+      prepare(sql: string) {
+        const stmt = unifiedDb.prepare(sql)
+        return {
+          run(...params: any[]) {
+            const result = stmt.run(...params)
+            // If result is a Promise, we need to handle it synchronously
+            // This is a limitation - we'll throw an error to indicate async is needed
+            if (result instanceof Promise) {
+              throw new Error('Turso requires async operations. Use getUnifiedDB() and await the result.')
+            }
+            return result
+          },
+          get(...params: any[]) {
+            const result = stmt.get(...params)
+            if (result instanceof Promise) {
+              throw new Error('Turso requires async operations. Use getUnifiedDB() and await the result.')
+            }
+            return result
+          },
+          all(...params: any[]) {
+            const result = stmt.all(...params)
+            if (result instanceof Promise) {
+              throw new Error('Turso requires async operations. Use getUnifiedDB() and await the result.')
+            }
+            return result
+          },
+        } as any
+      },
+      transaction(fn: () => void) {
+        const result = unifiedDb.transaction(fn)
+        if (result instanceof Promise) {
+          throw new Error('Turso requires async operations. Use getUnifiedDB() and await the result.')
+        }
+        return { default: fn } as any
+      },
+      exec(sql: string) {
+        const result = unifiedDb.exec(sql)
+        if (result instanceof Promise) {
+          throw new Error('Turso requires async operations. Use getUnifiedDB() and await the result.')
+        }
+      },
+      pragma(key: string, value?: string) {
+        return unifiedDb.pragma(key, value)
+      },
+      close() {
+        // Turso doesn't need explicit close
+      },
+    } as any as Database.Database
+  }
+  
+  // Fallback to better-sqlite3
   if (!db) {
     try {
       // ========================================
       // LOGS CLAROS DEL PATH REAL QUE SE ESTÁ USANDO
       // ========================================
       console.log('[db] ========================================')
-      console.log('[db] getDB() called - Iniciando apertura de base de datos')
+      console.log('[db] getDB() called - Using better-sqlite3 (local)')
       console.log('[db] process.cwd():', process.cwd())
       
       // Calcular path y detección de serverless en runtime
@@ -77,6 +157,7 @@ export function getDB(): Database.Database {
       console.log('[db]   isServerless (por process.cwd()):', isServerless)
       console.log('[db]   process.cwd():', process.cwd())
       console.log('[db]   DATABASE_PATH env:', process.env.DATABASE_PATH || 'NOT SET')
+      console.log('[db]   TURSO_DATABASE_URL:', process.env.TURSO_DATABASE_URL ? 'SET' : 'NOT SET')
       console.log('[db] ========================================')
       console.log('[db] RUTA DE BASE DE DATOS QUE SE VA A USAR:')
       console.log('[db]   DB_PATH:', DB_PATH)

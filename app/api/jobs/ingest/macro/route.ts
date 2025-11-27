@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
             break
         }
 
-        upsertMacroSeries(series)
+        await upsertMacroSeries(series)
         ingested++
 
         logger.info(`Ingested ${series.id}`, {

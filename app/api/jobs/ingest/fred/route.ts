@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Upsert to database (idempotent - no duplicates)
-        upsertMacroSeries(macroSeries)
+        await upsertMacroSeries(macroSeries)
         ingested++
 
         logger.info(`Ingested ${series.id}`, {

@@ -8,6 +8,10 @@
       "schedule": "0 0 * * *"
     },
     {
+      "path": "/api/jobs/daily-update",
+      "schedule": "0 6 * * *"
+    },
+    {
       "path": "/api/jobs/weekly",
       "schedule": "0 17 * * 0"
     }

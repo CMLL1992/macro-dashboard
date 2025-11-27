@@ -53,6 +53,7 @@ export default function NotificacionesPage() {
   const [telegramChatId, setTelegramChatId] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
@@ -132,6 +133,42 @@ export default function NotificacionesPage() {
     )
   }
 
+  const sendTestMessage = async () => {
+    setTesting(true)
+    setMessage(null)
+
+    try {
+      const response = await fetch('/api/notifications/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setMessage({ 
+          type: 'success', 
+          text: '✅ Mensaje de prueba enviado correctamente. Revisa tu Telegram para confirmar que lo recibiste.' 
+        })
+      } else {
+        setMessage({ 
+          type: 'error', 
+          text: `❌ Error al enviar mensaje: ${data.error || 'Error desconocido'}${data.details ? `\n\nDetalles: ${data.details}` : ''}` 
+        })
+      }
+    } catch (error) {
+      setMessage({ 
+        type: 'error', 
+        text: `❌ Error de conexión: ${error instanceof Error ? error.message : 'Error desconocido'}` 
+      })
+    } finally {
+      setTesting(false)
+      setTimeout(() => setMessage(null), 10000)
+    }
+  }
+
   if (loading) {
     return (
       <div className="p-6 max-w-4xl mx-auto">
@@ -147,6 +184,40 @@ export default function NotificacionesPage() {
         <p className="text-muted-foreground">
           Personaliza qué notificaciones quieres recibir y cómo recibirlas
         </p>
+      </div>
+
+      {/* Botón de prueba destacado */}
+      <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-blue-900 mb-1">🧪 Probar Notificaciones de Telegram</h2>
+            <p className="text-sm text-blue-700">
+              Envía un mensaje de prueba para verificar que Telegram está configurado correctamente
+            </p>
+          </div>
+          <button
+            onClick={sendTestMessage}
+            disabled={testing}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-md transition-colors whitespace-nowrap"
+          >
+            {testing ? (
+              <>
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Enviando...</span>
+              </>
+            ) : (
+              <>
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+                <span>Enviar Mensaje de Prueba</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Telegram Chat ID */}
@@ -172,6 +243,36 @@ export default function NotificacionesPage() {
             <p className="text-xs text-muted-foreground mt-2">
               Deja vacío si no quieres usar Telegram. Las preferencias se guardarán localmente.
             </p>
+          </div>
+          
+          {/* Botón de prueba */}
+          <div className="pt-4 mt-4 border-t border-gray-200">
+            <h3 className="text-sm font-semibold mb-2">🧪 Probar Notificaciones</h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              Envía un mensaje de prueba a Telegram para verificar que las notificaciones funcionan correctamente.
+            </p>
+            <button
+              onClick={sendTestMessage}
+              disabled={testing}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-sm transition-colors"
+            >
+              {testing ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Enviando mensaje...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                  <span>Enviar Mensaje de Prueba</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -224,12 +325,15 @@ export default function NotificacionesPage() {
 
       {/* Mensaje de estado */}
       {message && (
-        <div className={`rounded-lg p-4 ${
+        <div className={`rounded-lg p-4 whitespace-pre-line ${
           message.type === 'success' 
             ? 'bg-green-50 border border-green-200 text-green-800' 
             : 'bg-red-50 border border-red-200 text-red-800'
         }`}>
-          {message.text}
+          <div className="flex items-start gap-2">
+            <span className="text-lg">{message.type === 'success' ? '✅' : '❌'}</span>
+            <div className="flex-1">{message.text}</div>
+          </div>
         </div>
       )}
 

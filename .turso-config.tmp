@@ -1,0 +1,9 @@
+# Configuración de Turso - GUARDA ESTOS VALORES
+# Estos valores son temporales, se usarán para configurar Vercel
+
+TURSO_DATABASE_URL=libsql://macro-dashboard-cmll1992.aws-eu-west-1.turso.io
+TURSO_AUTH_TOKEN=eyJhbGciOiJFZERTQSIsInR5cCl6lkpXVCJ9.eyJhljoicnciLCJ
+
+# IMPORTANTE: Copia estos valores y pégalos en Vercel Environment Variables
+# Luego puedes borrar este archivo por seguridad
+

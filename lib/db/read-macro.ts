@@ -1,9 +1,11 @@
 /**
  * Read macro indicators from SQLite (source of truth)
  * Replaces direct FRED calls in getMacroDiagnosis()
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
 
 import { getDB } from './schema'
+import { getUnifiedDB, isUsingTurso } from './unified-db'
 import { labelOf, yoy, mom, last, sma } from '@/lib/fred'
 import type { LatestPoint, SeriesPoint } from '@/lib/fred'
 import { computePrevCurr, isStale, getFrequency, type Observation } from '@/lib/macro/prev-curr'
@@ -29,46 +31,70 @@ export const KEY_TO_SERIES_ID: Record<string, string> = {
 
 /**
  * Get all observations for a series from macro_observations
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
-function getSeriesObservations(seriesId: string): SeriesPoint[] {
-  const db = getDB()
-  try {
-    const rows = db
-      .prepare('SELECT date, value FROM macro_observations WHERE series_id = ? AND value IS NOT NULL ORDER BY date ASC')
-      .all(seriesId) as Array<{ date: string; value: number }>
-
-    return rows.map(r => ({ date: r.date, value: r.value }))
-  } catch (error) {
-    return []
+async function getSeriesObservations(seriesId: string): Promise<SeriesPoint[]> {
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
+    try {
+      const result = await db.prepare('SELECT date, value FROM macro_observations WHERE series_id = ? AND value IS NOT NULL ORDER BY date ASC').all(seriesId)
+      const rows = result as Array<{ date: string; value: number }>
+      return rows.map(r => ({ date: r.date, value: r.value }))
+    } catch (error) {
+      console.error('[read-macro] Error getting observations from Turso:', error)
+      return []
+    }
+  } else {
+    const db = getDB()
+    try {
+      const rows = db
+        .prepare('SELECT date, value FROM macro_observations WHERE series_id = ? AND value IS NOT NULL ORDER BY date ASC')
+        .all(seriesId) as Array<{ date: string; value: number }>
+      return rows.map(r => ({ date: r.date, value: r.value }))
+    } catch (error) {
+      return []
+    }
   }
 }
 
 /**
  * Get series frequency from macro_series table
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
-function getSeriesFrequency(seriesId: string): string | null {
-  const db = getDB()
-  try {
-    const row = db
-      .prepare('SELECT frequency FROM macro_series WHERE series_id = ?')
-      .get(seriesId) as { frequency: string } | undefined
-    
-    return row?.frequency ?? null
-  } catch (error) {
-    return null
+async function getSeriesFrequency(seriesId: string): Promise<string | null> {
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
+    try {
+      const result = await db.prepare('SELECT frequency FROM macro_series WHERE series_id = ?').get(seriesId)
+      const row = result as { frequency: string } | undefined
+      return row?.frequency ?? null
+    } catch (error) {
+      return null
+    }
+  } else {
+    const db = getDB()
+    try {
+      const row = db
+        .prepare('SELECT frequency FROM macro_series WHERE series_id = ?')
+        .get(seriesId) as { frequency: string } | undefined
+      return row?.frequency ?? null
+    } catch (error) {
+      return null
+    }
   }
 }
 
 /**
  * Get previous and current values for a series using robust date-based calculation
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
-export function getSeriesPrevCurr(seriesId: string): {
+export async function getSeriesPrevCurr(seriesId: string): Promise<{
   previous: { date: string; value: number } | null
   current: { date: string; value: number } | null
   isStale: boolean
-} {
-  const observations = getSeriesObservations(seriesId)
-  const frequency = getSeriesFrequency(seriesId)
+}> {
+  const observations = await getSeriesObservations(seriesId)
+  const frequency = await getSeriesFrequency(seriesId)
   
   if (observations.length === 0) {
     return { previous: null, current: null, isStale: true }
@@ -230,8 +256,9 @@ export function getAllLatestFromDB(): LatestPoint[] {
 /**
  * Get all macro indicators with previous values calculated robustly
  * This is the function that should be used for dashboard data
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
-export function getAllLatestFromDBWithPrev(): LatestPointWithPrev[] {
+export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[]> {
   const results: LatestPointWithPrev[] = []
 
   // Labels canónicos por clave interna
@@ -254,8 +281,8 @@ export function getAllLatestFromDBWithPrev(): LatestPointWithPrev[] {
   }
 
   for (const [key, seriesId] of Object.entries(KEY_TO_SERIES_ID)) {
-    const series = getSeriesObservations(seriesId)
-    const frequency = getSeriesFrequency(seriesId)
+    const series = await getSeriesObservations(seriesId)
+    const frequency = await getSeriesFrequency(seriesId)
     
     if (series.length === 0) {
       results.push({
