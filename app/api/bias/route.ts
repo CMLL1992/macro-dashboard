@@ -51,7 +51,7 @@ export async function GET() {
   const db = getDB()
   
   // Health check and logging
-  let health = checkMacroDataHealth()
+  let health = await checkMacroDataHealth()
   const rowsBias = db.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number }
   const rowsCorr = db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number }
   const rowsObs = db.prepare('SELECT COUNT(1) as c FROM macro_observations').get() as { c: number }
@@ -60,7 +60,7 @@ export async function GET() {
   let bootstrapResult = null
   if (mustBootstrap) {
     bootstrapResult = await runBootstrap()
-    health = checkMacroDataHealth()
+    health = await checkMacroDataHealth()
   }
 
   // Marcar DB_READY cuando pase el health mínimo
@@ -119,7 +119,7 @@ export async function GET() {
       console.warn('[api/bias] fallback lastBiasUpdate failed:', e)
     }
   }
-  const latestDataDate = getLatestObservationDate()
+  const latestDataDate = await getLatestObservationDate()
   
   console.log('[api/bias]', {
     rows_bias: rowsBias.c,

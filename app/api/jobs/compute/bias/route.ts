@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     try {
       const diagnosis = await getMacroDiagnosis()
       const usd = usdBias(diagnosis.items)
-      const latestDataDate = getLatestObservationDate()
+      const latestDataDate = await getLatestObservationDate()
       
       // Build category chips string
       const categoryCounts = CATEGORY_ORDER.map(cat => {

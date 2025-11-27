@@ -355,19 +355,31 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
 /**
  * Get latest observation date across all series
  */
-export function getLatestObservationDate(): string | null {
-  const db = getDB()
-  const row = db
-    .prepare('SELECT MAX(date) as max_date FROM macro_observations WHERE value IS NOT NULL')
-    .get() as { max_date: string | null } | undefined
-
-  return row?.max_date ?? null
+export async function getLatestObservationDate(): Promise<string | null> {
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
+    try {
+      const result = await db.prepare('SELECT MAX(date) as max_date FROM macro_observations WHERE value IS NOT NULL').get()
+      const row = result as { max_date: string | null } | undefined
+      return row?.max_date ?? null
+    } catch (error) {
+      console.error('[read-macro] Error getting latest date from Turso:', error)
+      return null
+    }
+  } else {
+    const db = getDB()
+    const row = db
+      .prepare('SELECT MAX(date) as max_date FROM macro_observations WHERE value IS NOT NULL')
+      .get() as { max_date: string | null } | undefined
+    return row?.max_date ?? null
+  }
 }
 
 /**
  * Health check: verify database has required data
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
-export function checkMacroDataHealth(): {
+export async function checkMacroDataHealth(): Promise<{
   hasObservations: boolean
   hasBias: boolean
   hasCorrelations: boolean
@@ -375,22 +387,56 @@ export function checkMacroDataHealth(): {
   biasCount: number
   correlationCount: number
   latestDate: string | null
-} {
-  const db = getDB()
-  
-  const obsCount = db.prepare('SELECT COUNT(1) as c FROM macro_observations').get() as { c: number }
-  const biasCount = db.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number }
-  const corrCount = db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number }
-  const latestDate = getLatestObservationDate()
-
-  return {
-    hasObservations: obsCount.c > 0,
-    hasBias: biasCount.c > 0,
-    hasCorrelations: corrCount.c > 0,
-    observationCount: obsCount.c,
-    biasCount: biasCount.c,
-    correlationCount: corrCount.c,
-    latestDate,
+}> {
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
+    try {
+      const obsCountResult = await db.prepare('SELECT COUNT(1) as c FROM macro_observations').get()
+      const biasCountResult = await db.prepare('SELECT COUNT(1) as c FROM macro_bias').get()
+      const corrCountResult = await db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get()
+      const latestDate = await getLatestObservationDate()
+      
+      const obsCount = obsCountResult as { c: number }
+      const biasCount = biasCountResult as { c: number }
+      const corrCount = corrCountResult as { c: number }
+      
+      return {
+        hasObservations: obsCount.c > 0,
+        hasBias: biasCount.c > 0,
+        hasCorrelations: corrCount.c > 0,
+        observationCount: obsCount.c,
+        biasCount: biasCount.c,
+        correlationCount: corrCount.c,
+        latestDate,
+      }
+    } catch (error) {
+      console.error('[read-macro] Error in checkMacroDataHealth with Turso:', error)
+      return {
+        hasObservations: false,
+        hasBias: false,
+        hasCorrelations: false,
+        observationCount: 0,
+        biasCount: 0,
+        correlationCount: 0,
+        latestDate: null,
+      }
+    }
+  } else {
+    const db = getDB()
+    const obsCount = db.prepare('SELECT COUNT(1) as c FROM macro_observations').get() as { c: number }
+    const biasCount = db.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number }
+    const corrCount = db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number }
+    const latestDate = await getLatestObservationDate() // Now async
+    
+    return {
+      hasObservations: obsCount.c > 0,
+      hasBias: biasCount.c > 0,
+      hasCorrelations: corrCount.c > 0,
+      observationCount: obsCount.c,
+      biasCount: biasCount.c,
+      correlationCount: corrCount.c,
+      latestDate,
+    }
   }
 }
 
