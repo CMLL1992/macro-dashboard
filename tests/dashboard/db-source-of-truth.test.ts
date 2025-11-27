@@ -17,7 +17,7 @@ vi.mock('@/lib/fred', () => ({
 
 describe('/api/bias usa BD como fuente de verdad', () => {
   it('getAllLatestFromDB debe devolver datos desde SQLite', () => {
-    const data = getAllLatestFromDB()
+    const data = await getAllLatestFromDB()
     expect(data.length).toBeGreaterThan(0)
     // Al menos algunos deben tener valores
     const withValues = data.filter(d => d.value != null)

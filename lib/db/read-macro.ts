@@ -146,8 +146,9 @@ export type LatestPointWithPrev = LatestPoint & {
  * Returns LatestPoint[] compatible with getAllLatest() format
  * Applies transformations (YoY, QoQ, MoM) as needed
  * Now includes robust previous/current calculation based on dates
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
-export function getAllLatestFromDB(): LatestPoint[] {
+export async function getAllLatestFromDB(): Promise<LatestPoint[]> {
   const results: LatestPoint[] = []
 
   // Labels canónicos por clave interna (evita colisiones entre transformaciones de la misma serie)
@@ -175,7 +176,7 @@ export function getAllLatestFromDB(): LatestPoint[] {
   }
 
   for (const [key, seriesId] of Object.entries(KEY_TO_SERIES_ID)) {
-    const series = getSeriesObservations(seriesId)
+    const series = await getSeriesObservations(seriesId)
     
     if (series.length === 0) {
       results.push({

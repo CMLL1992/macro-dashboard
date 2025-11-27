@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { getDashboardData, type DashboardData } from '@/lib/dashboard-data'
 import { CATEGORY_ORDER } from '@/domain/categories'
 import React from 'react'
@@ -6,10 +8,6 @@ import { getIndicatorSource } from '@/lib/sources'
 import TacticalTablesClient from '@/components/TacticalTablesClient'
 import DateDisplay from '@/components/DateDisplay'
 import { TableSkeleton, RegimeSkeleton, ScenariosSkeleton } from '@/components/DashboardSkeleton'
-
-// Cache for 5 minutes (300 seconds)
-// Macro data changes daily/weekly, so 5 minutes is safe
-export const revalidate = 300
 
 // Types and helper functions are now in lib/dashboard-data.ts
 
