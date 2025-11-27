@@ -111,7 +111,7 @@ const normalizeSymbol = (symbol?: string | null) =>
   symbol ? symbol.replace('/', '').toUpperCase() : ''
 
 function buildIndicatorRows(table: any[]): IndicatorRow[] {
-  return table.map((row) => ({
+  const rows = table.map((row) => ({
     key: row.key ?? row.originalKey ?? '',
     label: row.label ?? row.key ?? '',
     category: row.category ?? 'Otros',
@@ -125,6 +125,30 @@ function buildIndicatorRows(table: any[]): IndicatorRow[] {
     unit: row.unit ?? null,
     isStale: row.isStale ?? false,
   }))
+  
+  // Log first row for debugging (only in development or when explicitly enabled)
+  if (process.env.NODE_ENV === 'development' || process.env.DEBUG_DASHBOARD === 'true') {
+    if (rows.length > 0) {
+      console.log('[dashboard-data] buildIndicatorRows - First row sample:', {
+        key: rows[0].key,
+        label: rows[0].label,
+        value: rows[0].value,
+        previous: rows[0].previous,
+        date: rows[0].date,
+        isStale: rows[0].isStale,
+        rawInput: {
+          key: table[0]?.key,
+          value: table[0]?.value,
+          value_previous: table[0]?.value_previous,
+          previous: table[0]?.previous,
+          date: table[0]?.date,
+          isStale: table[0]?.isStale,
+        },
+      })
+    }
+  }
+  
+  return rows
 }
 
 function buildScenarioItems(table: any[]) {

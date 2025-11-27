@@ -177,23 +177,13 @@ export function getUnifiedDB(): UnifiedDB {
   
   // Log which database is being used (only once to avoid spam)
   if (!dbTypeLogged) {
-    if (USE_TURSO) {
-      console.log('[db] getUnifiedDB() - Using Turso database:', {
-        env: process.env.NODE_ENV || 'development',
-        url: TURSO_DATABASE_URL,
-        isVercel: isVercel,
-        hasToken: !!TURSO_AUTH_TOKEN,
-        tokenLength: TURSO_AUTH_TOKEN?.length || 0,
-      })
-    } else {
-      const dbPath = getDBPath()
-      console.log('[db] getUnifiedDB() - Using SQLite database:', {
-        env: process.env.NODE_ENV || 'development',
-        path: dbPath,
-        isVercel: isVercel,
-        reason: !TURSO_DATABASE_URL ? 'TURSO_DATABASE_URL not set' : !TURSO_AUTH_TOKEN ? 'TURSO_AUTH_TOKEN not set' : 'unknown',
-      })
-    }
+    console.log('[db] getUnifiedDB() - Using DB', {
+      env: process.env.NODE_ENV || 'development',
+      url: process.env.TURSO_DATABASE_URL || 'NO_TURSO_URL',
+      tokenLength: process.env.TURSO_AUTH_TOKEN?.length || 0,
+      isTurso: USE_TURSO,
+      isVercel: isVercel,
+    })
     dbTypeLogged = true
   }
   
