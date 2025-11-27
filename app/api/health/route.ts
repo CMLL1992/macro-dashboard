@@ -21,6 +21,7 @@ export async function GET() {
       console.error('[api/health] Error al obtener base de datos:', dbError)
       return Response.json(
         {
+          ready: false,
           error: 'Database initialization error',
           message: dbError instanceof Error ? dbError.message : String(dbError),
           hasData: false,
@@ -102,6 +103,7 @@ export async function GET() {
       // Retornar respuesta con valores por defecto
       return Response.json(
         {
+          ready: false,
           error: 'Database query error',
           message: queryError instanceof Error ? queryError.message : String(queryError),
           hasData: false,
@@ -124,7 +126,11 @@ export async function GET() {
     }
 
     // Si llegamos aquí, todo funcionó correctamente
+    // ready = true si hay datos mínimos para mostrar el dashboard
+    const ready = health.hasObservations && health.hasBias && health.hasCorrelations
+    
     return Response.json({
+      ready,
       hasData: health.hasObservations && health.hasBias,
       observationCount: obsCount.c,
       biasCount: biasCount.c,
@@ -145,9 +151,15 @@ export async function GET() {
     console.error('[api/health] Stack trace:', error instanceof Error ? error.stack : 'No stack trace')
     return Response.json(
       {
+        ready: false,
         error: 'Internal server error',
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
+        hasData: false,
+        observationCount: 0,
+        biasCount: 0,
+        correlationCount: 0,
+        latestDate: null,
       },
       { status: 500 }
     )

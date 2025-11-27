@@ -18,23 +18,39 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   // Get all dashboard data from database (single source of truth)
   let data: DashboardData
   try {
+    console.log('[Dashboard] Starting data fetch...')
     data = await getDashboardData()
+    console.log('[Dashboard] Data loaded successfully', {
+      hasData: !!data,
+      indicatorsCount: data?.indicators?.length || 0,
+      tacticalRowsCount: data?.tacticalRows?.length || 0,
+      regime: data?.regime?.overall || 'unknown',
+    })
   } catch (error) {
-    console.error('[Dashboard] Error loading data:', error)
-    // Return skeleton on error to prevent blank page
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+    const errorStack = error instanceof Error ? error.stack : undefined
+    console.error('[Dashboard] Error loading data:', {
+      message: errorMessage,
+      stack: errorStack,
+      error,
+    })
+    // Return error state instead of skeleton to prevent infinite loading
     return (
       <main className="p-6">
         <div className="max-w-5xl mx-auto space-y-6">
-          <RegimeSkeleton />
-          <ScenariosSkeleton />
-          <section className="rounded-lg border bg-white p-6">
-            <h2 className="text-lg font-semibold mb-3">Indicadores macro</h2>
-            <TableSkeleton rows={10} />
-          </section>
-          <div className="rounded-lg border bg-red-50 p-4 text-red-800">
-            <p className="font-semibold">Error al cargar datos</p>
-            <p className="text-sm mt-1">
-              {error instanceof Error ? error.message : 'Error desconocido'}
+          <div className="rounded-lg border bg-red-50 p-6 text-red-800">
+            <h1 className="text-xl font-semibold mb-2">Error al cargar datos del dashboard</h1>
+            <p className="text-sm mt-1 font-mono">{errorMessage}</p>
+            {errorStack && (
+              <details className="mt-4">
+                <summary className="cursor-pointer text-xs">Ver detalles técnicos</summary>
+                <pre className="mt-2 text-xs overflow-auto bg-red-100 p-2 rounded">
+                  {errorStack}
+                </pre>
+              </details>
+            )}
+            <p className="text-xs mt-4 text-red-600">
+              Por favor, verifica los logs del servidor en Vercel para más información.
             </p>
           </div>
         </div>
