@@ -49,20 +49,18 @@ async function runBootstrap(): Promise<{ success: boolean; duration_ms: number }
 }
 
 export async function GET() {
-  // Use getUnifiedDB() for Turso compatibility
-  const db = isUsingTurso() ? getUnifiedDB() : getDB()
-  
   // Health check and logging
   let health = await checkMacroDataHealth()
   
-  // Get counts - async if Turso, sync if SQLite
+  // Get counts - always use async for Turso compatibility
   let rowsBias: { c: number }, rowsCorr: { c: number }, rowsObs: { c: number }
   if (isUsingTurso()) {
-    const dbUnified = await getUnifiedDB()
-    rowsBias = await dbUnified.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number }
-    rowsCorr = await dbUnified.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number }
-    rowsObs = await dbUnified.prepare('SELECT COUNT(1) as c FROM macro_observations').get() as { c: number }
+    const db = getUnifiedDB()
+    rowsBias = await db.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number }
+    rowsCorr = await db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number }
+    rowsObs = await db.prepare('SELECT COUNT(1) as c FROM macro_observations').get() as { c: number }
   } else {
+    const db = getDB()
     rowsBias = db.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number }
     rowsCorr = db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number }
     rowsObs = db.prepare('SELECT COUNT(1) as c FROM macro_observations').get() as { c: number }
@@ -122,10 +120,20 @@ export async function GET() {
   // Fallback: si no hay timestamp en memoria, usar el máximo computed_at de macro_bias
   if (!lastBiasUpdate) {
     try {
-      const row = db.prepare('SELECT MAX(computed_at) as ts FROM macro_bias').get() as { ts: string | null }
-      if (row?.ts) {
-        lastBiasUpdate = new Date(row.ts).toISOString()
-        setLastBiasUpdateTimestamp(lastBiasUpdate)
+      if (isUsingTurso()) {
+        const db = getUnifiedDB()
+        const row = await db.prepare('SELECT MAX(computed_at) as ts FROM macro_bias').get() as { ts: string | null }
+        if (row?.ts) {
+          lastBiasUpdate = new Date(row.ts).toISOString()
+          setLastBiasUpdateTimestamp(lastBiasUpdate)
+        }
+      } else {
+        const db = getDB()
+        const row = db.prepare('SELECT MAX(computed_at) as ts FROM macro_bias').get() as { ts: string | null }
+        if (row?.ts) {
+          lastBiasUpdate = new Date(row.ts).toISOString()
+          setLastBiasUpdateTimestamp(lastBiasUpdate)
+        }
       }
     } catch (e) {
       console.warn('[api/bias] fallback lastBiasUpdate failed:', e)

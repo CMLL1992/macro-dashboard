@@ -297,7 +297,8 @@ export async function getDashboardData(): Promise<DashboardData> {
     ])
   } catch (error) {
     console.error('[dashboard-data] Error fetching bias or correlation state:', error)
-    throw new Error(`Failed to load dashboard data: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    // Propagate the original error without wrapping it
+    throw error instanceof Error ? error : new Error(String(error))
   }
 
   // Build indicator rows
