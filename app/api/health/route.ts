@@ -2,83 +2,57 @@
  * Health check endpoint
  * Returns the current state of data in the database
  * 
- * Mejorado para manejar mejor el caso de base de datos vacía/no existente
+ * Uses the same logic as /api/dashboard to ensure consistency
+ * If /api/dashboard has data, /api/health should return ready: true
  */
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
-import { getDB } from '@/lib/db/schema'
-import { checkMacroDataHealth, getLatestObservationDate } from '@/lib/db/read-macro'
+import { NextResponse } from 'next/server'
+import { getDashboardData } from '@/lib/dashboard-data'
 
 export async function GET() {
   try {
-    // Usar getUnifiedDB() directamente con await para Turso
-    let health
-    try {
-      health = await checkMacroDataHealth()
-    } catch (healthError) {
-      console.error('[api/health] Error en checkMacroDataHealth:', healthError)
-      return Response.json(
-        {
-          ready: false,
-          error: 'Health check failed',
-          message: healthError instanceof Error ? healthError.message : String(healthError),
-          hasData: false,
-          observationCount: 0,
-          biasCount: 0,
-          correlationCount: 0,
-          latestDate: null,
-          health: {
-            hasObservations: false,
-            hasBias: false,
-            hasCorrelations: false,
-            observationCount: 0,
-            biasCount: 0,
-            correlationCount: 0,
-            latestDate: null,
-          },
-        },
-        { status: 500 }
-      )
-    }
+    const dashboard = await getDashboardData()
+    const items = dashboard.indicators ?? []
 
-    // Si llegamos aquí, todo funcionó correctamente
-    // ready = true si hay datos mínimos para mostrar el dashboard
-    const ready = health.hasObservations && health.hasBias && health.hasCorrelations
-    
-    return Response.json({
-      ready,
-      hasData: health.hasObservations && health.hasBias,
-      observationCount: health.observationCount,
-      biasCount: health.biasCount,
-      correlationCount: health.correlationCount,
-      latestDate: health.latestDate,
+    const hasData = items.length > 0
+
+    // Calculate counts from dashboard data
+    const observationCount = items.length
+    const biasCount = dashboard.tacticalRows?.length ?? 0
+    const correlationCount = dashboard.correlations?.count ?? 0
+    const latestDate = dashboard.latestDataDate ?? null
+
+    return NextResponse.json({
+      ready: hasData,
+      hasData,
+      observationCount,
+      biasCount,
+      correlationCount,
+      latestDate,
       health: {
-        hasObservations: health.hasObservations,
-        hasBias: health.hasBias,
-        hasCorrelations: health.hasCorrelations,
-        observationCount: health.observationCount,
-        biasCount: health.biasCount,
-        correlationCount: health.correlationCount,
-        latestDate: health.latestDate,
+        hasObservations: observationCount > 0,
+        hasBias: biasCount > 0,
+        hasCorrelations: correlationCount > 0,
+        observationCount,
+        biasCount,
+        correlationCount,
+        latestDate,
       },
     })
   } catch (error) {
-    console.error('[api/health] Error inesperado:', error)
-    console.error('[api/health] Stack trace:', error instanceof Error ? error.stack : 'No stack trace')
-    return Response.json(
+    console.error('[api/health] Error', error)
+    return NextResponse.json(
       {
         ready: false,
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
         hasData: false,
         observationCount: 0,
         biasCount: 0,
         correlationCount: 0,
         latestDate: null,
+        error: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     )
