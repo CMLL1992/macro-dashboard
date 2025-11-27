@@ -40,12 +40,24 @@ export function computePrevCurr(obs: Observation[]): PrevCurrResult {
   // Current is the last observation by date
   const current = sorted.at(-1)!
 
-  // Find previous: last observation with different date than current
+  // Find previous: last observation with different date AND different value than current
+  // This ensures we show the last value that actually changed, not just a different date
   let previous: Observation | null = null
   for (let i = sorted.length - 2; i >= 0; i--) {
-    if (sorted[i].date !== current.date) {
+    if (sorted[i].date !== current.date && sorted[i].value !== current.value) {
       previous = sorted[i]
       break
+    }
+  }
+  
+  // If no previous with different value found, try to find any with different date
+  // (fallback for cases where all recent values are the same)
+  if (!previous) {
+    for (let i = sorted.length - 2; i >= 0; i--) {
+      if (sorted[i].date !== current.date) {
+        previous = sorted[i]
+        break
+      }
     }
   }
 
