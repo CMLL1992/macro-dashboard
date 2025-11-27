@@ -73,7 +73,7 @@ export async function upsertMacroBiasAsync(
         narrative_json = excluded.narrative_json,
         computed_at = excluded.computed_at
     `).run(
-      bias.symbol.toUpperCase(),
+      bias.asset.toUpperCase(),
       bias.score,
       bias.direction,
       bias.confidence,
