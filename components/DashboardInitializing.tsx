@@ -2,14 +2,24 @@
 
 import { useEffect, useState } from 'react'
 
-export default function DashboardInitializing() {
-  const [ready, setReady] = useState(false)
+interface DashboardInitializingProps {
+  initialHasData?: boolean
+}
+
+export default function DashboardInitializing({ initialHasData }: DashboardInitializingProps = {}) {
+  const [ready, setReady] = useState(initialHasData ?? false)
   const [readyCount, setReadyCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [lastHealthResponse, setLastHealthResponse] = useState<any>(null)
-  const [dashboardHasData, setDashboardHasData] = useState(false)
 
   useEffect(() => {
+    // Si initialHasData es true, no hacer polling
+    if (initialHasData) {
+      setReady(true)
+      return
+    }
+
+    // Solo si initialHasData es false inicia el bucle de comprobaciones
     const pollHealth = async () => {
       try {
         // Check both /api/health and /api/dashboard
@@ -17,57 +27,36 @@ export default function DashboardInitializing() {
           fetch('/api/health', { cache: 'no-store' }).catch(() => null),
           fetch('/api/dashboard', { cache: 'no-store' }).catch(() => null),
         ])
-        
+
         // Check if dashboard has data (this is the source of truth)
+        let hasDashboardData = false
         if (dashboardRes && dashboardRes.ok) {
           try {
-            const dashboardData = await dashboardRes.json()
-            const hasDashboardData = dashboardData.ok === true && 
-              dashboardData.data && 
-              Array.isArray(dashboardData.data.items) && 
-              dashboardData.data.items.length > 0
-            setDashboardHasData(hasDashboardData)
-            
-            // If dashboard has data, we're ready regardless of health check
-            if (hasDashboardData) {
-              console.log('[Dashboard] Dashboard has data, allowing access')
-              setReady(true)
-              return
-            }
+            const dash = await dashboardRes.json()
+            hasDashboardData =
+              (dash?.ok && dash?.data?.items && Array.isArray(dash.data.items) && dash.data.items.length > 0) ||
+              (dash?.items && Array.isArray(dash.items) && dash.items.length > 0)
           } catch (e) {
             console.warn('[Dashboard] Error parsing dashboard response:', e)
           }
         }
-        
-        // Fallback to health check if dashboard check failed or has no data
-        if (healthRes) {
-          const data = await healthRes.json()
+
+        // Si el dashboard tiene datos, desbloquear SIEMPRE, aunque health.ready sea false
+        if (hasDashboardData) {
+          console.log('[DashboardInitializing] Dashboard has data, allowing access')
+          setReady(true)
+          return
+        }
+
+        // Solo si NO hay datos en el dashboard, usa el health
+        if (healthRes && healthRes.ok) {
+          const health = await healthRes.json()
           
-          // Log de depuración
-          console.log('[Dashboard] Health check state', {
-            status: healthRes.status,
-            ok: healthRes.ok,
-            ready: data.ready,
-            hasData: data.hasData,
-            readyCount,
-            dashboardHasData,
-            dataSample: data ? Object.keys(data) : null,
-          })
+          console.log('[DashboardInitializing] health =', health, 'hasDashboardData =', hasDashboardData)
           
-          setLastHealthResponse(data)
-          
-          if (!healthRes.ok) {
-            // If health check fails but dashboard has data, allow access
-            if (dashboardHasData) {
-              console.log('[Dashboard] Health check failed but dashboard has data, allowing access')
-              setReady(true)
-              return
-            }
-            setError(`Health check failed with status ${healthRes.status}`)
-            return
-          }
-          
-          if (data.ready || data.hasData) {
+          setLastHealthResponse(health)
+
+          if (health?.ready || health?.hasData) {
             setReadyCount(prev => {
               const newCount = prev + 1
               // Require 2 consecutive ready=true to avoid flickering
@@ -79,28 +68,16 @@ export default function DashboardInitializing() {
             setError(null) // Clear error on success
           } else {
             setReadyCount(0) // Reset counter if not ready
-            // Don't set error if dashboard has data
-            if (!dashboardHasData) {
-              setError(data.error || 'System not ready yet')
-            }
+            setError(health?.error || 'System not ready yet')
           }
         } else {
-          // If health check fails completely but dashboard has data, allow access
-          if (dashboardHasData) {
-            console.log('[Dashboard] Health check unavailable but dashboard has data, allowing access')
-            setReady(true)
-            return
-          }
           setError('Health check unavailable')
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         console.error('[Dashboard] Health check failed:', error)
-        // If dashboard has data, don't block on health check error
-        if (!dashboardHasData) {
-          setError(errorMessage)
-          setLastHealthResponse({ error: errorMessage })
-        }
+        setError(errorMessage)
+        setLastHealthResponse({ error: errorMessage })
       }
     }
 
@@ -109,7 +86,7 @@ export default function DashboardInitializing() {
     pollHealth() // Initial check
 
     return () => clearInterval(interval)
-  }, [dashboardHasData])
+  }, [initialHasData])
 
   if (ready) {
     // Reload page when ready
