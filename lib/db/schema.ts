@@ -76,6 +76,8 @@ let schemaInitialized = false
 export function getDB(): Database.Database {
   // Check if Turso is configured
   if (isUsingTurso()) {
+    // ⚠️ Solo para debug: loguear quién sigue llamando a getDB en producción
+    console.trace('[DB] getDB() CALLED (esto no debería ocurrir en Turso)')
     // Initialize schema if not already done
     if (!schemaInitialized) {
       // Initialize synchronously during build - this will be called during static generation
