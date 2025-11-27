@@ -289,10 +289,16 @@ function buildUsdMarketInsights(rows: TacticalRowSafe[]): UsdMarketInsights {
  */
 export async function getDashboardData(): Promise<DashboardData> {
   // Fetch data in parallel from database
-  const [biasState, correlationState] = await Promise.all([
-    getBiasState(),
-    getCorrelationState(),
-  ])
+  let biasState, correlationState
+  try {
+    [biasState, correlationState] = await Promise.all([
+      getBiasState(),
+      getCorrelationState(),
+    ])
+  } catch (error) {
+    console.error('[dashboard-data] Error fetching bias or correlation state:', error)
+    throw new Error(`Failed to load dashboard data: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
 
   // Build indicator rows
   const indicatorRows = buildIndicatorRows(
