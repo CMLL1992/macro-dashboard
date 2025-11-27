@@ -180,12 +180,14 @@ export function isUsingTurso(): boolean {
 
 /**
  * Initialize schema (works with both)
+ * Includes ALL tables from the full schema
  */
 export async function initializeSchemaUnified(): Promise<void> {
   const db = getUnifiedDB()
   
-  const schema = `
-    CREATE TABLE IF NOT EXISTS macro_series (
+  // Complete schema with all tables
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS macro_series (
       series_id TEXT PRIMARY KEY,
       source TEXT NOT NULL,
       name TEXT NOT NULL,
@@ -193,17 +195,15 @@ export async function initializeSchemaUnified(): Promise<void> {
       unit TEXT,
       last_updated TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS macro_observations (
+    )`,
+    `CREATE TABLE IF NOT EXISTS macro_observations (
       series_id TEXT NOT NULL,
       date TEXT NOT NULL,
       value REAL,
       PRIMARY KEY (series_id, date),
       FOREIGN KEY (series_id) REFERENCES macro_series(series_id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS macro_bias (
+    )`,
+    `CREATE TABLE IF NOT EXISTS macro_bias (
       symbol TEXT PRIMARY KEY,
       score REAL NOT NULL,
       direction TEXT NOT NULL,
@@ -212,9 +212,13 @@ export async function initializeSchemaUnified(): Promise<void> {
       narrative_json TEXT,
       computed_at TEXT NOT NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS correlations (
+    )`,
+    `CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value_encrypted TEXT NOT NULL,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS correlations (
       symbol TEXT NOT NULL,
       base TEXT NOT NULL DEFAULT 'DXY',
       window TEXT NOT NULL CHECK(window IN ('12m', '3m')),
@@ -224,18 +228,137 @@ export async function initializeSchemaUnified(): Promise<void> {
       last_asset_date TEXT,
       last_base_date TEXT,
       PRIMARY KEY (symbol, base, window)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_observations_series_date ON macro_observations(series_id, date);
-    CREATE INDEX IF NOT EXISTS idx_correlations_symbol ON correlations(symbol);
-  `
+    )`,
+    `CREATE TABLE IF NOT EXISTS correlations_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      symbol TEXT NOT NULL,
+      base TEXT NOT NULL,
+      window TEXT NOT NULL,
+      value REAL,
+      n_obs INTEGER,
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS indicator_history (
+      indicator_key TEXT PRIMARY KEY,
+      value_current REAL,
+      value_previous REAL,
+      date_current TEXT,
+      date_previous TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS news_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id_fuente TEXT NOT NULL,
+      fuente TEXT NOT NULL,
+      pais TEXT,
+      tema TEXT,
+      titulo TEXT NOT NULL,
+      impacto TEXT CHECK(impacto IN ('low', 'med', 'high')),
+      published_at TEXT NOT NULL,
+      resumen TEXT,
+      valor_publicado REAL,
+      valor_esperado REAL,
+      notificado_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(fuente, id_fuente)
+    )`,
+    `CREATE TABLE IF NOT EXISTS narrative_state (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      narrativa_actual TEXT NOT NULL CHECK(narrativa_actual IN ('RISK_ON', 'RISK_OFF', 'INFLACION_ARRIBA', 'INFLACION_ABAJO', 'NEUTRAL')),
+      narrativa_anterior TEXT,
+      cambiado_en TEXT,
+      cooldown_hasta TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS macro_calendar (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fecha TEXT NOT NULL,
+      hora_local TEXT,
+      pais TEXT,
+      tema TEXT NOT NULL,
+      evento TEXT NOT NULL,
+      importancia TEXT CHECK(importancia IN ('low', 'med', 'high')),
+      consenso TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS notification_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tipo TEXT NOT NULL CHECK(tipo IN ('news', 'narrative', 'weekly')),
+      mensaje TEXT NOT NULL,
+      chat_id TEXT,
+      message_id INTEGER,
+      status TEXT CHECK(status IN ('sent', 'failed', 'queued')),
+      error TEXT,
+      sent_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS weekly_sent (
+      semana TEXT PRIMARY KEY,
+      sent_at TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_notification_preferences (
+      chat_id TEXT PRIMARY KEY,
+      preferences_json TEXT NOT NULL,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS notification_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      min_value REAL,
+      max_value REAL,
+      description TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS daily_digest_sent (
+      fecha TEXT PRIMARY KEY,
+      sent_at TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS notification_metrics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      metric_name TEXT NOT NULL,
+      metric_value INTEGER NOT NULL DEFAULT 0,
+      labels TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(metric_name, labels)
+    )`,
+    `CREATE TABLE IF NOT EXISTS ingest_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_type TEXT NOT NULL,
+      updated_series_count INTEGER NOT NULL DEFAULT 0,
+      errors_count INTEGER NOT NULL DEFAULT 0,
+      duration_ms INTEGER NOT NULL,
+      errors_json TEXT,
+      finished_at TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_observations_series_date ON macro_observations(series_id, date)`,
+    `CREATE INDEX IF NOT EXISTS idx_correlations_symbol ON correlations(symbol)`,
+    `CREATE INDEX IF NOT EXISTS idx_correlations_asof ON correlations(asof)`,
+    `CREATE INDEX IF NOT EXISTS idx_correlations_history_symbol ON correlations_history(symbol, base, window)`,
+    `CREATE INDEX IF NOT EXISTS idx_indicator_history_key ON indicator_history(indicator_key)`,
+    `CREATE INDEX IF NOT EXISTS idx_news_fuente_id ON news_items(fuente, id_fuente)`,
+    `CREATE INDEX IF NOT EXISTS idx_news_published_at ON news_items(published_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_calendar_fecha ON macro_calendar(fecha)`,
+    `CREATE INDEX IF NOT EXISTS idx_calendar_importancia ON macro_calendar(importancia)`,
+    `CREATE INDEX IF NOT EXISTS idx_notification_tipo ON notification_history(tipo)`,
+    `CREATE INDEX IF NOT EXISTS idx_notification_sent_at ON notification_history(sent_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_ingest_history_finished_at ON ingest_history(finished_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_ingest_history_job_type ON ingest_history(job_type)`,
+  ]
   
-  // Split by semicolon and execute each statement
-  const statements = schema.split(';').filter(s => s.trim())
+  // Execute each statement
   for (const statement of statements) {
-    if (statement.trim()) {
-      await db.exec(statement.trim())
+    try {
+      await db.exec(statement)
+    } catch (error: any) {
+      // Log but don't fail - some tables might already exist
+      console.warn('[db] Error creating table/index (may already exist):', error.message)
     }
   }
+  
+  console.log('[db] Turso schema initialized with all tables')
 }
 

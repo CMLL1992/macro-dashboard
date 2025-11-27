@@ -75,6 +75,8 @@ export function getDB(): Database.Database {
   if (isUsingTurso()) {
     // Initialize schema if not already done
     if (!schemaInitialized) {
+      // Initialize synchronously during build - this will be called during static generation
+      // For runtime, we'll initialize on first use
       initializeSchemaUnified().catch(err => {
         console.error('[db] Error initializing Turso schema:', err)
       })

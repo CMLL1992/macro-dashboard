@@ -4,10 +4,6 @@
   "framework": "nextjs",
   "crons": [
     {
-      "path": "/api/warmup",
-      "schedule": "0 0 * * *"
-    },
-    {
       "path": "/api/jobs/daily-update",
       "schedule": "0 6 * * *"
     },
