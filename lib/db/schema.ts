@@ -67,6 +67,9 @@ let schemaInitialized = false
  * Get database instance
  * Automatically uses Turso if configured, otherwise better-sqlite3
  * 
+ * @deprecated En código de servidor (APIs, loaders, helpers), usa siempre getUnifiedDB() + await.
+ * Esta función solo debe usarse en scripts locales o código que nunca se ejecute en producción con Turso.
+ * 
  * NOTE: If using Turso, this returns a wrapper that simulates better-sqlite3 API
  * but uses Turso internally. All operations are async when using Turso.
  */

@@ -1,8 +1,10 @@
 /**
  * Read utilities for cached data
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
 
 import { getDB } from './schema'
+import { getUnifiedDB, isUsingTurso } from './unified-db'
 import type { MacroSeries } from '@/lib/types/macro'
 import type { MacroBias, BiasDirection, BiasDriver } from '@/lib/bias/types'
 import type { BiasNarrative } from '@/lib/bias/explain'
@@ -101,20 +103,14 @@ export function getCorrelation(
 /**
  * Get all correlations for a symbol
  */
-export function getCorrelationsForSymbol(symbol: string, base: string = 'DXY'): {
+export async function getCorrelationsForSymbol(symbol: string, base: string = 'DXY'): Promise<{
   corr12m: number | null
   corr3m: number | null
   asof12m: string | null
   asof3m: string | null
   n_obs12m: number
   n_obs3m: number
-} {
-  const db = getDB()
-
-  const rows = db
-    .prepare('SELECT * FROM correlations WHERE symbol = ? AND base = ?')
-    .all(symbol.toUpperCase(), base.toUpperCase()) as any[]
-
+}> {
   const result = {
     corr12m: null as number | null,
     corr3m: null as number | null,
@@ -124,15 +120,39 @@ export function getCorrelationsForSymbol(symbol: string, base: string = 'DXY'): 
     n_obs3m: 0,
   }
 
-  for (const row of rows) {
-    if (row.window === '12m') {
-      result.corr12m = row.value
-      result.asof12m = row.asof
-      result.n_obs12m = row.n_obs
-    } else if (row.window === '3m') {
-      result.corr3m = row.value
-      result.asof3m = row.asof
-      result.n_obs3m = row.n_obs
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
+    try {
+      const rows = await db.prepare('SELECT * FROM correlations WHERE symbol = ? AND base = ?').all(symbol.toUpperCase(), base.toUpperCase()) as any[]
+      for (const row of rows) {
+        if (row.window === '12m') {
+          result.corr12m = row.value
+          result.asof12m = row.asof
+          result.n_obs12m = row.n_obs
+        } else if (row.window === '3m') {
+          result.corr3m = row.value
+          result.asof3m = row.asof
+          result.n_obs3m = row.n_obs
+        }
+      }
+    } catch (error) {
+      console.error('[getCorrelationsForSymbol] Error with Turso:', error)
+    }
+  } else {
+    const db = getDB()
+    const rows = db
+      .prepare('SELECT * FROM correlations WHERE symbol = ? AND base = ?')
+      .all(symbol.toUpperCase(), base.toUpperCase()) as any[]
+    for (const row of rows) {
+      if (row.window === '12m') {
+        result.corr12m = row.value
+        result.asof12m = row.asof
+        result.n_obs12m = row.n_obs
+      } else if (row.window === '3m') {
+        result.corr3m = row.value
+        result.asof3m = row.asof
+        result.n_obs3m = row.n_obs
+      }
     }
   }
 
@@ -143,15 +163,14 @@ export function getCorrelationsForSymbol(symbol: string, base: string = 'DXY'): 
  * Get correlations for multiple symbols at once (batch query to avoid N+1)
  * Returns a Map<symbol, {corr12m, corr3m, ...}>
  */
-export function getCorrelationsForSymbols(symbols: string[], base: string = 'DXY'): Map<string, {
+export async function getCorrelationsForSymbols(symbols: string[], base: string = 'DXY'): Promise<Map<string, {
   corr12m: number | null
   corr3m: number | null
   asof12m: string | null
   asof3m: string | null
   n_obs12m: number
   n_obs3m: number
-}> {
-  const db = getDB()
+}>> {
   const result = new Map<string, {
     corr12m: number | null
     corr3m: number | null
@@ -187,21 +206,39 @@ export function getCorrelationsForSymbols(symbols: string[], base: string = 'DXY
 
     // For large symbol lists, batch the query (SQLite has a limit on IN clause size)
     const BATCH_SIZE = 100
-    if (uniqueSymbols.length > BATCH_SIZE) {
-      // Process in batches
-      for (let i = 0; i < uniqueSymbols.length; i += BATCH_SIZE) {
-        const batch = uniqueSymbols.slice(i, i + BATCH_SIZE)
-        const placeholders = batch.map(() => '?').join(',')
-        const rows = db
-          .prepare(`SELECT * FROM correlations WHERE symbol IN (${placeholders}) AND base = ?`)
-          .all(...batch, base.toUpperCase()) as any[]
-
+    if (isUsingTurso()) {
+      const db = getUnifiedDB()
+      if (uniqueSymbols.length > BATCH_SIZE) {
+        // Process in batches
+        for (let i = 0; i < uniqueSymbols.length; i += BATCH_SIZE) {
+          const batch = uniqueSymbols.slice(i, i + BATCH_SIZE)
+          const placeholders = batch.map(() => '?').join(',')
+          const rows = await db.prepare(`SELECT * FROM correlations WHERE symbol IN (${placeholders}) AND base = ?`).all(...batch, base.toUpperCase()) as any[]
+          // Group by symbol
+          for (const row of rows) {
+            const symbol = row.symbol.toUpperCase()
+            const existing = result.get(symbol)
+            if (!existing) continue
+            if (row.window === '12m') {
+              existing.corr12m = row.value
+              existing.asof12m = row.asof
+              existing.n_obs12m = row.n_obs
+            } else if (row.window === '3m') {
+              existing.corr3m = row.value
+              existing.asof3m = row.asof
+              existing.n_obs3m = row.n_obs
+            }
+          }
+        }
+      } else {
+        // Single query for all symbols (fast path)
+        const placeholders = uniqueSymbols.map(() => '?').join(',')
+        const rows = await db.prepare(`SELECT * FROM correlations WHERE symbol IN (${placeholders}) AND base = ?`).all(...uniqueSymbols, base.toUpperCase()) as any[]
         // Group by symbol
         for (const row of rows) {
           const symbol = row.symbol.toUpperCase()
           const existing = result.get(symbol)
           if (!existing) continue
-
           if (row.window === '12m') {
             existing.corr12m = row.value
             existing.asof12m = row.asof
@@ -214,26 +251,51 @@ export function getCorrelationsForSymbols(symbols: string[], base: string = 'DXY
         }
       }
     } else {
-      // Single query for all symbols (fast path)
-      const placeholders = uniqueSymbols.map(() => '?').join(',')
-      const rows = db
-        .prepare(`SELECT * FROM correlations WHERE symbol IN (${placeholders}) AND base = ?`)
-        .all(...uniqueSymbols, base.toUpperCase()) as any[]
-
-      // Group by symbol
-      for (const row of rows) {
-        const symbol = row.symbol.toUpperCase()
-        const existing = result.get(symbol)
-        if (!existing) continue
-
-        if (row.window === '12m') {
-          existing.corr12m = row.value
-          existing.asof12m = row.asof
-          existing.n_obs12m = row.n_obs
-        } else if (row.window === '3m') {
-          existing.corr3m = row.value
-          existing.asof3m = row.asof
-          existing.n_obs3m = row.n_obs
+      const db = getDB()
+      if (uniqueSymbols.length > BATCH_SIZE) {
+        // Process in batches
+        for (let i = 0; i < uniqueSymbols.length; i += BATCH_SIZE) {
+          const batch = uniqueSymbols.slice(i, i + BATCH_SIZE)
+          const placeholders = batch.map(() => '?').join(',')
+          const rows = db
+            .prepare(`SELECT * FROM correlations WHERE symbol IN (${placeholders}) AND base = ?`)
+            .all(...batch, base.toUpperCase()) as any[]
+          // Group by symbol
+          for (const row of rows) {
+            const symbol = row.symbol.toUpperCase()
+            const existing = result.get(symbol)
+            if (!existing) continue
+            if (row.window === '12m') {
+              existing.corr12m = row.value
+              existing.asof12m = row.asof
+              existing.n_obs12m = row.n_obs
+            } else if (row.window === '3m') {
+              existing.corr3m = row.value
+              existing.asof3m = row.asof
+              existing.n_obs3m = row.n_obs
+            }
+          }
+        }
+      } else {
+        // Single query for all symbols (fast path)
+        const placeholders = uniqueSymbols.map(() => '?').join(',')
+        const rows = db
+          .prepare(`SELECT * FROM correlations WHERE symbol IN (${placeholders}) AND base = ?`)
+          .all(...uniqueSymbols, base.toUpperCase()) as any[]
+        // Group by symbol
+        for (const row of rows) {
+          const symbol = row.symbol.toUpperCase()
+          const existing = result.get(symbol)
+          if (!existing) continue
+          if (row.window === '12m') {
+            existing.corr12m = row.value
+            existing.asof12m = row.asof
+            existing.n_obs12m = row.n_obs
+          } else if (row.window === '3m') {
+            existing.corr3m = row.value
+            existing.asof3m = row.asof
+            existing.n_obs3m = row.n_obs
+          }
         }
       }
     }
@@ -250,17 +312,23 @@ export function getCorrelationsForSymbols(symbols: string[], base: string = 'DXY
  * Get all correlations from database (fast, reads from cached table)
  * Returns array compatible with CorrRow format
  */
-export function getAllCorrelationsFromDB(base: string = 'DXY'): Array<{
+export async function getAllCorrelationsFromDB(base: string = 'DXY'): Promise<Array<{
   activo: string
   corr12: number | null
   corr3: number | null
   corr6: number | null
   corr24: number | null
-}> {
-  const db = getDB()
-  const rows = db
-    .prepare('SELECT symbol, window, value FROM correlations WHERE base = ? AND value IS NOT NULL')
-    .all(base.toUpperCase()) as Array<{ symbol: string; window: string; value: number }>
+}>> {
+  let rows: Array<{ symbol: string; window: string; value: number }>
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
+    rows = await db.prepare('SELECT symbol, window, value FROM correlations WHERE base = ? AND value IS NOT NULL').all(base.toUpperCase()) as Array<{ symbol: string; window: string; value: number }>
+  } else {
+    const db = getDB()
+    rows = db
+      .prepare('SELECT symbol, window, value FROM correlations WHERE base = ? AND value IS NOT NULL')
+      .all(base.toUpperCase()) as Array<{ symbol: string; window: string; value: number }>
+  }
 
   // Group by symbol
   const bySymbol = new Map<string, {

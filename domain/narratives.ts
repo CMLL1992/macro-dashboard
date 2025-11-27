@@ -157,7 +157,7 @@ export async function generateNarrative(
 
   // Obtener correlaciones
   const symbol = norm(par)
-  const corr = symbol ? getCorrelationsForSymbol(symbol, 'DXY') : { corr12m: null, corr3m: null, n_obs12m: 0, n_obs3m: 0 }
+  const corr = symbol ? await getCorrelationsForSymbol(symbol, 'DXY') : { corr12m: null, corr3m: null, n_obs12m: 0, n_obs3m: 0 }
   
   // Dirección
   const direccion = tactico === 'Alcista' ? 'Alcista' : tactico === 'Bajista' ? 'Bajista' : 'Rango'

@@ -74,7 +74,7 @@ async function getRawCorrelations(): Promise<RawCorrelationRecord[]> {
   // PRIORITY 1: Read from database (fast, cached)
   try {
     const { getAllCorrelationsFromDB } = await import('@/lib/db/read')
-    const dbRows = getAllCorrelationsFromDB(DEFAULT_BENCHMARK)
+    const dbRows = await getAllCorrelationsFromDB(DEFAULT_BENCHMARK)
     
     if (dbRows.length > 0) {
       for (const row of dbRows) {

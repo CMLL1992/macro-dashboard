@@ -187,7 +187,7 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
         .filter((s, i, arr) => arr.indexOf(s) === i) // Deduplicate
       
       if (symbols.length > 0) {
-        const correlationsMap = getCorrelationsForSymbols(symbols, 'DXY')
+        const correlationsMap = await getCorrelationsForSymbols(symbols, 'DXY')
         // Only update if we got results (map might be empty on error, but that's OK)
         tacticalRows = tacticalRows.map((row) => {
           const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()

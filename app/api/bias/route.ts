@@ -5,6 +5,7 @@ import { getMacroDiagnosis } from '@/domain/diagnostic'
 import { usdBias, macroQuadrant, getBiasTable } from '@/domain/bias'
 import { checkMacroDataHealth, getLatestObservationDate } from '@/lib/db/read-macro'
 import { getDB } from '@/lib/db/schema'
+import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 import { getCorrelationsForSymbol } from '@/lib/db/read'
 import { setDbReady, acquireBootstrapLock, releaseBootstrapLock, getBootstrapStartedAt, incrementFallbackCount, getFallbackCount, getLastBiasUpdateTimestamp, setLastBiasUpdateTimestamp } from '@/lib/runtime/state'
 
@@ -48,13 +49,24 @@ async function runBootstrap(): Promise<{ success: boolean; duration_ms: number }
 }
 
 export async function GET() {
-  const db = getDB()
+  // Use getUnifiedDB() for Turso compatibility
+  const db = isUsingTurso() ? getUnifiedDB() : getDB()
   
   // Health check and logging
   let health = await checkMacroDataHealth()
-  const rowsBias = db.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number }
-  const rowsCorr = db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number }
-  const rowsObs = db.prepare('SELECT COUNT(1) as c FROM macro_observations').get() as { c: number }
+  
+  // Get counts - async if Turso, sync if SQLite
+  let rowsBias: { c: number }, rowsCorr: { c: number }, rowsObs: { c: number }
+  if (isUsingTurso()) {
+    const dbUnified = await getUnifiedDB()
+    rowsBias = await dbUnified.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number }
+    rowsCorr = await dbUnified.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number }
+    rowsObs = await dbUnified.prepare('SELECT COUNT(1) as c FROM macro_observations').get() as { c: number }
+  } else {
+    rowsBias = db.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number }
+    rowsCorr = db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number }
+    rowsObs = db.prepare('SELECT COUNT(1) as c FROM macro_observations').get() as { c: number }
+  }
   
   const mustBootstrap = !(health.hasObservations && health.hasBias) || rowsCorr.c === 0
   let bootstrapResult = null
@@ -91,9 +103,9 @@ export async function GET() {
   const rows = getBiasTable(regime, usd, quad)
   
   // Enrich with correlations from DB
-  const enrichedRows = rows.map(row => {
+  const enrichedRows = await Promise.all(rows.map(async row => {
     const symbol = row.par.replace('/', '').toUpperCase()
-    const corr = getCorrelationsForSymbol(symbol, 'DXY')
+    const corr = await getCorrelationsForSymbol(symbol, 'DXY')
     return {
       ...row,
       corr12m: corr.corr12m,
@@ -101,7 +113,7 @@ export async function GET() {
       n_obs12m: corr.n_obs12m,
       n_obs3m: corr.n_obs3m,
     }
-  })
+  }))
   
   // Enhanced logging for observability
   const bootstrapStartedAt = getBootstrapStartedAt()

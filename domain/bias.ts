@@ -151,7 +151,7 @@ function corrFromMap(par: string, corrMap: CorrMap): { corr12m: number | null; c
 /**
  * Get correlations from SQLite (preferred) or fallback to corrMap
  */
-function corrFromDB(par: string, corrMap: CorrMap): { corr12m: number | null; corr6m: number | null; corr3m: number | null; ref: string | undefined; mapped: boolean } {
+async function corrFromDB(par: string, corrMap: CorrMap): Promise<{ corr12m: number | null; corr6m: number | null; corr3m: number | null; ref: string | undefined; mapped: boolean }> {
   // Try SQLite first
   // IMPORTANTE: Para BTC/USDT y ETH/USDT, norm() convierte a BTCUSDT y ETHUSDT
   // Pero si en la BD está guardado como BTCUSD (sin T), también intentamos buscar esa variante
@@ -164,7 +164,7 @@ function corrFromDB(par: string, corrMap: CorrMap): { corr12m: number | null; co
   
   for (const sym of variants) {
     if (sym) {
-      const dbCorr = getCorrelationsForSymbol(sym, 'DXY')
+      const dbCorr = await getCorrelationsForSymbol(sym, 'DXY')
       // Use DB if we have valid data (n_obs meets minimums) OR if we have correlation values
       // This ensures we show correlations even if n_obs is low but value exists
       if ((dbCorr.n_obs12m >= 150 || dbCorr.n_obs3m >= 40) || (dbCorr.corr12m != null || dbCorr.corr3m != null)) {
@@ -189,7 +189,7 @@ function corrFromDB(par: string, corrMap: CorrMap): { corr12m: number | null; co
   // Last resort: return DB data even if n_obs is low (better than nothing)
   for (const sym of variants) {
     if (sym) {
-      const dbCorr = getCorrelationsForSymbol(sym, 'DXY')
+      const dbCorr = await getCorrelationsForSymbol(sym, 'DXY')
       if (dbCorr.corr12m != null || dbCorr.corr3m != null) {
         return {
           corr12m: dbCorr.corr12m,
@@ -228,7 +228,7 @@ export async function getBiasTableTactical(items: any[], risk: string, usdBiasSt
     base.map(async r => {
       const tact = tacticalFromAction(r.accion)
       const surprise = detectRecentSurprise(items, prio(r.par))
-      const corr = corrFromDB(r.par, corrMap) // Use DB first, fallback to map
+      const corr = await corrFromDB(r.par, corrMap) // Use DB first, fallback to map
       const conf = confidenceAdvanced(confBase, corr.corr12m ?? null, surprise)
       return { ...r, tactico: tact, confianza: conf, corr12m: corr.corr12m, corr6m: corr.corr6m, corr3m: corr.corr3m, corrRef: corr.ref, corrMapped: corr.mapped }
     })

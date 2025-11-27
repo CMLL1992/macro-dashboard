@@ -167,7 +167,7 @@ export async function getPairExtensiveNarrative(
   let corr12 = corr12m
   let corr3 = corr3m
   if (corr12 == null || corr3 == null) {
-    const corr = symbol ? getCorrelationsForSymbol(symbol, 'DXY') : { corr12m: null, corr3m: null }
+    const corr = symbol ? await getCorrelationsForSymbol(symbol, 'DXY') : { corr12m: null, corr3m: null }
     corr12 = corr.corr12m
     corr3 = corr.corr3m
   }

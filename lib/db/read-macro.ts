@@ -118,17 +118,28 @@ export async function getSeriesPrevCurr(seriesId: string): Promise<{
 
 /**
  * Get latest observation for a series from macro_observations
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
-function getLatestObservation(seriesId: string): { date: string; value: number } | null {
-  const db = getDB()
-  try {
-    const row = db
-      .prepare('SELECT date, value FROM macro_observations WHERE series_id = ? AND value IS NOT NULL ORDER BY date DESC LIMIT 1')
-      .get(seriesId) as { date: string; value: number } | undefined
-
-    return row || null
-  } catch (error) {
-    return null
+async function getLatestObservation(seriesId: string): Promise<{ date: string; value: number } | null> {
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
+    try {
+      const result = await db.prepare('SELECT date, value FROM macro_observations WHERE series_id = ? AND value IS NOT NULL ORDER BY date DESC LIMIT 1').get(seriesId)
+      const row = result as { date: string; value: number } | undefined
+      return row || null
+    } catch (error) {
+      return null
+    }
+  } else {
+    const db = getDB()
+    try {
+      const row = db
+        .prepare('SELECT date, value FROM macro_observations WHERE series_id = ? AND value IS NOT NULL ORDER BY date DESC LIMIT 1')
+        .get(seriesId) as { date: string; value: number } | undefined
+      return row || null
+    } catch (error) {
+      return null
+    }
   }
 }
 
