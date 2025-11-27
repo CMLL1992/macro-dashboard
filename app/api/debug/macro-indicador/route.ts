@@ -48,19 +48,27 @@ export async function GET() {
         gdp_yoy: gdpYoY ? {
           key: gdpYoY.key,
           label: gdpYoY.label,
-          value: gdpYoY.value,
-          date: gdpYoY.date,
-          value_previous: gdpYoY.value_previous,
-          date_previous: gdpYoY.date_previous,
+          current: {
+            value: gdpYoY.value,
+            date: gdpYoY.date,
+          },
+          previous: {
+            value: gdpYoY.value_previous,
+            date: gdpYoY.date_previous,
+          },
           isStale: gdpYoY.isStale,
         } : null,
         gdp_qoq: gdpQoQ ? {
           key: gdpQoQ.key,
           label: gdpQoQ.label,
-          value: gdpQoQ.value,
-          date: gdpQoQ.date,
-          value_previous: gdpQoQ.value_previous,
-          date_previous: gdpQoQ.date_previous,
+          current: {
+            value: gdpQoQ.value,
+            date: gdpQoQ.date,
+          },
+          previous: {
+            value: gdpQoQ.value_previous,
+            date: gdpQoQ.date_previous,
+          },
           isStale: gdpQoQ.isStale,
         } : null,
       },

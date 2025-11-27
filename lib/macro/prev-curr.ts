@@ -61,6 +61,17 @@ export function computePrevCurr(obs: Observation[]): PrevCurrResult {
     }
   }
 
+  // Debug logging for specific indicators (only when DEBUG_DASHBOARD is enabled)
+  if (process.env.DEBUG_DASHBOARD === 'true' || process.env.DEBUG_INDICATOR === 'true') {
+    console.log('[debug-indicator] computePrevCurr', {
+      totalObservations: sorted.length,
+      latestDates: sorted.slice(-3).map(o => o.date),
+      latestValues: sorted.slice(-3).map(o => o.value),
+      prev: previous ? { date: previous.date, value: previous.value } : null,
+      curr: { date: current.date, value: current.value },
+    })
+  }
+
   return {
     previous: previous ? { date: previous.date, value: previous.value } : null,
     current: { date: current.date, value: current.value },

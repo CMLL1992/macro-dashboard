@@ -193,6 +193,22 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                   </tr>
                 </thead>
                 <tbody>
+                  {(() => {
+                    // Debug logging for UI rendering (only when DEBUG_DASHBOARD is enabled)
+                    if (process.env.DEBUG_DASHBOARD === 'true' && indicatorRows.length > 0) {
+                      const gdpRow = indicatorRows.find(r => r.key === 'gdp_yoy')
+                      if (gdpRow) {
+                        console.log('[debug-ui] macroIndicators row gdp_yoy', {
+                          key: gdpRow.key,
+                          previous: gdpRow.previous,
+                          value: gdpRow.value,
+                          date: gdpRow.date,
+                          isStale: gdpRow.isStale,
+                        })
+                      }
+                    }
+                    return null
+                  })()}
                   {CATEGORY_ORDER.map((cat) => {
                     const categoryRows = indicatorRows.filter((row) => row.category === cat)
 
