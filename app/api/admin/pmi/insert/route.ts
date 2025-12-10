@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       indicator: 'USPMI',
       nativeId: 'manual-entry',
       name: 'ISM Manufacturing: PMI',
-      frequency: 'm',
+      frequency: 'M', // Monthly (Mensual)
       data: [{ date, value: numValue }],
       lastUpdated: date,
     }
