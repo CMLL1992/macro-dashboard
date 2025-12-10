@@ -252,7 +252,7 @@ function buildIndicatorRows(table: any[]): IndicatorRow[] {
   
   // Filter: Only show indicators that have weight > 0 in the macro engine
   // This ensures VIX, PCEPI (headline), and other excluded indicators don't appear
-  const filteredRows = rows.filter((row): row is IndicatorRow => {
+  const filteredRows: IndicatorRow[] = rows.filter((row) => {
     // Must have key and label
     if (!row.key || !row.label) return false
     

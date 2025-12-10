@@ -62,14 +62,15 @@ export default function TacticalTablesClient({ rows }: Props) {
     if (!term) return rowsWithCategory
     return rowsWithCategory.filter(
       (row) =>
-        row.pair.toLowerCase().includes(term) ||
-        row.action.toLowerCase().includes(term) ||
-        row.trend.toLowerCase().includes(term)
+        (row.pair || '').toLowerCase().includes(term) ||
+        (row.action || '').toLowerCase().includes(term) ||
+        (row.trend || '').toLowerCase().includes(term)
     )
   }, [rowsWithCategory, search])
 
   // Función para extraer la moneda base de un par forex
-  const getBaseCurrency = (pair: string): string | null => {
+  const getBaseCurrency = (pair: string | null | undefined): string | null => {
+    if (!pair) return null
     const match = pair.match(/^([A-Z]{3})\//)
     return match ? match[1] : null
   }
@@ -105,7 +106,7 @@ export default function TacticalTablesClient({ rows }: Props) {
       
       // Ordenar cada grupo internamente
       for (const currency in byCurrency) {
-        byCurrency[currency].sort((a, b) => a.pair.localeCompare(b.pair))
+        byCurrency[currency].sort((a, b) => (a.pair || '').localeCompare(b.pair || ''))
       }
       
       // Reordenar según el orden preferido
@@ -239,9 +240,9 @@ export default function TacticalTablesClient({ rows }: Props) {
                           <td className="px-4 py-2">
                             <span
                               className={
-                                row.action.toLowerCase().includes('compr')
+                                (row.action || '').toLowerCase().includes('compr')
                                   ? 'text-green-600 dark:text-green-400'
-                                  : row.action.toLowerCase().includes('venta')
+                                  : (row.action || '').toLowerCase().includes('venta')
                                     ? 'text-red-600 dark:text-red-400'
                                     : ''
                               }
