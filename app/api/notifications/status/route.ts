@@ -25,6 +25,11 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 export async function GET() {
+  // Skip during Vercel build (SSR/SSG)
+  if (process.env.VERCEL === "1") {
+    return NextResponse.json({ skip: "build" });
+  }
+
   try {
     // Force initialization if not already done
     await ensureNotificationsInitialized()

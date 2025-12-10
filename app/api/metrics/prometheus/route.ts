@@ -10,6 +10,11 @@ import { exportPrometheusMetrics } from '@/lib/notifications/metrics'
 import { getQueueStatus } from '@/lib/notifications/queue'
 
 export async function GET() {
+  // Skip during Vercel build (SSR/SSG)
+  if (process.env.VERCEL === "1") {
+    return NextResponse.json({ skip: "build" });
+  }
+
   try {
     // Get queue metrics
     const queueStatus = getQueueStatus()

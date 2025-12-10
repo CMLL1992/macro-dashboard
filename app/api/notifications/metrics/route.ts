@@ -10,6 +10,11 @@ import { getAllMetrics, getAggregatedMetrics } from '@/lib/notifications/metrics
 import { getUnifiedDB } from '@/lib/db/unified-db'
 
 export async function GET() {
+  // Skip during Vercel build (SSR/SSG)
+  if (process.env.VERCEL === "1") {
+    return NextResponse.json({ skip: "build" });
+  }
+
   try {
     const metrics = await getAllMetrics()
     const aggregated = await getAggregatedMetrics()

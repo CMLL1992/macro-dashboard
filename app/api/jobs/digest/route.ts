@@ -22,6 +22,11 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // Skip during Vercel build (SSR/SSG)
+  if (process.env.VERCEL === "1") {
+    return NextResponse.json({ skip: "build" });
+  }
+
   try {
     const result = await sendDailyDigest()
 
