@@ -344,7 +344,11 @@ export async function upsertEconomicRelease(params: {
       new Date().toISOString()
     )
     const lastId = db.prepare('SELECT last_insert_rowid() as id').get() as { id: number }
-    return getEconomicReleaseById(lastId.id)
+    const result = await getEconomicReleaseById(lastId.id)
+    if (!result) {
+      throw new Error(`Failed to retrieve economic release with id ${lastId.id}`)
+    }
+    return result
   }
 }
 
