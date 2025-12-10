@@ -38,7 +38,7 @@ export async function getCurrentNarrative(): Promise<NarrativeState> {
   if (usingTurso) {
     row = await db.prepare('SELECT narrativa_actual FROM narrative_state ORDER BY id DESC LIMIT 1').get() as { narrativa_actual: string } | undefined
   } else {
-    row = db.prepare('SELECT narrativa_actual FROM narrative_state ORDER BY id DESC LIMIT 1').get() as { narrativa_actual: string } | undefined
+    row = await db.prepare('SELECT narrativa_actual FROM narrative_state ORDER BY id DESC LIMIT 1').get() as { narrativa_actual: string } | undefined
   }
   
   return (row?.narrativa_actual as NarrativeState) || 'NEUTRAL'
@@ -55,7 +55,7 @@ async function isCooldownActive(): Promise<boolean> {
   if (usingTurso) {
     row = await db.prepare('SELECT cooldown_hasta FROM narrative_state ORDER BY id DESC LIMIT 1').get() as { cooldown_hasta: string | null } | undefined
   } else {
-    row = db.prepare('SELECT cooldown_hasta FROM narrative_state ORDER BY id DESC LIMIT 1').get() as { cooldown_hasta: string | null } | undefined
+    row = await db.prepare('SELECT cooldown_hasta FROM narrative_state ORDER BY id DESC LIMIT 1').get() as { cooldown_hasta: string | null } | undefined
   }
   
   if (!row?.cooldown_hasta) return false
@@ -137,7 +137,7 @@ export async function checkMultipleNegativeSurprises(): Promise<NarrativeState |
       ORDER BY published_at DESC
     `).all(today) as Array<{ titulo: string; tema: string | null; valor_publicado: number; valor_esperado: number }>
   } else {
-    rows = db.prepare(`
+    rows = await db.prepare(`
       SELECT titulo, tema, valor_publicado, valor_esperado
       FROM news_items
       WHERE DATE(published_at) = ?
@@ -210,7 +210,7 @@ export async function updateNarrative(
         cooldownUntil.toISOString()
       )
     } else {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO narrative_state (narrativa_actual, narrativa_anterior, cambiado_en, cooldown_hasta)
         VALUES (?, ?, ?, ?)
       `).run(
@@ -250,7 +250,7 @@ export async function updateNarrative(
           now
         )
       } else {
-        dbHistory.prepare(`
+        await dbHistory.prepare(`
           INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
           VALUES (?, ?, ?, ?, ?)
         `).run(

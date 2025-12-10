@@ -51,7 +51,7 @@ async function getWeeklyNarrativeChanges(): Promise<NarrativeChange[]> {
       ORDER BY cambiado_en ASC
     `).all(weekStartISO) as NarrativeChange[]
   } else {
-    rows = db.prepare(`
+    rows = await db.prepare(`
       SELECT narrativa_anterior, narrativa_actual, cambiado_en
       FROM narrative_state
       WHERE DATE(cambiado_en) >= ?
@@ -775,7 +775,7 @@ export async function sendWeeklyNarrativeSummary(): Promise<{ success: boolean; 
             sentAtISO
           )
         } else {
-          db.prepare(`
+          await db.prepare(`
             INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
             VALUES (?, ?, ?, ?, ?)
           `).run(

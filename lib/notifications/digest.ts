@@ -178,7 +178,7 @@ async function getNarrativeChangeToday(): Promise<{ changed: boolean; from?: str
       cambiado_en: string
     } | undefined
   } else {
-    row = db.prepare(`
+    row = await db.prepare(`
       SELECT narrativa_anterior, narrativa_actual, cambiado_en
       FROM narrative_state
       WHERE DATE(cambiado_en) = ?

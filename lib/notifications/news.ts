@@ -54,7 +54,7 @@ export async function insertNewsItem(item: NewsItem): Promise<{ inserted: boolea
         WHERE fuente = ? AND id_fuente = ?
       `).get(item.fuente, item.id_fuente) as { id: number; notificado_at: string | null; published_at: string } | undefined
     } else {
-      existing = db.prepare(`
+      existing = await db.prepare(`
         SELECT id, notificado_at, published_at 
         FROM news_items 
         WHERE fuente = ? AND id_fuente = ?
@@ -100,7 +100,7 @@ export async function insertNewsItem(item: NewsItem): Promise<{ inserted: boolea
         item.valor_esperado ?? null
       )
     } else {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO news_items (
           id_fuente, fuente, pais, tema, titulo, impacto, 
           published_at, resumen, valor_publicado, valor_esperado
@@ -134,7 +134,7 @@ export async function insertNewsItem(item: NewsItem): Promise<{ inserted: boolea
         WHERE fuente = ? AND id_fuente = ?
       `).get(item.fuente, item.id_fuente) as { id: number; notificado_at: string | null }
     } else {
-      row = db.prepare(`
+      row = await db.prepare(`
         SELECT id, notificado_at FROM news_items 
         WHERE fuente = ? AND id_fuente = ?
       `).get(item.fuente, item.id_fuente) as { id: number; notificado_at: string | null }
@@ -159,7 +159,7 @@ export async function insertNewsItem(item: NewsItem): Promise<{ inserted: boolea
             now
           )
         } else {
-          db.prepare(`
+          await db.prepare(`
             INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
             VALUES (?, ?, ?, ?, ?)
           `).run(
@@ -179,7 +179,7 @@ export async function insertNewsItem(item: NewsItem): Promise<{ inserted: boolea
         if (usingTurso) {
           await db.prepare('UPDATE news_items SET notificado_at = ? WHERE id = ?').run(now, row.id)
         } else {
-          db.prepare('UPDATE news_items SET notificado_at = ? WHERE id = ?').run(now, row.id)
+          await db.prepare('UPDATE news_items SET notificado_at = ? WHERE id = ?').run(now, row.id)
         }
         await incrementMetric('notification_sent', 'status=sent')
         console.log(`[news] sent id=${item.id_fuente} reason=success`)
@@ -292,7 +292,7 @@ export async function getRecentNewsItems(limit: number = 20): Promise<Array<News
       LIMIT ?
     `).all(limit) as Array<any>
   } else {
-    rows = db.prepare(`
+    rows = await db.prepare(`
       SELECT * FROM news_items 
       ORDER BY published_at DESC 
       LIMIT ?

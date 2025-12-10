@@ -49,7 +49,7 @@ export async function detectDataChanges(
     if (usingTurso) {
       previous = await db.prepare(query).get(indicator.key, indicator.date) as any
     } else {
-      previous = db.prepare(query).get(indicator.key, indicator.date) as any
+      previous = await db.prepare(query).get(indicator.key, indicator.date) as any
     }
 
     if (!previous || previous.value === null || indicator.value === null) continue
