@@ -76,7 +76,18 @@ let schemaInitialized = false
 export function getDB(): Database.Database {
   // Check if Turso is configured
   if (isUsingTurso()) {
-    // ⚠️ Solo para debug: loguear quién sigue llamando a getDB en producción
+    // ⚠️ ERROR: getDB() no se puede usar con Turso en producción
+    // En producción con Turso, siempre usar getUnifiedDB() + await
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+      const error = new Error(
+        'getDB() no se puede usar con Turso en producción. Usa getUnifiedDB() y await el resultado.\n' +
+        'Stack trace:\n' + new Error().stack
+      )
+      console.error('[DB] ERROR CRÍTICO:', error.message)
+      throw error
+    }
+    
+    // ⚠️ Solo para debug en desarrollo: loguear quién sigue llamando a getDB
     console.trace('[DB] getDB() CALLED (esto no debería ocurrir en Turso)')
     // Initialize schema if not already done
     if (!schemaInitialized) {
