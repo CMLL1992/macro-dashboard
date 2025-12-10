@@ -210,7 +210,7 @@ export async function fetchFredSeries(
   }
   
   const items: SeriesPoint[] = Array.from(byObservationDate.values())
-    .map(o => {
+    .map((o): SeriesPoint | null => {
       const numValue = Number(o.value)
       if (!Number.isFinite(numValue)) return null
       
