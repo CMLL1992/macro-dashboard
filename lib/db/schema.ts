@@ -76,82 +76,14 @@ let schemaInitialized = false
 export function getDB(): Database.Database {
   // Check if Turso is configured
   if (isUsingTurso()) {
-    // ⚠️ ERROR: getDB() no se puede usar con Turso en producción
-    // En producción con Turso, siempre usar getUnifiedDB() + await
-    if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
-      const error = new Error(
-        'getDB() no se puede usar con Turso en producción. Usa getUnifiedDB() y await el resultado.\n' +
-        'Stack trace:\n' + new Error().stack
-      )
-      console.error('[DB] ERROR CRÍTICO:', error.message)
-      throw error
-    }
-    
-    // ⚠️ Solo para debug en desarrollo: loguear quién sigue llamando a getDB
-    console.trace('[DB] getDB() CALLED (esto no debería ocurrir en Turso)')
-    // Initialize schema if not already done
-    if (!schemaInitialized) {
-      // Initialize synchronously during build - this will be called during static generation
-      // For runtime, we'll initialize on first use
-      initializeSchemaUnified().catch(err => {
-        console.error('[db] Error initializing Turso schema:', err)
-      })
-      schemaInitialized = true
-    }
-    
-    // Return a wrapper that simulates better-sqlite3 API but uses Turso
-    // This is a compatibility layer - actual Turso operations are async
-    const unifiedDb = getUnifiedDB()
-    
-    return {
-      prepare(sql: string) {
-        const stmt = unifiedDb.prepare(sql)
-        return {
-          run(...params: any[]) {
-            const result = stmt.run(...params)
-            // If result is a Promise, we need to handle it synchronously
-            // This is a limitation - we'll throw an error to indicate async is needed
-            if (result instanceof Promise) {
-              throw new Error('Turso requires async operations. Use getUnifiedDB() and await the result.')
-            }
-            return result
-          },
-          get(...params: any[]) {
-            const result = stmt.get(...params)
-            if (result instanceof Promise) {
-              throw new Error('Turso requires async operations. Use getUnifiedDB() and await the result.')
-            }
-            return result
-          },
-          all(...params: any[]) {
-            const result = stmt.all(...params)
-            if (result instanceof Promise) {
-              throw new Error('Turso requires async operations. Use getUnifiedDB() and await the result.')
-            }
-            return result
-          },
-        } as any
-      },
-      transaction(fn: () => void) {
-        const result = unifiedDb.transaction(fn)
-        if (result instanceof Promise) {
-          throw new Error('Turso requires async operations. Use getUnifiedDB() and await the result.')
-        }
-        return { default: fn } as any
-      },
-      exec(sql: string) {
-        const result = unifiedDb.exec(sql)
-        if (result instanceof Promise) {
-          throw new Error('Turso requires async operations. Use getUnifiedDB() and await the result.')
-        }
-      },
-      pragma(key: string, value?: string) {
-        return unifiedDb.pragma(key, value)
-      },
-      close() {
-        // Turso doesn't need explicit close
-      },
-    } as any as Database.Database
+    // ⚠️ ERROR: getDB() no se puede usar con Turso
+    // En producción o desarrollo con Turso, siempre usar getUnifiedDB() + await
+    const error = new Error(
+      'getDB() no se puede usar con Turso. Usa getUnifiedDB() y await el resultado.\n' +
+      'Stack trace:\n' + new Error().stack
+    )
+    console.error('[DB] ERROR CRÍTICO:', error.message)
+    throw error
   }
   
   // Fallback to better-sqlite3
