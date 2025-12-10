@@ -21,20 +21,12 @@
       "schedule": "0 10 * * *"
     },
     {
-      "path": "/api/jobs/notify/calendar",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/jobs/daily/calendar",
       "schedule": "0 8 * * *"
     },
     {
       "path": "/api/jobs/weekly",
       "schedule": "0 18 * * 0"
-    },
-    {
-      "path": "/api/jobs/ingest/releases",
-      "schedule": "*/5 8-20 * * *"
     }
   ]
 }
