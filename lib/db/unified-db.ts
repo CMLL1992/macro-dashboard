@@ -135,22 +135,23 @@ function createUnifiedDB(): UnifiedDB {
       prepare(sql: string): UnifiedStmt {
         const stmt = db.prepare(sql)
         return {
-          run(...params: any[]) {
+          // Make all methods async for consistency, even with SQLite
+          async run(...params: any[]) {
             return stmt.run(...params) as { changes: number; lastInsertRowid: number | bigint }
           },
-          get(...params: any[]) {
+          async get(...params: any[]) {
             return stmt.get(...params)
           },
-          all(...params: any[]) {
+          async all(...params: any[]) {
             return stmt.all(...params) as any[]
           },
         }
       },
-      transaction<T>(fn: () => T): T {
+      async transaction<T>(fn: () => T): Promise<T> {
         const tx = db.transaction(fn)
         return tx()
       },
-      exec(sql: string) {
+      async exec(sql: string) {
         db.exec(sql)
       },
       pragma(key: string, value?: string): any {
