@@ -86,15 +86,17 @@ export async function POST(request: NextRequest) {
 
             // Convert observations to MacroSeries
             macroSeries = {
-              seriesId: indicator.id,
-              observations: observations.map(obs => ({
+              id: indicator.id,
+              source: 'TRADING_ECONOMICS' as const,
+              indicator: indicator.id,
+              nativeId: indicator.id,
+              name: indicator.name || indicator.id,
+              frequency: (indicator.frequency?.toUpperCase() || 'M') as 'A' | 'Q' | 'M' | 'W' | 'D',
+              unit: indicator.unit,
+              data: observations.map(obs => ({
                 date: obs.date,
                 value: obs.value,
-                source: 'TRADING_ECONOMICS',
               })),
-              source: 'TRADING_ECONOMICS',
-              frequency: indicator.frequency as any,
-              unit: indicator.unit,
             }
           } catch (teError) {
             throw new Error(`Trading Economics error: ${teError instanceof Error ? teError.message : String(teError)}`)
@@ -110,7 +112,7 @@ export async function POST(request: NextRequest) {
         // Upsert to database
         await upsertMacroSeries(macroSeries)
         ingested++
-        logger.info(`Ingested Japan indicator: ${indicator.id}`, { job: jobId, indicatorId: indicator.id, observations: macroSeries.observations.length })
+        logger.info(`Ingested Japan indicator: ${indicator.id}`, { job: jobId, indicatorId: indicator.id, observations: macroSeries.data.length })
       } catch (error) {
         errors++
         const errorMessage = error instanceof Error ? error.message : String(error)

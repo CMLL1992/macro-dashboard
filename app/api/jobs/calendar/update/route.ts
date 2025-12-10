@@ -13,7 +13,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateCronToken, unauthorizedResponse } from '@/lib/security/token'
 import { logger } from '@/lib/obs/logger'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
-import { getDB } from '@/lib/db/schema'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { MacroEvent, EventCountry } from '@/domain/calendar'
@@ -342,8 +341,9 @@ export async function POST(request: NextRequest) {
           `).get(indicatorKey)
           lastDate = (result as any)?.last_date || null
         } else {
-          const dbSync = getDB()
-          const row = dbSync.prepare(`
+          // All methods are async now, so always use await
+          const dbSync = getUnifiedDB()
+          const row = await dbSync.prepare(`
             SELECT MAX(date) as last_date 
             FROM macro_observations 
             WHERE series_id = ? AND value IS NOT NULL
@@ -414,14 +414,15 @@ export async function POST(request: NextRequest) {
             event.impact,
             event.source
           )
-          if (result.meta.changes > 0) {
+          if (result.changes > 0) {
             inserted++
           } else {
             updated++
           }
         } else {
-          const dbSync = getDB()
-          const result = dbSync.prepare(`
+          // All methods are async now, so always use await
+          const dbSync = getUnifiedDB()
+          const result = await dbSync.prepare(`
             INSERT OR REPLACE INTO macro_events 
             (id, date, time, country, indicator_key, title, previous, consensus, impact, source)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

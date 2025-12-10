@@ -17,7 +17,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateCronToken, unauthorizedResponse } from '@/lib/security/token'
 import { logger } from '@/lib/obs/logger'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
-import { getDB } from '@/lib/db/schema'
 import { upsertMacroSeries } from '@/lib/db/upsert'
 import type { MacroSeries } from '@/lib/types/macro'
 import { fetchTradingEconomics } from '@/packages/ingestors/tradingeconomics'
@@ -91,8 +90,9 @@ async function getTodayPMIEvents(): Promise<Array<{ fecha: string; evento: strin
       }
     })
   } else {
-    const db = getDB()
-    const rows = db.prepare(`
+    // All methods are async now, so always use await
+    const db = getUnifiedDB()
+    const rows = await db.prepare(`
       SELECT fecha, evento, consenso 
       FROM macro_calendar 
       WHERE fecha = ? 
@@ -124,11 +124,12 @@ async function hasPMIForDate(date: string, seriesId: 'USPMI' | 'USPMI_SERVICES')
     ).get(seriesId, date)
     return ((result as { c: number }).c) > 0
   } else {
-    const db = getDB()
-    const result = db.prepare(
+    // All methods are async now, so always use await
+    const db = getUnifiedDB()
+    const result = await db.prepare(
       'SELECT COUNT(1) as c FROM macro_observations WHERE series_id = ? AND date = ?'
-    ).get(seriesId, date) as { c: number }
-    return result.c > 0
+    ).get(seriesId, date) as { c: number } | undefined
+    return (result?.c || 0) > 0
   }
 }
 
@@ -251,11 +252,11 @@ export async function POST(request: NextRequest) {
         // Insertar el valor
         const pmiSeries: MacroSeries = {
           id: seriesId,
-          source: 'CALENDAR_AUTO',
+          source: 'MANUAL', // Calendar auto-ingested
           indicator: seriesId,
           nativeId: 'calendar-auto',
           name: event.tipo === 'services' ? 'ISM Services: PMI' : 'ISM Manufacturing: PMI',
-          frequency: 'm',
+          frequency: 'M', // Monthly
           data: [{
             date: event.fecha,
             value: pmiValue,

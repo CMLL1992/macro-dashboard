@@ -66,9 +66,10 @@ async function getSeriesObservations(seriesId: string): Promise<SeriesPoint[]> {
       return []
     }
   } else {
-    const db = getDB()
+    // All methods are async now, so always use await
+    const db = getUnifiedDB()
     try {
-      const rows = db
+      const rows = await db
         .prepare('SELECT date, value FROM macro_observations WHERE series_id = ? AND value IS NOT NULL ORDER BY date ASC')
         .all(seriesId) as Array<{ date: string; value: number }>
       return rows.map(r => ({ date: r.date, value: r.value }))

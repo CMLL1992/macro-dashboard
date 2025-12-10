@@ -254,7 +254,7 @@ export async function upsertEconomicRelease(params: {
   release_time_local?: string | null
   actual_value: number
   previous_value?: number | null
-  consensus_value: number
+  consensus_value?: number | null
   directionality?: 'higher_is_positive' | 'lower_is_positive' | null
   revision_flag?: number
   notes?: string | null

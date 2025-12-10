@@ -8,7 +8,6 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
-import { getDB } from '@/lib/db/schema'
 import { getRegionCode, MAIN_REGIONS, type RegionCode } from '@/config/calendar-countries'
 
 export interface CalendarEventResponse {
@@ -120,14 +119,9 @@ export async function GET(request: NextRequest) {
     sql += ' ORDER BY scheduled_time_utc ASC'
     
     // Ejecutar query
-    const db = isUsingTurso() ? getUnifiedDB() : getDB()
-    let rows: any[] = []
-    
-    if (isUsingTurso()) {
-      rows = await db.prepare(sql).all(...params) as any[]
-    } else {
-      rows = db.prepare(sql).all(...params) as any[]
-    }
+    // All methods are async now, so always use await
+    const db = getUnifiedDB()
+    const rows = await db.prepare(sql).all(...params) as any[]
     
     // Mapear resultados y aplicar filtro de búsqueda por texto
     const events: CalendarEventResponse[] = rows

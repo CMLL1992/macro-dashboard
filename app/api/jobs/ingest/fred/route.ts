@@ -12,8 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateCronToken, unauthorizedResponse } from '@/lib/security/token'
 import { logger } from '@/lib/obs/logger'
 import { fetchFredSeries } from '@/lib/fred'
-import { getDB } from '@/lib/db/schema'
-import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
+import { getUnifiedDB } from '@/lib/db/unified-db'
 import { upsertMacroSeries, saveIngestHistory } from '@/lib/db/upsert'
 import type { MacroSeries } from '@/lib/types/macro'
 import { checkMacroReleases } from '@/lib/alerts/triggers'
@@ -83,10 +82,14 @@ export async function POST(request: NextRequest) {
       try {
         // Check if this series has a fredTransform configured
         // Find the indicator config that uses this series ID
-        const indicatorConfig = Object.values(await import('@/config/macro-indicators')).then(m => {
+        let indicatorConfig: any = null
+        try {
+          const m = await import('@/config/macro-indicators')
           const configs = m.MACRO_INDICATORS_CONFIG as any
-          return Object.values(configs).find((cfg: any) => cfg.fredSeriesId === series.id)
-        }).catch(() => null)
+          indicatorConfig = Object.values(configs).find((cfg: any) => cfg.fredSeriesId === series.id)
+        } catch {
+          // Ignore
+        }
         
         // Get indicator config synchronously (if available)
         let fredTransform: string | undefined = undefined
@@ -117,7 +120,7 @@ export async function POST(request: NextRequest) {
           
           macroSeries = {
             id: series.id,
-            source: 'FRED',
+            source: 'FRED' as const,
             indicator: series.id,
             nativeId: series.id,
             name: series.name,
@@ -156,19 +159,12 @@ export async function POST(request: NextRequest) {
         // Get last date in DB for this series
         let lastDateInDb: string | null = null
         try {
-          if (isUsingTurso()) {
-            const db = getUnifiedDB()
-            const result = await db.prepare(
-              `SELECT MAX(date) as max_date FROM macro_observations WHERE series_id = ?`
-            ).get(series.id) as { max_date: string | null } | null
-            lastDateInDb = result?.max_date || null
-          } else {
-            const db = getDB()
-            const result = db.prepare(
-              `SELECT MAX(date) as max_date FROM macro_observations WHERE series_id = ?`
-            ).get(series.id) as { max_date: string | null } | undefined
-            lastDateInDb = result?.max_date || null
-          }
+          // All methods are async now, so always use await
+          const db = getUnifiedDB()
+          const result = await db.prepare(
+            `SELECT MAX(date) as max_date FROM macro_observations WHERE series_id = ?`
+          ).get(series.id) as { max_date: string | null } | undefined
+          lastDateInDb = result?.max_date || null
         } catch (err) {
           logger.warn(`Could not get last date for ${series.id}`, { error: String(err) })
         }
@@ -235,7 +231,7 @@ export async function POST(request: NextRequest) {
               indicator: 'USPMI',
               nativeId: 'united-states/manufacturing-pmi',
               name: 'ISM Manufacturing: PMI',
-              frequency: 'm',
+              frequency: 'M', // Monthly
               data: reversedObservations.map(obs => ({
                 date: obs.date,
                 value: obs.value,
@@ -278,7 +274,7 @@ export async function POST(request: NextRequest) {
             indicator: 'USPMI',
             nativeId: 'MANUFACTURING_PMI',
             name: 'ISM Manufacturing: PMI',
-            frequency: 'm',
+            frequency: 'M', // Monthly
             data: pmiObservations.map(obs => ({
               date: obs.date,
               value: obs.value,

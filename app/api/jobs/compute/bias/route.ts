@@ -25,6 +25,7 @@ import { detectConfidenceChanges, notifyConfidenceChanges } from '@/lib/notifica
 import { detectScenarioChanges, notifyScenarioChanges } from '@/lib/notifications/scenarios'
 import { getInstitutionalScenarios } from '@/domain/scenarios'
 import getCorrelationState from '@/domain/macro-engine/correlations'
+import { recordJobSuccess } from '@/lib/db/job-status'
 
 export async function POST(request: NextRequest) {
   // In development on localhost, allow without token if CRON_TOKEN is not set
@@ -103,12 +104,15 @@ export async function POST(request: NextRequest) {
     
     try {
       diagnosis = await getMacroDiagnosis()
+      if (!diagnosis) {
+        throw new Error('Failed to get macro diagnosis')
+      }
       const usd = usdBias(diagnosis.items)
       const latestDataDate = await getLatestObservationDate()
       
       // Build category chips string
       const categoryCounts = CATEGORY_ORDER.map(cat => {
-        const count = diagnosis.items.filter(i => i.category === cat).length
+        const count = diagnosis!.items.filter(i => i.category === cat).length
         return count > 0 ? `${cat}: ${count}` : null
       }).filter(Boolean).join(' · ')
       
@@ -236,7 +240,7 @@ export async function POST(request: NextRequest) {
               trend: row.trend ?? row.tactico ?? null,
             }))
             
-            const usdBiasLabel = biasState.regime.usd_label || 'Neutral'
+            const usdBiasLabel = (biasState.regime.usd_direction || 'Neutral') as 'Neutral' | 'Fuerte' | 'Débil'
             const institutionalScenariosGrouped = getInstitutionalScenarios(
               tacticalRowsForScenarios,
               usdBiasLabel,

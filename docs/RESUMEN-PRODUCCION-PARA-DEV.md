@@ -213,3 +213,170 @@ Una vez completado este checklist:
 - ✅ Accesible desde cualquier dispositivo con internet
 
 **¡El dashboard funcionará 24/7 sin necesidad de tener el ordenador encendido!** 🎉
+
+---
+
+## 🔒 8. Seguridad y protección de endpoints
+
+### Protección de endpoints de jobs
+
+Todos los endpoints de jobs deben estar protegidos con `CRON_TOKEN`:
+
+- [ ] Verificar que `/api/jobs/*` requieren `CRON_TOKEN` en el header
+- [ ] El token debe coincidir con la variable de entorno `CRON_TOKEN`
+- [ ] Los cron jobs de Vercel deben incluir el header `Authorization: Bearer {CRON_TOKEN}`
+
+### Verificación de seguridad
+
+- [ ] Los endpoints de jobs no son accesibles públicamente sin token
+- [ ] Las variables de entorno sensibles no están expuestas en el código
+- [ ] Las API keys están configuradas solo en Vercel (no en el código)
+
+---
+
+## 📊 9. Monitoreo y alertas
+
+### Configurar alertas en Vercel
+
+- [ ] Configurar alertas de errores en Vercel Dashboard
+- [ ] Configurar notificaciones por email cuando hay errores críticos
+- [ ] Revisar logs periódicamente para detectar problemas
+
+### Monitoreo de jobs
+
+- [ ] Verificar que los cron jobs se ejecutan correctamente
+- [ ] Revisar logs de ejecución de jobs en Vercel
+- [ ] Verificar que los datos se actualizan según el schedule
+
+### Métricas a monitorear
+
+- [ ] Tiempo de respuesta de la API
+- [ ] Tasa de errores en los endpoints
+- [ ] Uso de recursos (CPU, memoria)
+- [ ] Requests a la base de datos Turso
+
+---
+
+## 🔄 10. Backup y recuperación
+
+### Backup de base de datos
+
+- [ ] Configurar backups automáticos de Turso (si está disponible en tu plan)
+- [ ] Documentar el proceso de restauración de backups
+- [ ] Probar la restauración de un backup en un entorno de prueba
+
+### Backup de configuración
+
+- [ ] Exportar variables de entorno de Vercel (guardar en lugar seguro)
+- [ ] Documentar la configuración de cron jobs
+- [ ] Guardar copia de `vercel.json` y otros archivos de configuración
+
+---
+
+## 🧪 11. Testing en producción
+
+### Pruebas de endpoints
+
+Ejecuta manualmente desde la URL de producción para verificar:
+
+- [ ] `POST /api/jobs/ingest/fred` - Devuelve éxito y actualiza datos
+- [ ] `POST /api/jobs/ingest/european` - Devuelve éxito y actualiza datos
+- [ ] `POST /api/jobs/ingest/calendar` - Devuelve éxito y actualiza datos
+- [ ] `POST /api/jobs/correlations` - Calcula correlaciones correctamente
+- [ ] `POST /api/jobs/compute/bias` - Calcula sesgos correctamente
+- [ ] `POST /api/jobs/notify/calendar` - Envía notificaciones (si está activo)
+
+### Pruebas de carga
+
+- [ ] Verificar que el dashboard carga rápidamente (< 3 segundos)
+- [ ] Verificar que múltiples usuarios pueden acceder simultáneamente
+- [ ] Verificar que la base de datos responde rápidamente
+
+---
+
+## 📱 12. Acceso móvil y responsive
+
+### Verificación móvil
+
+- [ ] Abrir el dashboard en un dispositivo móvil
+- [ ] Verificar que todas las páginas se ven correctamente
+- [ ] Verificar que los gráficos se muestran correctamente en móvil
+- [ ] Verificar que los botones y enlaces son fáciles de usar en móvil
+
+### PWA (Progressive Web App) - Opcional
+
+- [ ] Verificar si hay configuración de PWA
+- [ ] Probar instalación en móvil (si está disponible)
+- [ ] Verificar que funciona offline (si está configurado)
+
+---
+
+## 🔧 13. Mantenimiento continuo
+
+### Tareas periódicas
+
+- [ ] **Semanal:** Revisar logs de Vercel para detectar errores
+- [ ] **Mensual:** Verificar que los datos se actualizan correctamente
+- [ ] **Mensual:** Revisar uso de recursos y límites de Vercel/Turso
+- [ ] **Trimestral:** Actualizar dependencias si es necesario
+
+### Actualizaciones
+
+- [ ] Mantener las dependencias actualizadas
+- [ ] Probar actualizaciones en un entorno de desarrollo primero
+- [ ] Documentar cambios importantes en el código
+
+---
+
+## 📚 14. Documentación adicional
+
+### Documentación para usuarios
+
+- [ ] Crear guía de usuario básica (cómo usar el dashboard)
+- [ ] Documentar qué significan los indicadores
+- [ ] Documentar cómo interpretar correlaciones y sesgos
+
+### Documentación técnica
+
+- [ ] Documentar la arquitectura del sistema
+- [ ] Documentar los endpoints de la API
+- [ ] Documentar el esquema de la base de datos
+- [ ] Documentar el proceso de deployment
+
+---
+
+## 🎯 15. Optimizaciones futuras
+
+### Mejoras de rendimiento
+
+- [ ] Implementar caché para datos que no cambian frecuentemente
+- [ ] Optimizar queries a la base de datos
+- [ ] Implementar paginación si hay muchos datos
+
+### Mejoras de funcionalidad
+
+- [ ] Añadir más indicadores económicos
+- [ ] Mejorar visualizaciones de datos
+- [ ] Añadir más filtros y opciones de búsqueda
+- [ ] Implementar exportación de datos (CSV, PDF)
+
+---
+
+## ✅ Checklist final de producción
+
+Antes de considerar el proyecto 100% listo para producción:
+
+- [ ] ✅ Todas las variables de entorno configuradas
+- [ ] ✅ Base de datos Turso funcionando
+- [ ] ✅ Cron jobs configurados y ejecutándose
+- [ ] ✅ Endpoints protegidos con tokens
+- [ ] ✅ Pruebas manuales exitosas
+- [ ] ✅ Dashboard accesible desde móvil
+- [ ] ✅ Sin errores en logs de producción
+- [ ] ✅ Datos actualizándose automáticamente
+- [ ] ✅ Notificaciones funcionando (si aplica)
+- [ ] ✅ Documentación completa
+- [ ] ✅ Backup configurado
+- [ ] ✅ Monitoreo configurado
+
+**¡Proyecto listo para producción!** 🚀

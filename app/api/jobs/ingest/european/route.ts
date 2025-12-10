@@ -11,7 +11,6 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { validateCronToken, unauthorizedResponse } from '@/lib/security/token'
 import { logger } from '@/lib/obs/logger'
-import { getDB } from '@/lib/db/schema'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 import { upsertMacroSeries } from '@/lib/db/upsert'
 import type { MacroSeries } from '@/lib/types/macro'
@@ -280,8 +279,9 @@ export async function POST(request: NextRequest) {
             ).get(indicator.id) as { max_date: string | null } | null
             lastDateInDb = result?.max_date || null
           } else {
-            const db = getDB()
-            const result = db.prepare(
+            // All methods are async now, so always use await
+            const db = getUnifiedDB()
+            const result = await db.prepare(
               `SELECT MAX(date) as max_date FROM macro_observations WHERE series_id = ?`
             ).get(indicator.id) as { max_date: string | null } | undefined
             lastDateInDb = result?.max_date || null

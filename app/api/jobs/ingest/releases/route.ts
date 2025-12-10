@@ -15,11 +15,12 @@
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
-import { getDB } from '@/lib/db/schema'
+import { getUnifiedDB } from '@/lib/db/unified-db'
 import { assertCronAuth } from '@/lib/security/cron'
 import { upsertEconomicRelease, recordMacroEventImpact } from '@/lib/db/economic-events'
 import { getMacroDiagnosis } from '@/domain/diagnostic'
+import { usdBias } from '@/domain/bias'
+import { sendTelegramMessage } from '@/lib/notifications/telegram'
 import { fetchReleaseFromCalendarAPI } from '@/lib/calendar/fetchReleaseFromCalendarAPI'
 import { recomputeAllBiasAndCorrelations } from '@/lib/jobs/recompute-bias'
 import { recordJobSuccess, recordJobError } from '@/lib/db/job-status'
@@ -47,7 +48,8 @@ async function getEventsWithoutRelease(params: {
   minImportance: 'low' | 'medium' | 'high'
 }): Promise<EventWithoutRelease[]> {
   const { from, to, minImportance } = params
-  const db = isUsingTurso() ? getUnifiedDB() : getDB()
+  // All methods are async now, so always use await
+  const db = getUnifiedDB()
 
   const importanceMap: Record<string, number> = { low: 1, medium: 2, high: 3 }
   const minImportanceLevel = importanceMap[minImportance] || 2
@@ -80,41 +82,23 @@ async function getEventsWithoutRelease(params: {
     ORDER BY ee.scheduled_time_utc ASC
   `
 
-  if (isUsingTurso()) {
-    const rows = await db.prepare(query).all(
-      from.toISOString(),
-      to.toISOString(),
-      minImportanceLevel
-    ) as any[]
-    return rows.map(row => ({
-      id: row.id,
-      source_event_id: row.source_event_id,
-      currency: row.currency,
-      name: row.name,
-      importance: row.importance,
-      scheduled_time_utc: row.scheduled_time_utc,
-      previous_value: row.previous_value,
-      consensus_value: row.consensus_value,
-      directionality: row.directionality,
-    }))
-  } else {
-    const rows = db.prepare(query).all(
-      from.toISOString(),
-      to.toISOString(),
-      minImportanceLevel
-    ) as any[]
-    return rows.map(row => ({
-      id: row.id,
-      source_event_id: row.source_event_id,
-      currency: row.currency,
-      name: row.name,
-      importance: row.importance,
-      scheduled_time_utc: row.scheduled_time_utc,
-      previous_value: row.previous_value,
-      consensus_value: row.consensus_value,
-      directionality: row.directionality,
-    }))
-  }
+  // All methods are async now, so always use await
+  const rows = await db.prepare(query).all(
+    from.toISOString(),
+    to.toISOString(),
+    minImportanceLevel
+  ) as any[]
+  return rows.map(row => ({
+    id: row.id,
+    source_event_id: row.source_event_id,
+    currency: row.currency,
+    name: row.name,
+    importance: row.importance,
+    scheduled_time_utc: row.scheduled_time_utc,
+    previous_value: row.previous_value,
+    consensus_value: row.consensus_value,
+    directionality: row.directionality,
+  }))
 }
 
 
@@ -138,6 +122,7 @@ async function recordMacroEventImpactForCurrenciesAffected(
     const currency = event.currency as 'USD' | 'EUR' | 'GBP' | 'JPY' | 'AUD'
     const scoreBefore = diagnosisBefore.currencyScores?.[currency]?.totalScore ?? null
     const regimeBefore = diagnosisBefore.currencyRegimes?.[currency]?.regime ?? null
+    const usdDirectionBefore = diagnosisBefore ? usdBias(diagnosisBefore.items) : null
 
     // Recomputar bias (esto actualiza los scores)
     await recomputeAllBiasAndCorrelations()
@@ -146,6 +131,7 @@ async function recordMacroEventImpactForCurrenciesAffected(
     const diagnosisAfter = await getMacroDiagnosis()
     const scoreAfter = diagnosisAfter.currencyScores?.[currency]?.totalScore ?? null
     const regimeAfter = diagnosisAfter.currencyRegimes?.[currency]?.regime ?? null
+    const usdDirectionAfter = usdBias(diagnosisAfter.items)
 
     // Registrar impacto
     await recordMacroEventImpact({
@@ -155,8 +141,8 @@ async function recordMacroEventImpactForCurrenciesAffected(
       total_score_after: scoreAfter,
       regime_before: regimeBefore || null,
       regime_after: regimeAfter || null,
-      usd_direction_before: diagnosisBefore.regime?.usd_direction ?? null,
-      usd_direction_after: diagnosisAfter.regime?.usd_direction ?? null,
+      usd_direction_before: usdDirectionBefore,
+      usd_direction_after: usdDirectionAfter,
     })
 
     console.log(`[ingest/releases] Impact recorded for ${currency}:`, {

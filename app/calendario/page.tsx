@@ -7,7 +7,6 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
-import { getDB } from '@/lib/db/schema'
 import type { EconomicEvent } from '@/lib/db/economic-events'
 import { Accordion } from '@/components/ui/accordion'
 import { CalendarClient } from './CalendarClient'
@@ -16,7 +15,8 @@ import { getRegionCode } from '@/config/calendar-countries'
 
 async function getUpcomingEvents(days: number = 14): Promise<EconomicEvent[]> {
   try {
-    const db = isUsingTurso() ? getUnifiedDB() : getDB()
+    // All methods are async now, so always use await
+    const db = getUnifiedDB()
     const now = new Date()
     const endDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
     const endDateStr = endDate.toISOString()
@@ -33,51 +33,27 @@ async function getUpcomingEvents(days: number = 14): Promise<EconomicEvent[]> {
       ORDER BY scheduled_time_utc ASC
     `
     
-    if (isUsingTurso()) {
-      const rows = await db.prepare(query).all(endDateStr) as any[]
-      return rows.map(row => ({
-        id: row.id,
-        source_event_id: row.source_event_id,
-        country: row.country,
-        currency: row.currency,
-        name: row.name,
-        category: row.category,
-        importance: row.importance,
-        series_id: row.series_id,
-        indicator_key: row.indicator_key,
-        scheduled_time_utc: row.scheduled_time_utc,
-        scheduled_time_local: row.scheduled_time_local,
-        previous_value: row.previous_value,
-        consensus_value: row.consensus_value,
-        consensus_range_min: row.consensus_range_min,
-        consensus_range_max: row.consensus_range_max,
-        directionality: row.directionality,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-      }))
-    } else {
-      const rows = db.prepare(query).all(endDateStr) as any[]
-      return rows.map(row => ({
-        id: row.id,
-        source_event_id: row.source_event_id,
-        country: row.country,
-        currency: row.currency,
-        name: row.name,
-        category: row.category,
-        importance: row.importance,
-        series_id: row.series_id,
-        indicator_key: row.indicator_key,
-        scheduled_time_utc: row.scheduled_time_utc,
-        scheduled_time_local: row.scheduled_time_local,
-        previous_value: row.previous_value,
-        consensus_value: row.consensus_value,
-        consensus_range_min: row.consensus_range_min,
-        consensus_range_max: row.consensus_range_max,
-        directionality: row.directionality,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-      }))
-    }
+    const rows = await db.prepare(query).all(endDateStr) as any[]
+    return rows.map(row => ({
+      id: row.id,
+      source_event_id: row.source_event_id,
+      country: row.country,
+      currency: row.currency,
+      name: row.name,
+      category: row.category,
+      importance: row.importance,
+      series_id: row.series_id,
+      indicator_key: row.indicator_key,
+      scheduled_time_utc: row.scheduled_time_utc,
+      scheduled_time_local: row.scheduled_time_local,
+      previous_value: row.previous_value,
+      consensus_value: row.consensus_value,
+      consensus_range_min: row.consensus_range_min,
+      consensus_range_max: row.consensus_range_max,
+      directionality: row.directionality,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }))
   } catch (error) {
     console.error('[getUpcomingEvents] Error:', error)
     return []
@@ -86,7 +62,8 @@ async function getUpcomingEvents(days: number = 14): Promise<EconomicEvent[]> {
 
 async function getRecentReleases(limit: number = 10) {
   try {
-    const db = isUsingTurso() ? getUnifiedDB() : getDB()
+    // All methods are async now, so always use await
+    const db = getUnifiedDB()
     
     const query = `
       SELECT 
@@ -109,11 +86,8 @@ async function getRecentReleases(limit: number = 10) {
       LIMIT ?
     `
     
-    if (isUsingTurso()) {
-      return await db.prepare(query).all(limit) as any[]
-    } else {
-      return db.prepare(query).all(limit) as any[]
-    }
+    // All methods are async now, so always use await
+    return await db.prepare(query).all(limit) as any[]
   } catch (error) {
     console.error('[getRecentReleases] Error:', error)
     return []
@@ -176,7 +150,8 @@ export default async function CalendarioPage() {
   
   try {
     // Obtener eventos directamente desde la BD para SSR
-    const db = isUsingTurso() ? getUnifiedDB() : getDB()
+    // All methods are async now, so always use await
+    const db = getUnifiedDB()
     const now = new Date()
     const from = new Date(now.getTime())
     from.setHours(0, 0, 0, 0)
@@ -204,12 +179,7 @@ export default async function CalendarioPage() {
       ORDER BY scheduled_time_utc ASC
     `
     
-    let rows: any[] = []
-    if (isUsingTurso()) {
-      rows = await db.prepare(sql).all(from.toISOString(), to.toISOString()) as any[]
-    } else {
-      rows = db.prepare(sql).all(from.toISOString(), to.toISOString()) as any[]
-    }
+    const rows = await db.prepare(sql).all(from.toISOString(), to.toISOString()) as any[]
     
     initialEvents = rows.map(row => {
       const localTime = row.scheduled_time_local || new Date(row.scheduled_time_utc).toLocaleString('es-ES', {

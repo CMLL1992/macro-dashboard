@@ -14,7 +14,6 @@ export const runtime = 'nodejs'
 
 import { fetchFredSeries } from '@/lib/fred'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
-import { getDB } from '@/lib/db/schema'
 import { getMacroDiagnosis } from '@/domain/diagnostic'
 import { getBiasState } from '@/domain/macro-engine/bias'
 import { getCorrelationState } from '@/domain/macro-engine/correlations'
@@ -46,7 +45,7 @@ export async function GET() {
 
   // 1. Verificar FRED API (fuente oficial)
   try {
-    const testSeries = await fetchFredSeries('CPIAUCSL', { limit: 1 })
+    const testSeries = await fetchFredSeries('CPIAUCSL', { observation_start: '2024-01-01' })
     if (testSeries.length > 0) {
       addResult('Fuentes', '✅', 'FRED API accesible', {
         url: 'https://api.stlouisfed.org',
@@ -64,30 +63,20 @@ export async function GET() {
   }
 
   // 2. Verificar datos en BD desde FRED
-  const db = isUsingTurso() ? getUnifiedDB() : getDB()
+  // All methods are async now, so always use await
+  const db = getUnifiedDB()
   let dbVerified = 0
   
   for (const indicator of KEY_INDICATORS) {
     try {
-      let row: any = null
-      
-      if (isUsingTurso()) {
-        row = await db.prepare(`
-          SELECT date, value, series_id
-          FROM macro_observations
-          WHERE series_id = ?
-          ORDER BY date DESC
-          LIMIT 1
-        `).get(indicator.seriesId)
-      } else {
-        row = db.prepare(`
-          SELECT date, value, series_id
-          FROM macro_observations
-          WHERE series_id = ?
-          ORDER BY date DESC
-          LIMIT 1
-        `).get(indicator.seriesId) as any
-      }
+      // All methods are async now, so always use await
+      const row = await db.prepare(`
+        SELECT date, value, series_id
+        FROM macro_observations
+        WHERE series_id = ?
+        ORDER BY date DESC
+        LIMIT 1
+      `).get(indicator.seriesId) as any
       
       if (row) {
         const date = new Date(row.date)
@@ -121,19 +110,19 @@ export async function GET() {
   try {
     const corrState = await getCorrelationState()
     
-    if (corrState.correlations && corrState.correlations.length > 0) {
+    if (corrState.summary && corrState.summary.length > 0) {
       const mainPairs = ['EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD']
       let foundPairs = 0
       
       for (const pair of mainPairs) {
-        const corr = corrState.correlations.find(c => c.symbol === pair)
-        if (corr && corr.corr12m != null) {
+        const corr = corrState.summary.find(c => c.symbol === pair)
+        if (corr && corr.correlationNow != null) {
           foundPairs++
         }
       }
       
       addResult('Correlaciones', '✅', `Correlaciones calculadas desde datos reales`, {
-        totalPairs: corrState.correlations.length,
+        totalPairs: corrState.summary.length,
         mainPairsFound: foundPairs,
         source: 'Yahoo Finance (precios) + FRED DXY',
         priceSource: 'query1.finance.yahoo.com',
@@ -157,7 +146,6 @@ export async function GET() {
         regime: biasState.regime.overall,
         usd_direction: biasState.regime.usd_direction,
         quad: biasState.regime.quad,
-        biasRowsCount: biasState.biasRows?.length || 0,
         tacticalRowsCount: biasState.tableTactical?.length || 0,
         source: 'macro_observations (desde FRED) → cálculos de bias',
       })

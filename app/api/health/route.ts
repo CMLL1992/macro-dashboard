@@ -11,7 +11,6 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { getMacroDiagnosis } from '@/domain/diagnostic'
-import { getDB } from '@/lib/db/schema'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 
 export async function GET() {
@@ -26,19 +25,12 @@ export async function GET() {
     let correlationCount = 0
     
     try {
-      if (isUsingTurso()) {
-        const db = getUnifiedDB()
-        const biasResult = await db.prepare('SELECT COUNT(1) as c FROM macro_bias').first() as { c: number } | null
-        const corrResult = await db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').first() as { c: number } | null
-        biasCount = biasResult?.c || 0
-        correlationCount = corrResult?.c || 0
-      } else {
-        const db = getDB()
-        const biasResult = db.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number } | undefined
-        const corrResult = db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number } | undefined
-        biasCount = biasResult?.c || 0
-        correlationCount = corrResult?.c || 0
-      }
+      // All methods are async now, so always use await
+      const db = getUnifiedDB()
+      const biasResult = await db.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number } | undefined
+      const corrResult = await db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number } | undefined
+      biasCount = biasResult?.c || 0
+      correlationCount = corrResult?.c || 0
     } catch (dbError) {
       console.warn('[api/health] Error counting bias/correlations:', dbError)
       // Continue with 0 counts if query fails

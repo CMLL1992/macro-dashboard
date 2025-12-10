@@ -301,7 +301,7 @@ export async function POST(request: NextRequest) {
 
         for (const crypto of topCrypto) {
           try {
-            const configCrypto = cryptoMap.get(crypto.id)
+            const configCrypto = cryptoMap.get(crypto.id) as { symbol?: string } | undefined
             const symbol = configCrypto?.symbol || `${crypto.symbol}USDT`
             
             // Try to get latest price from CoinMarketCap

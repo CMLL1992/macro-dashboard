@@ -12,7 +12,6 @@ export const dynamic = 'force-dynamic'
 
 import { assertCronAuth } from '@/lib/security/cron'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
-import { getDB } from '@/lib/db/schema'
 import { sendTelegramMessage } from '@/lib/notifications/telegram'
 import { getRegionCode } from '@/config/calendar-countries'
 import { REGION_NAMES } from '@/config/calendar-countries'
@@ -55,7 +54,8 @@ export async function POST(req: Request) {
       windowMinutes,
     })
 
-    const db = isUsingTurso() ? getUnifiedDB() : getDB()
+    // All methods are async now, so always use await
+    const db = getUnifiedDB()
     
     // Buscar eventos que cumplan:
     // - importancia: High (y opcionalmente Medium)
@@ -80,12 +80,8 @@ export async function POST(req: Request) {
       ORDER BY scheduled_time_utc ASC
     `
     
-    let rows: any[] = []
-    if (isUsingTurso()) {
-      rows = await db.prepare(sql).all(from.toISOString(), to.toISOString()) as any[]
-    } else {
-      rows = db.prepare(sql).all(from.toISOString(), to.toISOString()) as any[]
-    }
+    // All methods are async now, so always use await
+    const rows = await db.prepare(sql).all(from.toISOString(), to.toISOString()) as any[]
     
     console.log(`[notify/calendar] Found ${rows.length} events to notify`)
     

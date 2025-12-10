@@ -17,8 +17,7 @@ import { upsertEconomicEvent } from '@/lib/db/economic-events'
 import { mapProviderEventToInternal } from '@/lib/calendar/mappers'
 import { recordJobSuccess, recordJobError } from '@/lib/db/job-status'
 import { notifyNewCalendarEvents } from '@/lib/notifications/calendar'
-import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
-import { getDB } from '@/lib/db/schema'
+import { getUnifiedDB } from '@/lib/db/unified-db'
 
 // Get multi-provider instance (combina TradingEconomics, FRED, ECB)
 const getProvider = () => {
@@ -111,7 +110,8 @@ export async function POST(req: Request) {
     }> = []
 
     // Obtener eventos existentes para detectar nuevos
-    const db = isUsingTurso() ? getUnifiedDB() : getDB()
+    // All methods are async now, so always use await
+    const db = getUnifiedDB()
     const existingQuery = `
       SELECT source_event_id 
       FROM economic_events 
@@ -119,12 +119,8 @@ export async function POST(req: Request) {
     `
     let existingIds: Set<string> = new Set()
     try {
-      let existingRows: any[] = []
-      if (isUsingTurso()) {
-        existingRows = await db.prepare(existingQuery).all() as any[]
-      } else {
-        existingRows = db.prepare(existingQuery).all() as any[]
-      }
+      // All methods are async now, so always use await
+      const existingRows = await db.prepare(existingQuery).all() as any[]
       existingIds = new Set(existingRows.map(r => r.source_event_id))
     } catch (error) {
       console.warn('[ingest/calendar] Could not fetch existing events for deduplication:', error)

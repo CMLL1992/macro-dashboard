@@ -4,8 +4,7 @@ export const dynamic = 'force-dynamic'
 import { getMacroDiagnosis } from '@/domain/diagnostic'
 import { usdBias, macroQuadrant, getBiasTableFromUniverse } from '@/domain/bias'
 import { checkMacroDataHealth, getLatestObservationDate } from '@/lib/db/read-macro'
-import { getDB } from '@/lib/db/schema'
-import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
+import { getUnifiedDB } from '@/lib/db/unified-db'
 import { getCorrelationsForSymbol } from '@/lib/db/read'
 import { setDbReady, acquireBootstrapLock, releaseBootstrapLock, getBootstrapStartedAt, incrementFallbackCount, getFallbackCount, getLastBiasUpdateTimestamp, setLastBiasUpdateTimestamp } from '@/lib/runtime/state'
 import { getRecentEventsWithImpact, getLastRelevantEventForCurrency } from '@/lib/db/recent-events'
@@ -56,18 +55,11 @@ export async function GET() {
   let health = await checkMacroDataHealth()
   
   // Get counts - always use async for Turso compatibility
-  let rowsBias: { c: number }, rowsCorr: { c: number }, rowsObs: { c: number }
-  if (isUsingTurso()) {
-    const db = getUnifiedDB()
-    rowsBias = await db.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number }
-    rowsCorr = await db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number }
-    rowsObs = await db.prepare('SELECT COUNT(1) as c FROM macro_observations').get() as { c: number }
-  } else {
-    const db = getDB()
-    rowsBias = db.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number }
-    rowsCorr = db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number }
-    rowsObs = db.prepare('SELECT COUNT(1) as c FROM macro_observations').get() as { c: number }
-  }
+  // All methods are async now, so always use await
+  const db = getUnifiedDB()
+  const rowsBias = await db.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number }
+  const rowsCorr = await db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number }
+  const rowsObs = await db.prepare('SELECT COUNT(1) as c FROM macro_observations').get() as { c: number }
   
   const mustBootstrap = !(health.hasObservations && health.hasBias) || rowsCorr.c === 0
   let bootstrapResult = null
@@ -179,20 +171,12 @@ export async function GET() {
   // Fallback: si no hay timestamp en memoria, usar el máximo computed_at de macro_bias
   if (!lastBiasUpdate) {
     try {
-      if (isUsingTurso()) {
-        const db = getUnifiedDB()
-        const row = await db.prepare('SELECT MAX(computed_at) as ts FROM macro_bias').get() as { ts: string | null }
-        if (row?.ts) {
-          lastBiasUpdate = new Date(row.ts).toISOString()
-          setLastBiasUpdateTimestamp(lastBiasUpdate)
-        }
-      } else {
-        const db = getDB()
-        const row = db.prepare('SELECT MAX(computed_at) as ts FROM macro_bias').get() as { ts: string | null }
-        if (row?.ts) {
-          lastBiasUpdate = new Date(row.ts).toISOString()
-          setLastBiasUpdateTimestamp(lastBiasUpdate)
-        }
+      // All methods are async now, so always use await
+      const db = getUnifiedDB()
+      const row = await db.prepare('SELECT MAX(computed_at) as ts FROM macro_bias').get() as { ts: string | null } | undefined
+      if (row?.ts) {
+        lastBiasUpdate = new Date(row.ts).toISOString()
+        setLastBiasUpdateTimestamp(lastBiasUpdate)
       }
     } catch (e) {
       console.warn('[api/bias] fallback lastBiasUpdate failed:', e)
