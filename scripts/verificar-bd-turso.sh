@@ -36,3 +36,15 @@ echo "📊 Para probar endpoint de debug:"
 echo "  Local:  curl http://localhost:3000/api/debug/macro-indicador | jq"
 echo "  Vercel: curl https://macro-dashboard-seven.vercel.app/api/debug/macro-indicador | jq"
 
+
+
+
+
+
+
+
+
+
+
+
+

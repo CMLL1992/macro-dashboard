@@ -130,3 +130,15 @@ export async function GET(request: NextRequest) {
 // Also support POST for manual triggers
 export const POST = GET
 
+
+
+
+
+
+
+
+
+
+
+
+

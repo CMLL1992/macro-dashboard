@@ -2,12 +2,15 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 import { getMacroDiagnosis } from '@/domain/diagnostic'
-import { usdBias, macroQuadrant, getBiasTable } from '@/domain/bias'
+import { usdBias, macroQuadrant, getBiasTableFromUniverse } from '@/domain/bias'
 import { checkMacroDataHealth, getLatestObservationDate } from '@/lib/db/read-macro'
 import { getDB } from '@/lib/db/schema'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 import { getCorrelationsForSymbol } from '@/lib/db/read'
 import { setDbReady, acquireBootstrapLock, releaseBootstrapLock, getBootstrapStartedAt, incrementFallbackCount, getFallbackCount, getLastBiasUpdateTimestamp, setLastBiasUpdateTimestamp } from '@/lib/runtime/state'
+import { getRecentEventsWithImpact, getLastRelevantEventForCurrency } from '@/lib/db/recent-events'
+import getBiasState from '@/domain/macro-engine/bias'
+import { splitSymbol } from '@/domain/diagnostic'
 
 async function runBootstrap(): Promise<{ success: boolean; duration_ms: number }> {
   const startedAt = new Date()
@@ -98,18 +101,74 @@ export async function GET() {
   
   const usd = usdBias(items)
   const quad = macroQuadrant(items)
-  const rows = getBiasTable(regime, usd, quad)
+  const rows = await getBiasTableFromUniverse(regime, usd, quad)
   
-  // Enrich with correlations from DB
+  // Get bias state for currency scores and regimes
+  let biasState: Awaited<ReturnType<typeof getBiasState>> | null = null
+  try {
+    biasState = await getBiasState()
+  } catch (error) {
+    console.warn('[api/bias] getBiasState failed, continuing without currency info:', error)
+  }
+  
+  // Get recent events with impact
+  const recentEvents = await getRecentEventsWithImpact({
+    hours: 48,
+    currencies: ['USD', 'EUR', 'GBP', 'JPY', 'AUD'],
+    min_importance: 'medium',
+    min_surprise_score: 0.3,
+  })
+  
+  // Get last event applied timestamp
+  const lastEventAppliedAt = recentEvents.length > 0
+    ? recentEvents[0].release_time_utc
+    : null
+  
+  // Enrich with correlations from DB and last relevant events
   const enrichedRows = await Promise.all(rows.map(async row => {
     const symbol = row.par.replace('/', '').toUpperCase()
     const corr = await getCorrelationsForSymbol(symbol, 'DXY')
+    
+    // Get last relevant event for base and quote currencies
+    const { base, quote } = splitSymbol(symbol)
+    let lastRelevantEvent: {
+      currency: string
+      name: string
+      surprise_direction: string
+      surprise_score: number
+      release_time_utc: string
+    } | null = null
+    
+    if (base || quote) {
+      // Prefer base currency event, fallback to quote
+      const baseEvent = base ? await getLastRelevantEventForCurrency(base, 24) : null
+      const quoteEvent = quote ? await getLastRelevantEventForCurrency(quote, 24) : null
+      
+      const event = baseEvent || quoteEvent
+      if (event) {
+        lastRelevantEvent = {
+          currency: event.currency,
+          name: event.name,
+          surprise_direction: event.surprise_direction || 'neutral',
+          surprise_score: event.surprise_score || 0,
+          release_time_utc: event.release_time_utc,
+        }
+      }
+    }
+    
+    // Check if bias was updated after last event
+    const updatedAfterLastEvent = lastRelevantEvent && lastBiasUpdate
+      ? new Date(lastBiasUpdate) >= new Date(lastRelevantEvent.release_time_utc)
+      : false
+    
     return {
       ...row,
       corr12m: corr.corr12m,
       corr3m: corr.corr3m,
       n_obs12m: corr.n_obs12m,
       n_obs3m: corr.n_obs3m,
+      last_relevant_event: lastRelevantEvent,
+      updated_after_last_event: updatedAfterLastEvent,
     }
   }))
   
@@ -163,6 +222,32 @@ export async function GET() {
     quad,
     score,
     rows: enrichedRows,
+    recentEvents: recentEvents.map(event => ({
+      event_id: event.event_id,
+      release_id: event.release_id,
+      currency: event.currency,
+      name: event.name,
+      category: event.category,
+      importance: event.importance,
+      release_time_utc: event.release_time_utc,
+      actual: event.actual,
+      consensus: event.consensus,
+      previous: event.previous,
+      surprise_raw: event.surprise_raw,
+      surprise_pct: event.surprise_pct,
+      surprise_score: event.surprise_score,
+      surprise_direction: event.surprise_direction,
+      linked_series_id: event.linked_series_id,
+      linked_indicator_key: event.linked_indicator_key,
+      currency_score_before: event.currency_score_before,
+      currency_score_after: event.currency_score_after,
+      regime_before: event.regime_before,
+      regime_after: event.regime_after,
+    })),
+    meta: {
+      bias_updated_at: lastBiasUpdate,
+      last_event_applied_at: lastEventAppliedAt,
+    },
     health: {
       hasData: health.hasObservations && health.hasBias,
       observationCount: health.observationCount,

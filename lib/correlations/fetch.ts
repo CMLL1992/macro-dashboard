@@ -78,14 +78,85 @@ export async function fetchDXYDaily(): Promise<PricePoint[]> {
 }
 
 /**
+ * Get Yahoo Finance symbol from database or config
+ */
+async function getYahooSymbol(symbol: string): Promise<string | string[] | null> {
+  const normalized = symbol.toUpperCase()
+  
+  // First try database (most up-to-date)
+  try {
+    const { getUnifiedDB, isUsingTurso } = await import('@/lib/db/unified-db')
+    const { getDB } = await import('@/lib/db/schema')
+    
+    let row: any = null
+    if (isUsingTurso()) {
+      const db = getUnifiedDB()
+      row = await db.prepare('SELECT yahoo_symbol FROM asset_metadata WHERE symbol = ?').get(normalized)
+    } else {
+      const db = getDB()
+      row = db.prepare('SELECT yahoo_symbol FROM asset_metadata WHERE symbol = ?').get(normalized) as any
+    }
+    
+    if (row?.yahoo_symbol) {
+      return row.yahoo_symbol
+    }
+  } catch (error) {
+    // Fall through to config file
+  }
+  
+  // Fallback to config file
+  try {
+    const fs = await import('node:fs/promises')
+    const path = await import('node:path')
+    const configPath = path.join(process.cwd(), 'config', 'assets.config.json')
+    const raw = await fs.readFile(configPath, 'utf8')
+    const config = JSON.parse(raw)
+    
+    // Search in all categories
+    for (const category of ['forex', 'indices', 'metals', 'crypto']) {
+      const assets = config[category] || []
+      const asset = assets.find((a: any) => a.symbol === normalized)
+      if (asset?.yahoo_symbol) {
+        return asset.yahoo_symbol
+      }
+    }
+  } catch (error) {
+    // Fall through to hardcoded map
+  }
+  
+  // Final fallback to hardcoded map
+  return YAHOO_MAP[normalized] || null
+}
+
+/**
  * Fetch daily asset price data
+ * Now reads Yahoo symbol from database or config
  */
 export async function fetchAssetDaily(symbol: string): Promise<PricePoint[]> {
   const normalized = symbol.toUpperCase()
-  const yahooSymbol = YAHOO_MAP[normalized]
+  const yahooSymbol = await getYahooSymbol(normalized)
 
   if (!yahooSymbol) {
-    console.warn(`No Yahoo mapping for ${symbol}`)
+    // Try to construct Yahoo symbol from symbol pattern
+    // Forex: EURUSD -> EURUSD=X
+    if (normalized.length === 6 && /^[A-Z]{6}$/.test(normalized)) {
+      const trySymbol = `${normalized}=X`
+      try {
+        const data = await fetchYahooDaily(trySymbol, '2y')
+        if (data.length >= 30) return data
+      } catch {}
+    }
+    // Crypto: BTCUSDT -> BTC-USD (try common patterns)
+    if (normalized.endsWith('USDT')) {
+      const base = normalized.replace('USDT', '')
+      const trySymbol = `${base}-USD`
+      try {
+        const data = await fetchYahooDaily(trySymbol, '2y')
+        if (data.length >= 30) return data
+      } catch {}
+    }
+    // Indices: SPX -> ^GSPC (already in map)
+    console.warn(`No Yahoo mapping found for ${symbol}, tried auto-construction`)
     return []
   }
 
@@ -110,8 +181,33 @@ export async function fetchAssetDaily(symbol: string): Promise<PricePoint[]> {
 
 /**
  * Get list of active symbols from universe
+ * Now reads from asset_metadata table in database
  */
 export async function getActiveSymbols(): Promise<string[]> {
+  try {
+    // Try to get from database first (most up-to-date)
+    const { getUnifiedDB, isUsingTurso } = await import('@/lib/db/unified-db')
+    const { getDB } = await import('@/lib/db/schema')
+    
+    if (isUsingTurso()) {
+      const db = getUnifiedDB()
+      const result = await db.prepare('SELECT symbol FROM asset_metadata ORDER BY symbol').all()
+      const symbols = (result as Array<{ symbol: string }>).map(r => r.symbol)
+      if (symbols.length > 0) {
+        return symbols
+      }
+    } else {
+      const db = getDB()
+      const rows = db.prepare('SELECT symbol FROM asset_metadata ORDER BY symbol').all() as Array<{ symbol: string }>
+      if (rows.length > 0) {
+        return rows.map(r => r.symbol)
+      }
+    }
+  } catch (error) {
+    console.warn('Could not get symbols from database, falling back to config file:', error)
+  }
+
+  // Fallback to config file
   try {
     const fs = await import('node:fs/promises')
     const path = await import('node:path')
@@ -120,9 +216,7 @@ export async function getActiveSymbols(): Promise<string[]> {
     const assets = JSON.parse(raw) as Array<{ symbol: string }>
     return assets.map(a => a.symbol)
   } catch {
-    // Fallback to hardcoded list
-    // IMPORTANTE: Usar BTCUSDT y ETHUSDT (con T) para consistencia con domain/bias.ts que usa 'BTC/USDT' y 'ETH/USDT'
-    // La función norm() convierte 'BTC/USDT' a 'BTCUSDT', así que deben coincidir
+    // Final fallback to hardcoded list
     return ['EURUSD', 'GBPUSD', 'AUDUSD', 'USDJPY', 'USDCAD', 'XAUUSD', 'SPX', 'NDX', 'BTCUSDT', 'ETHUSDT']
   }
 }

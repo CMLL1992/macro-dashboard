@@ -199,3 +199,15 @@ Deberías ver:
 
 **¿Necesitas ayuda?** Revisa `CONFIGURAR-TURSO.md` o abre un issue en GitHub.
 
+
+
+
+
+
+
+
+
+
+
+
+

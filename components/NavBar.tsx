@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import ThemeToggle from './ThemeToggle'
 
 export default function NavBar() {
   const [mounted, setMounted] = useState(false)
@@ -23,13 +24,12 @@ export default function NavBar() {
             <span className="text-base font-semibold tracking-tight">CM11 Trading</span>
             <div className="hidden md:flex items-center gap-4">
               <span className="text-muted-foreground">Dashboard</span>
+              <span className="text-muted-foreground">Calendario</span>
               <span className="text-muted-foreground">Correlaciones</span>
               <span className="text-muted-foreground">Narrativas</span>
               <span className="text-muted-foreground">Sesgos</span>
-              <span className="text-muted-foreground">Noticias</span>
               <span className="text-muted-foreground">Notificaciones</span>
               <span className="text-muted-foreground">Ayuda</span>
-              <span className="text-muted-foreground">Admin</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -44,13 +44,13 @@ export default function NavBar() {
   // After hydration, render the actual navigation
   const baseNavItems = [
     { href: '/dashboard', label: 'Dashboard' },
+    { href: '/calendario', label: 'Calendario' },
     { href: '/correlations', label: 'Correlaciones' },
     { href: '/narrativas', label: 'Narrativas' },
     { href: '/sesgos', label: 'Sesgos' },
-    { href: '/noticias', label: 'Noticias' },
+    { href: '/analisis', label: 'Análisis diario' },
     { href: '/notificaciones', label: 'Notificaciones' },
     { href: '/ayuda', label: 'Ayuda' },
-    { href: '/admin', label: 'Admin' },
   ] as const
 
   // Build nav items dynamically (client-side only, after mount)
@@ -81,6 +81,7 @@ export default function NavBar() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {mounted && <ThemeToggle />}
           <Link
             href="https://fred.stlouisfed.org/"
             target="_blank"

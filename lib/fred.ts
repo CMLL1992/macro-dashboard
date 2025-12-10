@@ -59,14 +59,20 @@ export function buildFredObservationsUrl(seriesId: string, apiKey: string, param
   return url.toString()
 }
 
-export type SeriesPoint = { date: string; value: number }
+export type SeriesPoint = { 
+  date: string // realtime_start (fecha de publicación) para mostrar
+  value: number
+  observation_period?: string // observation_date (periodo del dato) para cálculos internos
+}
 
 const FredResponseSchema = z.object({
   observations: z.array(
     z.object({
-      date: z.string(),
+      date: z.string(), // observation_date (periodo del dato)
       value: z.string(),
-    })
+      realtime_start: z.string().optional().nullable(), // Fecha de publicación (puede no estar presente)
+      realtime_end: z.string().optional().nullable(), // Fecha fin de publicación (puede no estar presente)
+    }).passthrough() // Permitir campos adicionales que FRED pueda devolver
   ),
 })
 
@@ -125,6 +131,14 @@ export async function fetchFredSeries(
   if (params?.observation_end) qs.set('observation_end', params.observation_end)
   if (params?.frequency) qs.set('frequency', params.frequency)
   if (params?.units) qs.set('units', params.units)
+  // Añadir realtime_start y realtime_end para obtener fecha de publicación
+  // FRED API requiere que si units != 'lin', entonces realtime_start debe igualar realtime_end
+  const today = new Date().toISOString().split('T')[0]
+  qs.set('realtime_start', today) // Obtener versión más reciente del dato
+  // Si se usa units (transformación), realtime_end debe ser igual a realtime_start
+  if (params?.units && params.units !== 'lin') {
+    qs.set('realtime_end', today) // Requerido por FRED cuando units != 'lin'
+  }
 
   let url: string
   if (isServer) {
@@ -152,15 +166,78 @@ export async function fetchFredSeries(
     throw new Error(`Invalid FRED response structure for ${seriesId}: expected {observations: []}, got ${JSON.stringify(json).substring(0, 200)}`)
   }
   
-  const parsed = FredResponseSchema.parse(json)
+  // Parsear con manejo de errores más robusto
+  let parsed
+  try {
+    parsed = FredResponseSchema.parse(json)
+  } catch (parseError) {
+    // Si falla el parseo, intentar parsear sin realtime_start/realtime_end
+    console.warn(`[fetchFredSeries] Schema parse failed for ${seriesId}, trying fallback:`, parseError)
+    // Intentar parsear solo con campos básicos
+    const fallbackSchema = z.object({
+      observations: z.array(
+        z.object({
+          date: z.string(),
+          value: z.string(),
+        }).passthrough()
+      ),
+    })
+    try {
+      parsed = fallbackSchema.parse(json)
+    } catch (fallbackError) {
+      // Si también falla el fallback, lanzar error original
+      throw new Error(`Failed to parse FRED response for ${seriesId}: ${parseError instanceof Error ? parseError.message : String(parseError)}`)
+    }
+  }
 
-  const items: SeriesPoint[] = parsed.observations
-    .filter(o => o.value !== '.' && o.value !== null && o.value !== undefined)
+  // Agrupar por observation_date y tomar la versión más reciente (mayor realtime_start)
+  const byObservationDate = new Map<string, typeof parsed.observations[0]>()
+  
+  for (const obs of parsed.observations) {
+    if (obs.value === '.' || obs.value === null || obs.value === undefined) continue
+    
+    const existing = byObservationDate.get(obs.date)
+    if (!existing) {
+      byObservationDate.set(obs.date, obs)
+    } else {
+      // Si hay realtime_start, preferir la versión más reciente
+      const existingRealtime = existing.realtime_start ? new Date(existing.realtime_start).getTime() : 0
+      const currentRealtime = obs.realtime_start ? new Date(obs.realtime_start).getTime() : 0
+      if (currentRealtime > existingRealtime) {
+        byObservationDate.set(obs.date, obs)
+      }
+    }
+  }
+  
+  const items: SeriesPoint[] = Array.from(byObservationDate.values())
     .map(o => {
       const numValue = Number(o.value)
-      return { date: o.date, value: numValue }
+      if (!Number.isFinite(numValue)) return null
+      
+      // Para datos transformados (units != 'lin'), usar observation_date como fecha principal
+      // porque los valores transformados son específicos del periodo, no de la fecha de publicación
+      // Para datos de nivel (units='lin' o sin units), usar realtime_start como fecha de publicación
+      const isTransformed = params?.units && params.units !== 'lin'
+      
+      if (isTransformed) {
+        // Datos transformados: usar observation_date (periodo) como fecha principal
+        return {
+          date: o.date, // Periodo del dato (ej: 2025-09-01)
+          value: numValue,
+          observation_period: o.date, // Mismo que date para datos transformados
+        }
+      } else {
+        // Datos de nivel: usar realtime_start como fecha de publicación
+        const releaseDate = o.realtime_start || o.date
+        const observationPeriod = o.realtime_start && o.date !== o.realtime_start ? o.date : undefined
+        return {
+          date: releaseDate, // Fecha de publicación
+          value: numValue,
+          observation_period: observationPeriod, // Periodo del dato si difiere
+        }
+      }
     })
-    .filter(o => Number.isFinite(o.value))
+    .filter((o): o is SeriesPoint => o !== null)
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
 
   return items

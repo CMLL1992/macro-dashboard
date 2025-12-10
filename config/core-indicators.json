@@ -73,11 +73,11 @@
       "weight": 0.08
     },
     {
-      "key": "RSXFS",
+      "key": "RSAFS",
       "name": "Retail Sales YoY (PMI Services Proxy)",
       "category": "growth",
       "source": "FRED",
-      "seriesId": "RSXFS",
+      "seriesId": "RSAFS",
       "frequency": "M",
       "transform": "yoy",
       "weight": 0.06

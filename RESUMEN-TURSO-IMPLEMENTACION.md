@@ -349,3 +349,15 @@ SELECT COUNT(*) FROM macro_series;
 
 **Estado**: ✅ Implementado y funcionando
 
+
+
+
+
+
+
+
+
+
+
+
+

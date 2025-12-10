@@ -255,10 +255,18 @@ function initializeSchema(database: Database.Database) {
       series_id TEXT NOT NULL,
       date TEXT NOT NULL,
       value REAL,
+      observation_period TEXT,
       PRIMARY KEY (series_id, date),
       FOREIGN KEY (series_id) REFERENCES macro_series(series_id) ON DELETE CASCADE
     )
   `)
+  
+  // Añadir columna observation_period si no existe (migración)
+  try {
+    database.exec(`ALTER TABLE macro_observations ADD COLUMN observation_period TEXT`)
+  } catch {
+    // Columna ya existe, ignorar error
+  }
 
   // Macro bias
   database.exec(`
@@ -281,6 +289,34 @@ function initializeSchema(database: Database.Database) {
       key TEXT PRIMARY KEY,
       value_encrypted TEXT NOT NULL,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // Asset prices table (for storing historical prices of forex, stocks, crypto)
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS asset_prices (
+      symbol TEXT NOT NULL,
+      date TEXT NOT NULL,
+      open REAL,
+      high REAL,
+      low REAL,
+      close REAL,
+      volume REAL,
+      source TEXT,
+      PRIMARY KEY (symbol, date)
+    )
+  `)
+
+  // Asset metadata table
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS asset_metadata (
+      symbol TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL CHECK(category IN ('forex', 'crypto', 'index', 'stock', 'metal', 'commodity')),
+      source TEXT,
+      yahoo_symbol TEXT,
+      last_updated TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `)
 
@@ -321,6 +357,46 @@ function initializeSchema(database: Database.Database) {
       date_current TEXT,
       date_previous TEXT,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // Macro signals history (for backtesting)
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS macro_signals (
+      date TEXT PRIMARY KEY,
+      usd_score REAL,
+      usd_bias TEXT,
+      usd_confidence TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // Pair signals history (for backtesting)
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS pair_signals (
+      date TEXT,
+      symbol TEXT,
+      action TEXT,
+      confidence TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (date, symbol)
+    )
+  `)
+
+  // Macro events calendar (for news page)
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS macro_events (
+      id TEXT PRIMARY KEY,
+      date TEXT NOT NULL,
+      time TEXT,
+      country TEXT NOT NULL,
+      indicator_key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      previous REAL,
+      consensus REAL,
+      impact TEXT NOT NULL,
+      source TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `)
 
@@ -452,9 +528,107 @@ function initializeSchema(database: Database.Database) {
       )
     `)
 
+  // Economic events calendar (calendario estático/futuro)
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS economic_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_event_id TEXT,
+      country TEXT NOT NULL,
+      currency TEXT NOT NULL,
+      name TEXT NOT NULL,
+      category TEXT,
+      importance TEXT CHECK(importance IN ('low', 'medium', 'high')),
+      series_id TEXT,
+      indicator_key TEXT,
+      scheduled_time_utc TEXT NOT NULL,
+      scheduled_time_local TEXT,
+      previous_value REAL,
+      consensus_value REAL,
+      consensus_range_min REAL,
+      consensus_range_max REAL,
+      directionality TEXT CHECK(directionality IN ('higher_is_positive', 'lower_is_positive')),
+      notified_at TEXT NULL,
+      notify_lead_minutes INTEGER DEFAULT 30,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+  
+  // Add new columns if they don't exist (migration)
+  try {
+    database.exec(`ALTER TABLE economic_events ADD COLUMN notified_at TEXT NULL`)
+  } catch (e: any) {
+    // Column already exists, ignore
+    if (!e.message?.includes('duplicate column')) {
+      console.warn('[schema] Error adding notified_at column:', e.message)
+    }
+  }
+  try {
+    database.exec(`ALTER TABLE economic_events ADD COLUMN notify_lead_minutes INTEGER DEFAULT 30`)
+  } catch (e: any) {
+    // Column already exists, ignore
+    if (!e.message?.includes('duplicate column')) {
+      console.warn('[schema] Error adding notify_lead_minutes column:', e.message)
+    }
+  }
+
+  // Economic releases (dato real + sorpresa)
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS economic_releases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL REFERENCES economic_events(id),
+      release_time_utc TEXT NOT NULL,
+      release_time_local TEXT,
+      actual_value REAL,
+      previous_value REAL,
+      consensus_value REAL,
+      surprise_raw REAL,
+      surprise_pct REAL,
+      surprise_score REAL,
+      surprise_direction TEXT CHECK(surprise_direction IN ('positive', 'negative')),
+      revision_flag INTEGER DEFAULT 0,
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // Macro event impact (link directo a sesgos - opcional)
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS macro_event_impact (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      release_id INTEGER NOT NULL REFERENCES economic_releases(id),
+      currency TEXT NOT NULL,
+      total_score_before REAL,
+      total_score_after REAL,
+      regime_before TEXT,
+      regime_after TEXT,
+      usd_direction_before TEXT,
+      usd_direction_after TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // Job status tracking (monitoreo de jobs)
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS job_status (
+      job_name TEXT PRIMARY KEY,
+      last_run_at TEXT NOT NULL,
+      last_success_at TEXT,
+      last_error_at TEXT,
+      last_error_message TEXT,
+      runs_count INTEGER DEFAULT 0,
+      success_count INTEGER DEFAULT 0,
+      error_count INTEGER DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
   // Indexes for performance
   database.exec(`
     CREATE INDEX IF NOT EXISTS idx_observations_series_date ON macro_observations(series_id, date);
+    CREATE INDEX IF NOT EXISTS idx_asset_prices_symbol_date ON asset_prices(symbol, date);
+    CREATE INDEX IF NOT EXISTS idx_asset_prices_date ON asset_prices(date);
+    CREATE INDEX IF NOT EXISTS idx_asset_metadata_category ON asset_metadata(category);
     CREATE INDEX IF NOT EXISTS idx_correlations_symbol ON correlations(symbol);
     CREATE INDEX IF NOT EXISTS idx_correlations_asof ON correlations(asof);
     CREATE INDEX IF NOT EXISTS idx_correlations_history_symbol ON correlations_history(symbol, base, window);
@@ -467,6 +641,15 @@ function initializeSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_notification_sent_at ON notification_history(sent_at);
     CREATE INDEX IF NOT EXISTS idx_ingest_history_finished_at ON ingest_history(finished_at);
     CREATE INDEX IF NOT EXISTS idx_ingest_history_job_type ON ingest_history(job_type);
+    CREATE INDEX IF NOT EXISTS idx_economic_events_currency ON economic_events(currency);
+    CREATE INDEX IF NOT EXISTS idx_economic_events_scheduled_time ON economic_events(scheduled_time_utc);
+    CREATE INDEX IF NOT EXISTS idx_economic_events_series_id ON economic_events(series_id);
+    CREATE INDEX IF NOT EXISTS idx_economic_releases_event_id ON economic_releases(event_id);
+    CREATE INDEX IF NOT EXISTS idx_economic_releases_release_time ON economic_releases(release_time_utc);
+    CREATE INDEX IF NOT EXISTS idx_macro_event_impact_release_id ON macro_event_impact(release_id);
+    CREATE INDEX IF NOT EXISTS idx_macro_event_impact_currency ON macro_event_impact(currency);
+    CREATE INDEX IF NOT EXISTS idx_job_status_updated_at ON job_status(updated_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_economic_events_source_event_id ON economic_events(source_event_id);
   `)
 }
 

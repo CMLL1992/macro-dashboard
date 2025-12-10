@@ -1,0 +1,114 @@
+{
+  "description": "Indicadores macroeconómicos de Japón (JPY) para el motor macro relativo",
+  "indicators": [
+    {
+      "id": "JP_GDP_QOQ",
+      "name": "GDP Quarter-on-Quarter",
+      "source": "trading_economics",
+      "series": "japan/gdp-growth",
+      "frequency": "Q",
+      "unit": "% QoQ",
+      "needsYoY": false
+    },
+    {
+      "id": "JP_GDP_YOY",
+      "name": "GDP Year-on-Year",
+      "source": "trading_economics",
+      "series": "japan/gdp-growth-annual",
+      "frequency": "Q",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "JP_INDUSTRIAL_PRODUCTION_YOY",
+      "name": "Industrial Production YoY",
+      "source": "trading_economics",
+      "series": "japan/industrial-production",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "JP_RETAIL_SALES_YOY",
+      "name": "Retail Sales YoY",
+      "source": "trading_economics",
+      "series": "japan/retail-sales-yoy",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "JP_TANKAN_MANUFACTURING",
+      "name": "Tankan Large Manufacturers Index",
+      "source": "trading_economics",
+      "series": "japan/tankan-large-manufacturing-index",
+      "frequency": "Q",
+      "unit": "Índice",
+      "needsYoY": false
+    },
+    {
+      "id": "JP_SERVICES_PMI",
+      "name": "Services PMI",
+      "source": "trading_economics",
+      "series": "japan/services-pmi",
+      "frequency": "M",
+      "unit": "Índice",
+      "needsYoY": false
+    },
+    {
+      "id": "JP_CPI_YOY",
+      "name": "CPI YoY",
+      "source": "trading_economics",
+      "series": "japan/inflation-cpi",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "JP_CORE_CPI_YOY",
+      "name": "Core CPI YoY",
+      "source": "trading_economics",
+      "series": "japan/core-inflation-rate",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "JP_PPI_YOY",
+      "name": "PPI YoY",
+      "source": "trading_economics",
+      "series": "japan/producer-prices",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "JP_UNEMPLOYMENT_RATE",
+      "name": "Unemployment Rate",
+      "source": "trading_economics",
+      "series": "japan/unemployment-rate",
+      "frequency": "M",
+      "unit": "%",
+      "needsYoY": false
+    },
+    {
+      "id": "JP_JOB_TO_APPLICANT_RATIO",
+      "name": "Job-to-Applicant Ratio",
+      "source": "trading_economics",
+      "series": "japan/jobs-to-applicants-ratio",
+      "frequency": "M",
+      "unit": "Ratio",
+      "needsYoY": false
+    },
+    {
+      "id": "JP_BOJ_RATE",
+      "name": "Bank of Japan Policy Rate",
+      "source": "trading_economics",
+      "series": "japan/interest-rate",
+      "frequency": "B",
+      "unit": "%",
+      "needsYoY": false
+    }
+  ]
+}
+

@@ -8,6 +8,7 @@
 import { NextRequest } from 'next/server'
 
 const INGEST_KEY = process.env.INGEST_KEY || process.env.X_INGEST_KEY || ''
+const CRON_TOKEN = process.env.CRON_TOKEN || ''
 
 // Log status on module load
 if (typeof window === 'undefined') {
@@ -33,15 +34,6 @@ export function isIngestKeyConfigured(): boolean {
  * Validate ingest key from request header
  */
 export function validateIngestKey(request: NextRequest): boolean {
-  if (!isIngestKeyConfigured()) {
-    // In development, allow CRON_TOKEN as fallback
-    if (process.env.NODE_ENV !== 'production' && process.env.ENABLE_TELEGRAM_TESTS === 'true') {
-      return false // Let caller check CRON_TOKEN
-    }
-    console.warn('[ingest] INGEST_KEY not configured, rejecting all requests')
-    return false
-  }
-
   const providedKey = request.headers.get('X-INGEST-KEY')
   
   if (!providedKey) {
@@ -49,7 +41,16 @@ export function validateIngestKey(request: NextRequest): boolean {
     return false
   }
 
-  if (providedKey !== INGEST_KEY) {
+  // In desarrollo, aceptar también CRON_TOKEN como fallback
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    CRON_TOKEN &&
+    providedKey === CRON_TOKEN
+  ) {
+    return true
+  }
+
+  if (isIngestKeyConfigured() && providedKey !== INGEST_KEY) {
     console.warn('[ingest] Invalid X-INGEST-KEY provided')
     return false
   }
@@ -61,21 +62,22 @@ export function validateIngestKey(request: NextRequest): boolean {
  * Get ingest key validation result with error message
  */
 export function validateIngestKeyWithError(request: NextRequest): { valid: boolean; error?: string } {
-  if (!isIngestKeyConfigured()) {
-    // In development, allow CRON_TOKEN as fallback
-    if (process.env.NODE_ENV !== 'production' && process.env.ENABLE_TELEGRAM_TESTS === 'true') {
-      return { valid: false, error: 'INGEST_KEY not configured on server (CRON_TOKEN may be used in development)' }
-    }
-    return { valid: false, error: 'INGEST_KEY not configured on server' }
-  }
-
   const providedKey = request.headers.get('X-INGEST-KEY')
   
   if (!providedKey) {
     return { valid: false, error: 'Missing X-INGEST-KEY header' }
   }
 
-  if (providedKey !== INGEST_KEY) {
+  // En desarrollo, aceptar también CRON_TOKEN como fallback
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    CRON_TOKEN &&
+    providedKey === CRON_TOKEN
+  ) {
+    return { valid: true }
+  }
+
+  if (isIngestKeyConfigured() && providedKey !== INGEST_KEY) {
     return { valid: false, error: 'Invalid X-INGEST-KEY' }
   }
 

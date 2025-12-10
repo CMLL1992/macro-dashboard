@@ -235,3 +235,15 @@ curl https://macro-dashboard-seven.vercel.app/api/debug/macro-indicador | jq
 - Si encuentras diferencias, documenta exactamente qué campo difiere y en qué valor
 - Una vez identificado el problema, aplica la solución correspondiente según el caso
 
+
+
+
+
+
+
+
+
+
+
+
+

@@ -122,6 +122,43 @@ async function main() {
     }
   }
 
+  // 8. Auto-ingest PMI from calendar events (after calendar ingestion)
+  try {
+    console.log('\n🔄 [PMI Auto-Ingest] Attempting automatic PMI ingestion from calendar...')
+    const CRON_TOKEN = process.env.CRON_TOKEN || process.env.INGEST_KEY
+    if (CRON_TOKEN) {
+      const response = await fetch(`${BASE_URL}/api/jobs/ingest/pmi`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${CRON_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log(`✅ [PMI Auto-Ingest] Completed: ${data.ingested || 0} ingested, ${data.skipped || 0} skipped`)
+        results.push({
+          source: 'PMI Auto-Ingest',
+          success: true,
+          calendar: { inserted: data.ingested || 0, skipped: data.skipped || 0 },
+        })
+      } else {
+        const errorText = await response.text()
+        console.warn(`⚠️  [PMI Auto-Ingest] Failed: ${errorText}`)
+        results.push({
+          source: 'PMI Auto-Ingest',
+          success: false,
+          error: errorText,
+        })
+      }
+    } else {
+      console.warn('⚠️  [PMI Auto-Ingest] CRON_TOKEN not available, skipping')
+    }
+  } catch (error) {
+    console.warn('⚠️  PMI Auto-Ingest not available:', error)
+  }
+
   // Summary
   console.log('\n' + '='.repeat(60))
   console.log('📊 RESUMEN DE INGESTA')

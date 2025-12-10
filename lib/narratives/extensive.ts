@@ -68,7 +68,7 @@ export async function getWeeklyExtensiveNarrative(): Promise<string> {
   const nextWeekEnd = addDays(nextWeekStart, 6)
 
   // Get calendar events
-  const nextWeekEvents = getCalendarEvents(
+  const nextWeekEvents = await getCalendarEvents(
     format(nextWeekStart, 'yyyy-MM-dd'),
     format(nextWeekEnd, 'yyyy-MM-dd')
   )

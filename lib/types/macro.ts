@@ -4,7 +4,7 @@
 
 export type Frequency = 'A' | 'Q' | 'M' | 'W' | 'D'
 
-export type Source = 'FRED' | 'WORLD_BANK' | 'IMF' | 'ECB_SDW'
+export type Source = 'FRED' | 'WORLD_BANK' | 'IMF' | 'ECB_SDW' | 'TRADING_ECONOMICS' | 'ALPHA_VANTAGE' | 'OECD' | 'DBNOMICS' | 'MANUAL'
 
 export interface DataPoint {
   date: string

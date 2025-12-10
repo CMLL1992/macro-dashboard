@@ -1,0 +1,105 @@
+{
+  "description": "Indicadores macroeconómicos del Reino Unido (UK/GBP) para el motor macro relativo",
+  "indicators": [
+    {
+      "id": "UK_GDP_QOQ",
+      "name": "GDP Quarter-on-Quarter",
+      "source": "trading_economics",
+      "series": "united-kingdom/gdp-growth",
+      "frequency": "Q",
+      "unit": "% QoQ",
+      "needsYoY": false
+    },
+    {
+      "id": "UK_GDP_YOY",
+      "name": "GDP Year-on-Year",
+      "source": "trading_economics",
+      "series": "united-kingdom/gdp-growth-annual",
+      "frequency": "Q",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "UK_SERVICES_PMI",
+      "name": "Services PMI",
+      "source": "trading_economics",
+      "series": "united-kingdom/services-pmi",
+      "frequency": "M",
+      "unit": "Índice",
+      "needsYoY": false
+    },
+    {
+      "id": "UK_MANUFACTURING_PMI",
+      "name": "Manufacturing PMI",
+      "source": "trading_economics",
+      "series": "united-kingdom/manufacturing-pmi",
+      "frequency": "M",
+      "unit": "Índice",
+      "needsYoY": false
+    },
+    {
+      "id": "UK_RETAIL_SALES_YOY",
+      "name": "Retail Sales YoY",
+      "source": "trading_economics",
+      "series": "united-kingdom/retail-sales-yoy",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "UK_CPI_YOY",
+      "name": "CPI YoY",
+      "source": "trading_economics",
+      "series": "united-kingdom/inflation-cpi",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "UK_CORE_CPI_YOY",
+      "name": "Core CPI YoY",
+      "source": "trading_economics",
+      "series": "united-kingdom/core-inflation-rate",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "UK_PPI_OUTPUT_YOY",
+      "name": "PPI Output YoY",
+      "source": "trading_economics",
+      "series": "united-kingdom/producer-prices",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "UK_UNEMPLOYMENT_RATE",
+      "name": "Unemployment Rate",
+      "source": "trading_economics",
+      "series": "united-kingdom/unemployment-rate",
+      "frequency": "M",
+      "unit": "%",
+      "needsYoY": false
+    },
+    {
+      "id": "UK_AVG_EARNINGS_YOY",
+      "name": "Average Earnings YoY",
+      "source": "trading_economics",
+      "series": "united-kingdom/wage-growth",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "UK_BOE_RATE",
+      "name": "Bank of England Rate",
+      "source": "trading_economics",
+      "series": "united-kingdom/interest-rate",
+      "frequency": "B",
+      "unit": "%",
+      "needsYoY": false
+    }
+  ]
+}
+

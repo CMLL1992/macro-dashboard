@@ -12,39 +12,46 @@ interface NotificationPreference {
 
 const DEFAULT_PREFERENCES: NotificationPreference[] = [
   {
-    id: 'news_high',
-    name: 'Noticias de Alto Impacto',
-    description: 'Recibir notificaciones cuando se publiquen noticias económicas de alto impacto (NFP, CPI, etc.)',
+    id: 'calendar_new_events',
+    name: 'Nuevos Eventos de Calendario',
+    description: 'Recibir notificaciones cuando se detecten nuevos eventos económicos importantes (NFP, CPI, decisiones de bancos centrales, etc.)',
     enabled: true,
     type: 'news',
   },
   {
-    id: 'news_medium',
-    name: 'Noticias de Impacto Medio',
-    description: 'Recibir notificaciones de noticias económicas de impacto medio',
-    enabled: true,
-    type: 'news',
-  },
-  {
-    id: 'narrative_changes',
-    name: 'Cambios de Narrativa',
-    description: 'Recibir notificaciones cuando cambie la narrativa macroeconómica (RISK_ON, RISK_OFF, etc.)',
-    enabled: true,
-    type: 'narrative',
-  },
-  {
-    id: 'weekly_ahead',
-    name: 'Resumen Semanal',
-    description: 'Recibir un resumen semanal cada domingo con los eventos importantes de la próxima semana',
+    id: 'calendar_weekly_summary',
+    name: 'Resumen Semanal de Calendario',
+    description: 'Recibir un resumen semanal cada domingo con todos los eventos importantes de la próxima semana',
     enabled: true,
     type: 'weekly',
   },
   {
-    id: 'daily_digest',
-    name: 'Resumen Diario',
-    description: 'Recibir un resumen diario con las noticias y eventos más importantes del día',
-    enabled: false,
-    type: 'daily',
+    id: 'confidence_changes',
+    name: 'Cambios de Confianza en Pares',
+    description: 'Recibir notificaciones cuando cambie el nivel de confianza (Alta/Media/Baja) de cualquier par',
+    enabled: true,
+    type: 'narrative',
+  },
+  {
+    id: 'data_changes',
+    name: 'Cambios de Datos Macro',
+    description: 'Recibir notificaciones cuando se actualicen indicadores económicos importantes (con valor anterior vs actual)',
+    enabled: true,
+    type: 'news',
+  },
+  {
+    id: 'scenario_changes',
+    name: 'Cambios de Escenarios',
+    description: 'Recibir notificaciones cuando aparezcan nuevos escenarios activos o cambien los existentes',
+    enabled: true,
+    type: 'narrative',
+  },
+  {
+    id: 'release_published',
+    name: 'Publicación de Datos',
+    description: 'Recibir notificaciones cuando se publiquen datos económicos importantes (con sorpresa y dirección)',
+    enabled: true,
+    type: 'news',
   },
 ]
 
@@ -187,11 +194,11 @@ export default function NotificacionesPage() {
       </div>
 
       {/* Botón de prueba destacado */}
-      <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-6">
+      <div className="rounded-lg border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-blue-900 mb-1">🧪 Probar Notificaciones de Telegram</h2>
-            <p className="text-sm text-blue-700">
+            <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-300 mb-1">🧪 Probar Notificaciones de Telegram</h2>
+            <p className="text-sm text-blue-700 dark:text-blue-200">
               Envía un mensaje de prueba para verificar que Telegram está configurado correctamente
             </p>
           </div>
@@ -246,7 +253,7 @@ export default function NotificacionesPage() {
           </div>
           
           {/* Botón de prueba */}
-          <div className="pt-4 mt-4 border-t border-gray-200">
+          <div className="pt-4 mt-4 border-t border-border">
             <h3 className="text-sm font-semibold mb-2">🧪 Probar Notificaciones</h3>
             <p className="text-xs text-muted-foreground mb-3">
               Envía un mensaje de prueba a Telegram para verificar que las notificaciones funcionan correctamente.
@@ -310,10 +317,10 @@ export default function NotificacionesPage() {
               </div>
               <div className="text-xs">
                 <span className={`px-2 py-1 rounded ${
-                  pref.type === 'news' ? 'bg-blue-100 text-blue-800' :
-                  pref.type === 'narrative' ? 'bg-purple-100 text-purple-800' :
-                  pref.type === 'weekly' ? 'bg-green-100 text-green-800' :
-                  'bg-gray-100 text-gray-800'
+                  pref.type === 'news' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
+                  pref.type === 'narrative' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300' :
+                  pref.type === 'weekly' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                  'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
                 }`}>
                   {pref.type}
                 </span>

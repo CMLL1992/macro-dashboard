@@ -277,3 +277,15 @@ grep -r "isProd\|isProduction" lib/ app/
 - Los logs de debug solo aparecen en desarrollo o con `DEBUG_DASHBOARD=true`
 - Si encuentras diferencias, documenta exactamente qué campo difiere y en qué valor
 
+
+
+
+
+
+
+
+
+
+
+
+

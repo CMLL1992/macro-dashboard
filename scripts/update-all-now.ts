@@ -16,7 +16,15 @@ if (!CRON_TOKEN) {
   process.exit(1)
 }
 
-async function callEndpoint(endpoint: string, name: string) {
+type CallOptions = {
+  /**
+   * Si es true, un timeout de cabeceras (UND_ERR_HEADERS_TIMEOUT) se considera
+   * éxito “best effort” y NO aborta el flujo. Útil para jobs pesados como FRED.
+   */
+  allowTimeout?: boolean
+}
+
+async function callEndpoint(endpoint: string, name: string, opts: CallOptions = {}) {
   console.log(`\n🔄 ${name}...`)
   console.log(`📍 URL: ${APP_URL}${endpoint}`)
   
@@ -48,7 +56,18 @@ async function callEndpoint(endpoint: string, name: string) {
       console.error(`❌ Error en ${name}:`, data)
       return false
     }
-  } catch (error) {
+  } catch (error: any) {
+    // Manejo específico de timeouts de undici (HeadersTimeoutError)
+    const causeCode = error?.cause?.code || error?.code
+    if (opts.allowTimeout && causeCode === 'UND_ERR_HEADERS_TIMEOUT') {
+      console.warn(
+        `⚠️ ${name} devolvió un timeout de cabeceras (UND_ERR_HEADERS_TIMEOUT).\n` +
+          '   El job de FRED probablemente sigue ejecutándose en el servidor aunque esta llamada haya expirado.\n' +
+          '   Continuando con el resto de jobs (correlaciones y bias)...'
+      )
+      return true
+    }
+
     console.error(`❌ Error al llamar al endpoint ${name}:`, error)
     return false
   }
@@ -58,7 +77,9 @@ async function updateAll() {
   console.log('🚀 Actualizando todos los datos del dashboard...\n')
   
   // 1. Actualizar datos FRED
-  const fredOk = await callEndpoint('/api/jobs/ingest/fred', 'Actualizando datos FRED')
+  const fredOk = await callEndpoint('/api/jobs/ingest/fred', 'Actualizando datos FRED', {
+    allowTimeout: true,
+  })
   if (!fredOk) {
     console.error('❌ Falló la actualización de FRED, abortando...')
     process.exit(1)
@@ -87,5 +108,8 @@ async function updateAll() {
 }
 
 updateAll()
+
+
+
 
 

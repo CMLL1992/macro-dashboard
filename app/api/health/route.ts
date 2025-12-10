@@ -11,6 +11,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { getMacroDiagnosis } from '@/domain/diagnostic'
+import { getDB } from '@/lib/db/schema'
+import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 
 export async function GET() {
   try {
@@ -19,13 +21,38 @@ export async function GET() {
     const items = dashboard?.items ?? []
     const hasData = Array.isArray(items) && items.length > 0
 
-    // getMacroDiagnosis doesn't return tacticalRows or correlations
-    // These would need to come from getDashboardData() if needed
-    // For now, we'll use items.length as the main indicator
-    const biasCount = 0 // Not available from getMacroDiagnosis
-    const correlationCount = 0 // Not available from getMacroDiagnosis
+    // Get actual counts from database
+    let biasCount = 0
+    let correlationCount = 0
+    
+    try {
+      if (isUsingTurso()) {
+        const db = getUnifiedDB()
+        const biasResult = await db.prepare('SELECT COUNT(1) as c FROM macro_bias').first() as { c: number } | null
+        const corrResult = await db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').first() as { c: number } | null
+        biasCount = biasResult?.c || 0
+        correlationCount = corrResult?.c || 0
+      } else {
+        const db = getDB()
+        const biasResult = db.prepare('SELECT COUNT(1) as c FROM macro_bias').get() as { c: number } | undefined
+        const corrResult = db.prepare('SELECT COUNT(1) as c FROM correlations WHERE value IS NOT NULL').get() as { c: number } | undefined
+        biasCount = biasResult?.c || 0
+        correlationCount = corrResult?.c || 0
+      }
+    } catch (dbError) {
+      console.warn('[api/health] Error counting bias/correlations:', dbError)
+      // Continue with 0 counts if query fails
+    }
 
     const latestDate = dashboard?.lastUpdated ?? null
+
+    // Database configuration info
+    const usingTurso = isUsingTurso()
+    const dbConfig = {
+      type: usingTurso ? 'Turso' : 'SQLite',
+      isProduction: process.env.NODE_ENV === 'production',
+      isVercel: !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_URL),
+    }
 
     return NextResponse.json({
       ready: hasData,
@@ -34,6 +61,7 @@ export async function GET() {
       biasCount,
       correlationCount,
       latestDate,
+      database: dbConfig,
       health: {
         hasObservations: hasData,
         hasBias: biasCount > 0,

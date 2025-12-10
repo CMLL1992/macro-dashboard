@@ -21,6 +21,26 @@ jobs:
           CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
           APP_URL: ${{ secrets.APP_URL }}
 
+      - name: Ingest UK Indicators
+        run: |
+          echo "🔄 Ingestando indicadores UK (GBP)..."
+          curl -sS -X POST \
+            -H "Authorization: Bearer $CRON_TOKEN" \
+            "${APP_URL}/api/jobs/ingest/uk" | jq '{success, ingested, errors}' || echo "⚠️ UK ingestion failed (non-critical)"
+        env:
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+          APP_URL: ${{ secrets.APP_URL }}
+
+      - name: Ingest Japan Indicators
+        run: |
+          echo "🔄 Ingestando indicadores Japón (JPY)..."
+          curl -sS -X POST \
+            -H "Authorization: Bearer $CRON_TOKEN" \
+            "${APP_URL}/api/jobs/ingest/jp" | jq '{success, ingested, errors}' || echo "⚠️ Japan ingestion failed (non-critical)"
+        env:
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+          APP_URL: ${{ secrets.APP_URL }}
+
       - name: Correlations
         run: |
           echo "🔄 Calculando correlaciones..."
@@ -37,6 +57,26 @@ jobs:
           curl -sS -X POST \
             -H "Authorization: Bearer $CRON_TOKEN" \
             "${APP_URL}/api/jobs/compute/bias" | jq '{ok}' || echo "Error en bias"
+        env:
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+          APP_URL: ${{ secrets.APP_URL }}
+
+      - name: Auto-ingest PMI from calendar
+        run: |
+          echo "🔄 Intentando ingesta automática de PMI desde calendario..."
+          curl -sS -X POST \
+            -H "Authorization: Bearer $CRON_TOKEN" \
+            "${APP_URL}/api/jobs/ingest/pmi" | jq '{success, ingested, skipped}' || echo "⚠️ PMI auto-ingest failed (non-critical)"
+        env:
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+          APP_URL: ${{ secrets.APP_URL }}
+
+      - name: Update Calendar Events
+        run: |
+          echo "📅 Actualizando calendario macroeconómico..."
+          curl -sS -X POST \
+            -H "Authorization: Bearer $CRON_TOKEN" \
+            "${APP_URL}/api/jobs/calendar/update" | jq '{success, inserted, updated, total}' || echo "⚠️ Calendar update failed (non-critical)"
         env:
           CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
           APP_URL: ${{ secrets.APP_URL }}

@@ -1,65 +1,73 @@
 /**
- * Weekly ahead notification job
+ * Weekly summary job
  * POST /api/jobs/weekly
  * 
- * Can be called manually or by scheduler
+ * Envía los domingos:
+ * 1. Resumen de calendario de la próxima semana
+ * 2. Resumen macroeconómico completo
+ * 
+ * Protegido con CRON_TOKEN
  */
 
-import { NextRequest, NextResponse } from 'next/server'
-import { sendWeeklyAhead } from '@/lib/notifications/weekly'
-import { validateCronToken } from '@/lib/security/token'
-import { validateIngestKeyWithError } from '@/lib/security/ingest'
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
-  // Allow Vercel cron jobs (they send x-vercel-cron header)
-  const isVercelCron = request.headers.get('x-vercel-cron') === '1'
-  
-  // Validate ingest key (production) or cron token (admin/manual in dev)
-  const ingestValid = validateIngestKeyWithError(request)
-  
-  // In production, INGEST_KEY is required (unless it's a Vercel cron)
-  if (process.env.NODE_ENV === 'production' && !ingestValid.valid && !isVercelCron) {
-    return NextResponse.json(
-      { error: ingestValid.error || 'INGEST_KEY is required in production' },
-      { status: 400 }
-    )
-  }
-  
-  // In development, allow CRON_TOKEN as fallback
-  const cronValid = process.env.NODE_ENV !== 'production' && process.env.ENABLE_TELEGRAM_TESTS === 'true'
-    ? validateCronToken(request)
-    : false
-  
-  // Allow if: valid ingest key, valid cron token (dev), or Vercel cron
-  if (!ingestValid.valid && !cronValid && !isVercelCron) {
-    return NextResponse.json(
-      { error: ingestValid.error || 'Unauthorized. Provide X-INGEST-KEY header' + (process.env.NODE_ENV !== 'production' ? ' or CRON_TOKEN (dev only)' : '') + ' or call from Vercel cron' },
+import { assertCronAuth } from '@/lib/security/cron'
+import { sendWeeklyCalendarSummary } from '@/lib/notifications/calendar'
+import { sendWeeklyMacroSummary } from '@/lib/notifications/macro-summary'
+import { recordJobSuccess, recordJobError } from '@/lib/db/job-status'
+
+export async function POST(req: Request) {
+  // Verificar autenticación
+  try {
+    assertCronAuth(req as any)
+  } catch (authError) {
+    return Response.json(
+      { error: authError instanceof Error ? authError.message : 'Unauthorized' },
       { status: 401 }
     )
   }
 
   try {
-    const result = await sendWeeklyAhead()
-
-    if (result.success) {
-      return NextResponse.json({
+    console.log('[jobs/weekly] ===== Starting weekly summary =====')
+    
+    // Verificar que es domingo (opcional, pero recomendado)
+    const now = new Date()
+    const dayOfWeek = now.getDay() // 0 = domingo, 6 = sábado
+    
+    if (dayOfWeek !== 0) {
+      console.log(`[jobs/weekly] Not Sunday (day ${dayOfWeek}), skipping weekly summary`)
+      return Response.json({
         success: true,
-        eventCount: result.eventCount,
-        message: 'Weekly ahead notification sent',
+        skipped: true,
+        reason: 'Not Sunday',
+        message: 'Weekly summary only runs on Sundays',
       })
-    } else {
-      return NextResponse.json({
-        success: false,
-        error: result.error,
-      }, { status: 500 })
     }
+
+    // Enviar resumen de calendario de la próxima semana
+    await sendWeeklyCalendarSummary()
+    console.log('[jobs/weekly] ✅ Calendar summary sent')
+    
+    // Enviar resumen macroeconómico completo
+    await sendWeeklyMacroSummary()
+    console.log('[jobs/weekly] ✅ Macro summary sent')
+    
+    await recordJobSuccess('weekly/summary')
+    
+    console.log('[jobs/weekly] ===== Weekly summary completed =====')
+    
+    return Response.json({
+      success: true,
+      message: 'Weekly summaries sent (calendar + macro)',
+    })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     console.error('[jobs/weekly] Error:', errorMessage)
-    return NextResponse.json(
+    await recordJobError('weekly/summary', errorMessage)
+    return Response.json(
       { success: false, error: errorMessage },
       { status: 500 }
     )
   }
 }
-

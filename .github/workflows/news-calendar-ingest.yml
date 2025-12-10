@@ -90,6 +90,16 @@ jobs:
           NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
           TRADING_ECONOMICS_API_KEY: ${{ secrets.TRADING_ECONOMICS_API_KEY }}
 
+      - name: Auto-ingest PMI from calendar
+        run: |
+          echo "🔄 Intentando ingesta automática de PMI desde calendario..."
+          curl -sS -X POST \
+            -H "Authorization: Bearer $CRON_TOKEN" \
+            "${APP_URL}/api/jobs/ingest/pmi" | jq '{success, ingested, skipped}' || echo "⚠️ PMI auto-ingest failed (non-critical)"
+        env:
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+          APP_URL: ${{ secrets.APP_URL }}
+
       - name: Report results
         if: always()
         run: |

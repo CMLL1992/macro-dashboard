@@ -62,6 +62,7 @@ export type BiasRow = {
   category?: string
   date?: string | null
   date_previous?: string | null
+  observation_period?: string | null // Periodo del dato (observation_date) para mostrar en tooltip
   originalKey?: string | null
   unit?: string | null
 }
@@ -80,6 +81,14 @@ export type TacticalBiasRow = {
   corr12m?: number | null
   corr3m?: number | null
   motive?: string
+  last_relevant_event?: {
+    currency: string
+    name: string
+    surprise_direction: string
+    surprise_score: number
+    release_time_utc: string
+  } | null
+  updated_after_last_event?: boolean
 }
 
 export type BiasState = {
@@ -91,6 +100,13 @@ export type BiasState = {
     liquidity: string
     credit: string
     risk: string
+  }
+  currencyRegimes?: {
+    USD?: { regime: string; probability: number; description: string }
+    EUR?: { regime: string; probability: number; description: string }
+    GBP?: { regime: string; probability: number; description: string }
+    JPY?: { regime: string; probability: number; description: string }
+    AUD?: { regime: string; probability: number; description: string }
   }
   metrics: {
     usdScore: number
@@ -109,6 +125,13 @@ type BiasRawPayload = {
   tableTactical: TacticalBiasRow[]
   latestObservations: LatestMacroObservations
   updatedAt: Date
+  currencyRegimes?: {
+    USD?: { regime: string; probability: number; description: string }
+    EUR?: { regime: string; probability: number; description: string }
+    GBP?: { regime: string; probability: number; description: string }
+    JPY?: { regime: string; probability: number; description: string }
+    AUD?: { regime: string; probability: number; description: string }
+  }
 }
 
 const SERIES_ALIASES = {
@@ -162,16 +185,23 @@ function getSeriesSnapshot(observations: LatestMacroObservations, aliases: strin
 
 export async function getBiasRaw(): Promise<BiasRawPayload> {
   const diagnosis = await getMacroDiagnosisWithDelta()
-  const latestPoints = diagnosis.items as LatestPoint[]
+  if (!diagnosis || !diagnosis.items) {
+    throw new Error('getMacroDiagnosisWithDelta returned invalid data')
+  }
+  const latestPoints = (diagnosis.items || []) as LatestPoint[]
   const corrMap = await getCorrMap()
   const usdStrength = legacyUsdBias(latestPoints)
+  const currencyScores = (diagnosis as any).currencyScores // Obtener currencyScores del diagnosis
+  const currencyRegimes = (diagnosis as any).currencyRegimes // Obtener currencyRegimes del diagnosis
+  
   const legacyRows = await legacyGetBiasTableTactical(
     latestPoints,
     diagnosis.regime,
     usdStrength,
     diagnosis.score,
     [],
-    corrMap
+    corrMap,
+    currencyScores // Pasar currencyScores a getBiasTableTactical
   )
 
   let tacticalRows = getBiasTableTactical(legacyRows)
@@ -188,6 +218,19 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
       
       if (symbols.length > 0) {
         const correlationsMap = await getCorrelationsForSymbols(symbols, 'DXY')
+        
+        // Debug: log what we got from DB
+        if (process.env.DEBUG_DASHBOARD === 'true' || process.env.NODE_ENV === 'development') {
+          console.log('[macro-engine/bias] Enriching correlations:', {
+            symbolsRequested: symbols,
+            correlationsFound: Array.from(correlationsMap.entries()).map(([sym, corr]) => ({
+              symbol: sym,
+              corr12m: corr.corr12m,
+              corr3m: corr.corr3m,
+            })),
+          })
+        }
+        
         // Only update if we got results (map might be empty on error, but that's OK)
         tacticalRows = tacticalRows.map((row) => {
           const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
@@ -275,26 +318,117 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
   // Esto refleja cuándo se calculó el bias state, no cuándo se actualizaron los datos macro
   const updatedAt = new Date()
 
-  const table: BiasRow[] = latestPoints.map((item: any) => {
+  // Import WEIGHTS and MAP_KEY_TO_WEIGHT_KEY once before the map
+  const { WEIGHTS } = await import('@/domain/posture')
+  const { MAP_KEY_TO_WEIGHT_KEY } = await import('@/domain/diagnostic')
+  
+  // Validate imports
+  if (!WEIGHTS || !MAP_KEY_TO_WEIGHT_KEY) {
+    throw new Error('Failed to load WEIGHTS or MAP_KEY_TO_WEIGHT_KEY')
+  }
+  
+  const table: BiasRow[] = latestPoints.map((item: LatestPointWithPrev) => {
+    // Skip if item is null or undefined
+    if (!item) {
+      return null
+    }
+    
     // Ensure date is converted from undefined to null for consistency
     const dateValue = item.date ?? null
     const datePreviousValue = item.date_previous ?? null
+    const observationPeriod = item.observation_period ?? null
+    
+    // Get weight - use item.weight if available and > 0, otherwise calculate from key
+    let weight = (item.weight != null && item.weight > 0) ? item.weight : null
+    const originalKey = item.originalKey ?? item.key ?? null
+    
+    if (weight == null && originalKey) {
+      // Fallback: try to get weight from WEIGHTS using the key
+      const weightKey = (MAP_KEY_TO_WEIGHT_KEY && MAP_KEY_TO_WEIGHT_KEY[originalKey]) ? MAP_KEY_TO_WEIGHT_KEY[originalKey] : (item.key ?? originalKey)
+      weight = (WEIGHTS && weightKey) ? (WEIGHTS[weightKey] ?? null) : null
+      
+      // DEBUG: Log for corepce_yoy specifically
+      if (originalKey === 'corepce_yoy') {
+        console.log(`[getBiasRaw] DEBUG corepce_yoy:`, {
+          key: item.key,
+          originalKey,
+          itemWeight: item.weight,
+          weightKey,
+          weightFromWEIGHTS: WEIGHTS[weightKey],
+          finalWeight: weight,
+        })
+      }
+    }
+    
+    // DEBUG: Log for indicators without weight (corepce_yoy, pmi_mfg, jolts_openings_yoy)
+    if (weight == null && (originalKey === 'corepce_yoy' || originalKey === 'pmi_mfg' || originalKey === 'jolts_openings')) {
+      const debugWeightKey = (MAP_KEY_TO_WEIGHT_KEY && originalKey) ? MAP_KEY_TO_WEIGHT_KEY[originalKey] : null
+      console.log(`[getBiasRaw] DEBUG: Indicator without weight:`, {
+        key: item.key,
+        originalKey,
+        weight,
+        itemWeight: item.weight,
+        weightKey: debugWeightKey,
+        weightFromWEIGHTS: (debugWeightKey && WEIGHTS) ? WEIGHTS[debugWeightKey] : null,
+      })
+    }
     
     return {
-      key: item.key,
-      label: item.label,
+      key: item.key ?? null,
+      label: item.label ?? null,
       value: item.value ?? null,
       value_previous: item.value_previous ?? null,
       trend: item.trend ?? null,
       posture: item.posture ?? null,
-      weight: item.weight ?? null,
+      weight: weight,
       category: item.category ?? categoryFor(item.key ?? item.originalKey ?? ''),
       date: dateValue,
       date_previous: datePreviousValue,
+      observation_period: observationPeriod,
       originalKey: item.originalKey ?? item.key ?? null,
       unit: item.unit ?? null,
     }
-  })
+  }).filter((item): item is NonNullable<typeof item> => item !== null)
+  
+  // DEBUG: Log final European rows in table
+  const euRows = table.filter(r => (r.originalKey ?? r.key ?? '').startsWith('eu_'))
+  if (euRows.length > 0) {
+    console.log('[getBiasRaw] DEBUG: Final European rows in table:', euRows.map(r => ({
+      key: r.key,
+      originalKey: r.originalKey,
+      value: r.value,
+      label: r.label,
+    })))
+  }
+
+  // Convertir currencyRegimes del diagnosis al formato esperado
+  const regimes: BiasRawPayload['currencyRegimes'] = currencyRegimes ? {
+    USD: currencyRegimes.USD ? {
+      regime: currencyRegimes.USD.regime,
+      probability: currencyRegimes.USD.probability,
+      description: currencyRegimes.USD.description,
+    } : undefined,
+    EUR: currencyRegimes.EUR ? {
+      regime: currencyRegimes.EUR.regime,
+      probability: currencyRegimes.EUR.probability,
+      description: currencyRegimes.EUR.description,
+    } : undefined,
+    GBP: currencyRegimes.GBP ? {
+      regime: currencyRegimes.GBP.regime,
+      probability: currencyRegimes.GBP.probability,
+      description: currencyRegimes.GBP.description,
+    } : undefined,
+    JPY: currencyRegimes.JPY ? {
+      regime: currencyRegimes.JPY.regime,
+      probability: currencyRegimes.JPY.probability,
+      description: currencyRegimes.JPY.description,
+    } : undefined,
+    AUD: currencyRegimes.AUD ? {
+      regime: currencyRegimes.AUD.regime,
+      probability: currencyRegimes.AUD.probability,
+      description: currencyRegimes.AUD.description,
+    } : undefined,
+  } : undefined
 
   return {
     latestPoints,
@@ -302,6 +436,7 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
     tableTactical: tacticalRows,
     latestObservations: observations,
     updatedAt,
+    currencyRegimes: regimes,
   }
 }
 
@@ -504,6 +639,7 @@ export function getBiasTable(rows: BiasRow[]): BiasRow[] {
     category: row.category ?? 'Otros',
     label: row.label ?? row.key ?? '',
     date: row.date ?? null,
+    observation_period: row.observation_period ?? null,
     weight: row.weight ?? null,
     originalKey: row.originalKey ?? row.key ?? null,
     unit: row.unit ?? null,
@@ -568,6 +704,7 @@ export async function getBiasState(): Promise<BiasState> {
         credit: credit.regime,
         risk: risk.regime,
       },
+      currencyRegimes: raw.currencyRegimes,
       metrics: {
         usdScore: usd.score,
         quadScore: quad.score,

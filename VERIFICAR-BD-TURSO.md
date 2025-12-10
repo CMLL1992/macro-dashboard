@@ -159,3 +159,15 @@ Después de alinear las configuraciones:
 - Verifica que las URLs de Turso son exactamente iguales
 - Ejecuta los jobs de ingestión en producción
 
+
+
+
+
+
+
+
+
+
+
+
+

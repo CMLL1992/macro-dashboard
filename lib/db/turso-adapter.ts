@@ -71,3 +71,15 @@ export async function executeSQL(sql: string, params: any[] = []): Promise<any> 
   throw new Error('executeSQL should only be used with Turso. Use getDB() for better-sqlite3')
 }
 
+
+
+
+
+
+
+
+
+
+
+
+

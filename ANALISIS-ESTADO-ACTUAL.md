@@ -78,7 +78,6 @@ Tu proyecto **CM11 Trading** es un dashboard de macroeconomía para trading que 
 
 **Mejoras sugeridas:**
 - [ ] Historial de narrativas (cómo han cambiado en el tiempo)
-- [ ] Backtesting de narrativas (¿qué tan acertadas fueron?)
 - [ ] Comparación de narrativas entre activos relacionados
 - [ ] Exportar narrativas a PDF
 
@@ -215,10 +214,9 @@ Tu proyecto **CM11 Trading** es un dashboard de macroeconomía para trading que 
    - PDF de narrativas
    - **Impacto:** Análisis externo
 
-5. **Historial y Backtesting**
+5. **Historial de Narrativas**
    - Historial de narrativas
-   - Backtesting de señales
-   - **Impacto:** Validación de estrategias
+   - **Impacto:** Seguimiento de cambios en el tiempo
 
 6. **Filtros y Búsqueda**
    - Filtros en tablas
@@ -295,7 +293,7 @@ Tu proyecto está en **excelente estado**. Tienes una base sólida, datos reales
 
 1. **Activar funcionalidades ya implementadas** (noticias, Telegram)
 2. **Mejorar la visualización** (gráficos, heatmaps)
-3. **Añadir funcionalidades de análisis** (historial, backtesting)
+3. **Añadir funcionalidades de análisis** (historial de narrativas)
 
 El proyecto está listo para uso en producción y tiene un gran potencial de crecimiento.
 

@@ -1,16 +1,40 @@
 {
-  "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm build",
-  "framework": "nextjs",
   "crons": [
     {
-      "path": "/api/jobs/daily-update",
+      "path": "/api/jobs/ingest/fred",
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/jobs/ingest/european",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/jobs/ingest/calendar",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/jobs/correlations",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/jobs/compute/bias",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/jobs/notify/calendar",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/jobs/daily/calendar",
+      "schedule": "0 8 * * *"
+    },
+    {
       "path": "/api/jobs/weekly",
-      "schedule": "0 17 * * 0"
+      "schedule": "0 18 * * 0"
+    },
+    {
+      "path": "/api/jobs/ingest/releases",
+      "schedule": "*/5 8-20 * * *"
     }
   ]
 }
-

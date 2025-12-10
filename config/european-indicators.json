@@ -1,0 +1,141 @@
+{
+  "indicators": [
+    {
+      "id": "EU_GDP_QOQ",
+      "name": "PIB Eurozona (QoQ)",
+      "source": "ecb",
+      "flow": "MNA",
+      "key": "Q.Y.I8.W2.S1.S1.B.B1GQ._Z._Z._Z.EUR.LR.N",
+      "frequency": "Q",
+      "category": "Crecimiento / Actividad",
+      "importance": 3,
+      "description": "Gross Domestic Product - Quarter-on-Quarter growth rate for Eurozone"
+    },
+    {
+      "id": "EU_GDP_YOY",
+      "name": "PIB Eurozona (YoY)",
+      "source": "ecb",
+      "flow": "MNA",
+      "key": "Q.Y.I8.W2.S1.S1.B.B1GQ._Z._Z._Z.EUR.LR.N",
+      "frequency": "Q",
+      "category": "Crecimiento / Actividad",
+      "importance": 3,
+      "description": "Gross Domestic Product - Year-on-Year growth rate for Eurozone (calculated from quarterly data)"
+    },
+    {
+      "id": "EU_CPI_YOY",
+      "name": "Inflación Eurozona (CPI YoY)",
+      "source": "ecb",
+      "flow": "ICP",
+      "key": "M.U2.Y.000000.3.INX",
+      "frequency": "M",
+      "category": "Precios / Inflación",
+      "importance": 3,
+      "description": "Harmonised Index of Consumer Prices (HICP) - Year-on-Year for Eurozone"
+    },
+    {
+      "id": "EU_CPI_CORE_YOY",
+      "name": "Inflación Core Eurozona (Core CPI YoY)",
+      "source": "ecb",
+      "flow": "ICP",
+      "key": "M.U2.Y.XEF000.3.INX",
+      "frequency": "M",
+      "category": "Precios / Inflación",
+      "importance": 3,
+      "description": "HICP excluding Energy and Food - Year-on-Year for Eurozone"
+    },
+    {
+      "id": "EU_UNEMPLOYMENT",
+      "name": "Tasa de Desempleo Eurozona",
+      "source": "ecb",
+      "flow": "LFSI",
+      "key": "M.I8.S.UNEHRT.TOTAL0.15_74.T",
+      "frequency": "M",
+      "category": "Mercado laboral",
+      "importance": 3,
+      "description": "Unemployment Rate for Eurozone (Labour Force Survey, 15-74 years, total)"
+    },
+    {
+      "id": "EU_PMI_MANUFACTURING",
+      "name": "Confianza Empresarial Manufacturera Eurozona",
+      "source": "fred",
+      "series_id": "BSCICP02EZM460S",
+      "frequency": "M",
+      "category": "Crecimiento / Actividad",
+      "importance": 3,
+      "description": "Business Tendency Surveys (Manufacturing): Confidence Indicators for Euro Area (19 Countries) - FRED alternative to PMI"
+    },
+    {
+      "id": "EU_PMI_SERVICES",
+      "name": "Confianza Empresarial Servicios Eurozona",
+      "source": "fred",
+      "series_id": "BVCICP02EZM460S",
+      "frequency": "M",
+      "category": "Crecimiento / Actividad",
+      "importance": 3,
+      "description": "Business Tendency Surveys: Composite Business Confidence: Economic Activity: Services for Euro Area (19 Countries) - FRED alternative to PMI"
+    },
+    {
+      "id": "EU_PMI_COMPOSITE",
+      "name": "PMI Compuesto Eurozona",
+      "source": "trading_economics",
+      "series": "pmi composite",
+      "frequency": "M",
+      "category": "Crecimiento / Actividad",
+      "importance": 3,
+      "description": "PMI Composite Index for Euro Area - From Trading Economics / S&P Global (requires paid plan for Euro Area access)"
+    },
+    {
+      "id": "EU_ECB_RATE",
+      "name": "Tasa de Interés BCE (Main Refinancing Rate)",
+      "source": "ecb",
+      "flow": "FM",
+      "key": "B.U2.EUR.4F.KR.MRR_FR.LEV",
+      "frequency": "B",
+      "category": "Otros",
+      "importance": 3,
+      "description": "ECB Main Refinancing Operations Rate (business frequency, fechas de cambio)"
+    },
+    {
+      "id": "EU_RETAIL_SALES_YOY",
+      "name": "Ventas Minoristas Eurozona (YoY)",
+      "source": "ecb_sdw",
+      "code": "STS/M.I9.Y.TOVV.2G4700.4.000",
+      "frequency": "M",
+      "category": "Crecimiento / Actividad",
+      "importance": 2,
+      "description": "Retail Trade Turnover Index (2021=100) for Euro Area - YoY calculated from index values. From ECB SDW (updated monthly)"
+    },
+    {
+      "id": "EU_INDUSTRIAL_PRODUCTION_YOY",
+      "name": "Producción Industrial Eurozona (YoY)",
+      "source": "ecb_sdw",
+      "code": "STS/M.I9.Y.PROD.NS0020.4.000",
+      "frequency": "M",
+      "category": "Crecimiento / Actividad",
+      "importance": 2,
+      "description": "Industrial Production Index (2021=100) for Euro Area - YoY calculated from index values. From ECB SDW (updated monthly)"
+    },
+    {
+      "id": "EU_CONSUMER_CONFIDENCE",
+      "name": "Confianza del Consumidor Eurozona",
+      "source": "fred",
+      "series_id": "CSCICP03EZM665S",
+      "frequency": "M",
+      "category": "Encuestas",
+      "importance": 2,
+      "description": "Consumer Opinion Surveys: Composite Consumer Confidence for Euro Area (19 countries), seasonally adjusted - FRED alternative"
+    },
+    {
+      "id": "EU_ZEW_SENTIMENT",
+      "name": "Economic Sentiment Indicator Eurozona (ESI)",
+      "source": "econdify",
+      "country": "EZ",
+      "indicator": "Economic_Sentiment",
+      "frequency": "M",
+      "category": "Encuestas",
+      "importance": 3,
+      "description": "Economic Sentiment Indicator (ESI) for Eurozone - Eurostat alternative to ZEW, via Econdify API"
+    }
+  ]
+}

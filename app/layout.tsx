@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import NavBar from '@/components/NavBar'
+import { ThemeProvider } from '@/components/ThemeProvider'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -17,8 +18,10 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground antialiased">
-        <NavBar />
-        <main className="pt-4">{children}</main>
+        <ThemeProvider>
+          <NavBar />
+          <main className="pt-4">{children}</main>
+        </ThemeProvider>
       </body>
     </html>
   )

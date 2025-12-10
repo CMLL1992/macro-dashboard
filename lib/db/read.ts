@@ -325,15 +325,16 @@ export async function getAllCorrelationsFromDB(base: string = 'DXY'): Promise<Ar
   corr6: number | null
   corr24: number | null
 }>> {
-  let rows: Array<{ symbol: string; window: string; value: number }>
+  // Get all correlations (including NULL values) to show all assets
+  let rows: Array<{ symbol: string; window: string; value: number | null }>
   if (isUsingTurso()) {
     const db = getUnifiedDB()
-    rows = await db.prepare('SELECT symbol, window, value FROM correlations WHERE base = ? AND value IS NOT NULL').all(base.toUpperCase()) as Array<{ symbol: string; window: string; value: number }>
+    rows = await db.prepare('SELECT symbol, window, value FROM correlations WHERE base = ?').all(base.toUpperCase()) as Array<{ symbol: string; window: string; value: number | null }>
   } else {
     const db = getDB()
     rows = db
-      .prepare('SELECT symbol, window, value FROM correlations WHERE base = ? AND value IS NOT NULL')
-      .all(base.toUpperCase()) as Array<{ symbol: string; window: string; value: number }>
+      .prepare('SELECT symbol, window, value FROM correlations WHERE base = ?')
+      .all(base.toUpperCase()) as Array<{ symbol: string; window: string; value: number | null }>
   }
 
   // Group by symbol
@@ -356,6 +357,21 @@ export async function getAllCorrelationsFromDB(base: string = 'DXY'): Promise<Ar
       entry.corr3 = row.value
     }
     // Note: 6m and 24m are not stored in DB, only 12m and 3m
+  }
+
+  // Also include all assets from universe that might not have correlations yet
+  try {
+    const { getActiveSymbols } = await import('@/lib/correlations/fetch')
+    const allSymbols = await getActiveSymbols()
+    for (const symbol of allSymbols) {
+      const normalized = symbol.toUpperCase()
+      if (!bySymbol.has(normalized)) {
+        bySymbol.set(normalized, { corr12: null, corr3: null, corr6: null, corr24: null })
+      }
+    }
+  } catch (error) {
+    // If we can't get active symbols, just return what we have
+    console.warn('[getAllCorrelationsFromDB] Could not get active symbols:', error)
   }
 
   // Convert to array format (symbols are already normalized in DB as uppercase)

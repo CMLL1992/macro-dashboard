@@ -1,7 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ASSET_CATEGORIES } from '@/lib/assets'
+import { getAssetCategorySafe } from '@/lib/assets'
+import { cn } from '@/lib/utils'
+import { formatDistanceToNow } from 'date-fns'
+import { es } from 'date-fns/locale'
 
 type TacticalRow = {
   pair: string
@@ -10,6 +13,14 @@ type TacticalRow = {
   confidence: string
   corr12m?: number | null
   corr3m?: number | null
+  last_relevant_event?: {
+    currency: string
+    name: string
+    surprise_direction: string
+    surprise_score: number
+    release_time_utc: string
+  } | null
+  updated_after_last_event?: boolean
 }
 
 type Props = {
@@ -40,8 +51,7 @@ export default function TacticalTablesClient({ rows }: Props) {
   const rowsWithCategory = useMemo(() => {
     return rows
       .map((row) => {
-        const symbol = row.pair.replace('/', '').toUpperCase()
-        const category = ASSET_CATEGORIES[symbol]
+        const category = getAssetCategorySafe(row.pair)
         return { ...row, category }
       })
       .filter((row) => row.category)
@@ -58,6 +68,15 @@ export default function TacticalTablesClient({ rows }: Props) {
     )
   }, [rowsWithCategory, search])
 
+  // Función para extraer la moneda base de un par forex
+  const getBaseCurrency = (pair: string): string | null => {
+    const match = pair.match(/^([A-Z]{3})\//)
+    return match ? match[1] : null
+  }
+
+  // Orden de monedas base preferido
+  const currencyOrder = ['EUR', 'USD', 'GBP', 'JPY', 'AUD', 'NZD', 'CAD', 'CHF', 'XAU', 'XAG']
+
   const byCategory = useMemo(() => {
     const groups: Record<string, TacticalRow[]> = {}
     for (const row of filtered) {
@@ -65,6 +84,47 @@ export default function TacticalTablesClient({ rows }: Props) {
       if (!groups[cat]) groups[cat] = []
       groups[cat].push(row)
     }
+    
+    // Para forex, agrupar y ordenar por moneda base
+    if (groups['forex']) {
+      const forexRows = groups['forex']
+      const byCurrency: Record<string, TacticalRow[]> = {}
+      
+      // Agrupar por moneda base
+      for (const row of forexRows) {
+        const base = getBaseCurrency(row.pair)
+        if (base) {
+          if (!byCurrency[base]) byCurrency[base] = []
+          byCurrency[base].push(row)
+        } else {
+          // Si no se puede extraer la moneda base, poner en "OTHER"
+          if (!byCurrency['OTHER']) byCurrency['OTHER'] = []
+          byCurrency['OTHER'].push(row)
+        }
+      }
+      
+      // Ordenar cada grupo internamente
+      for (const currency in byCurrency) {
+        byCurrency[currency].sort((a, b) => a.pair.localeCompare(b.pair))
+      }
+      
+      // Reordenar según el orden preferido
+      const orderedForex: TacticalRow[] = []
+      for (const currency of currencyOrder) {
+        if (byCurrency[currency]) {
+          orderedForex.push(...byCurrency[currency])
+        }
+      }
+      // Añadir los que no están en el orden preferido
+      for (const currency in byCurrency) {
+        if (!currencyOrder.includes(currency)) {
+          orderedForex.push(...byCurrency[currency])
+        }
+      }
+      
+      groups['forex'] = orderedForex
+    }
+    
     return groups
   }, [filtered])
 
@@ -78,7 +138,7 @@ export default function TacticalTablesClient({ rows }: Props) {
   const hasAny = filtered.length > 0
 
   return (
-    <section className="rounded-lg border bg-white p-6 space-y-6">
+    <section className="rounded-lg border bg-card p-6 space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h2 className="text-lg font-semibold">Vista rápida de pares tácticos</h2>
         <div className="flex items-center gap-2">
@@ -110,7 +170,7 @@ export default function TacticalTablesClient({ rows }: Props) {
                 {rowsCat.length} activos
               </span>
             </summary>
-            <div className="border-t bg-white">
+            <div className="border-t bg-card">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="bg-muted/40">
@@ -123,32 +183,131 @@ export default function TacticalTablesClient({ rows }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rowsCat.map((row) => (
-                    <tr key={row.pair} className="border-t">
-                      <td className="px-4 py-2">{row.pair}</td>
-                      <td className="px-4 py-2">{row.trend}</td>
-                      <td className="px-4 py-2">
-                        <span
-                          className={
-                            row.action.toLowerCase().includes('compr')
-                              ? 'text-green-600'
-                              : row.action.toLowerCase().includes('venta')
-                                ? 'text-red-600'
-                                : ''
-                          }
+                  {rowsCat.flatMap((row, index) => {
+                    const confidence = (row.confidence || '').toLowerCase()
+                    const isHighConfidence = confidence === 'alta' || confidence === 'high'
+                    const isMediumConfidence = confidence === 'media' || confidence === 'medium'
+                    
+                    // Solo remarcar si tiene acción clara (no "Rango/táctico")
+                    const action = (row.action || '').toLowerCase()
+                    const hasClearAction = action.includes('compr') || action.includes('venta') || action.includes('buy') || action.includes('sell')
+                    const shouldHighlight = hasClearAction && (isHighConfidence || isMediumConfidence)
+                    
+                    const baseCurrency = cat === 'forex' ? getBaseCurrency(row.pair) : null
+                    const prevBaseCurrency = index > 0 && cat === 'forex' ? getBaseCurrency(rowsCat[index - 1].pair) : null
+                    const isNewCurrencyGroup = baseCurrency && baseCurrency !== prevBaseCurrency
+                    
+                    const elements = []
+                    
+                    if (isNewCurrencyGroup && index > 0) {
+                      elements.push(
+                        <tr key={`separator-${row.pair}`} className="border-t-2 border-border">
+                          <td colSpan={6} className="px-4 py-1 bg-muted"></td>
+                        </tr>
+                      )
+                    }
+                    
+                    const lastEvent = row.last_relevant_event
+                    const isUpdated = row.updated_after_last_event
+                    const timeAgo = lastEvent
+                      ? formatDistanceToNow(new Date(lastEvent.release_time_utc), {
+                          addSuffix: true,
+                          locale: es,
+                        })
+                      : null
+
+                    elements.push(
+                      <>
+                        <tr 
+                          key={row.pair} 
+                          className={cn(
+                            'border-t',
+                            // Verde: Confianza Alta con acción clara
+                            isHighConfidence && hasClearAction && 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800',
+                            // Azul: Confianza Media con acción clara
+                            isMediumConfidence && hasClearAction && !isHighConfidence && 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
+                          )}
                         >
-                          {row.action}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2">{row.confidence}</td>
-                      <td className="px-4 py-2 text-right">
-                        {formatCorr(row.corr12m as any)}
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        {formatCorr(row.corr3m as any)}
-                      </td>
-                    </tr>
-                  ))}
+                          <td className={cn(
+                            'px-4 py-2',
+                            isHighConfidence && hasClearAction && 'font-semibold',
+                            isMediumConfidence && hasClearAction && !isHighConfidence && 'font-medium'
+                          )}>
+                            {row.pair}
+                          </td>
+                          <td className="px-4 py-2">{row.trend}</td>
+                          <td className="px-4 py-2">
+                            <span
+                              className={
+                                row.action.toLowerCase().includes('compr')
+                                  ? 'text-green-600 dark:text-green-400'
+                                  : row.action.toLowerCase().includes('venta')
+                                    ? 'text-red-600 dark:text-red-400'
+                                    : ''
+                              }
+                            >
+                              {row.action}
+                            </span>
+                          </td>
+                          <td className={cn(
+                            'px-4 py-2',
+                            isHighConfidence && hasClearAction && 'font-semibold text-emerald-700 dark:text-emerald-400',
+                            isMediumConfidence && hasClearAction && !isHighConfidence && 'font-medium text-blue-700 dark:text-blue-400'
+                          )}>
+                            {row.confidence}
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            {formatCorr(row.corr12m as any)}
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            {formatCorr(row.corr3m as any)}
+                          </td>
+                        </tr>
+                        {lastEvent && (
+                          <tr key={`${row.pair}-event`} className="border-t bg-muted/50">
+                            <td colSpan={6} className="px-4 py-2 text-xs text-foreground">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium">Último evento relevante:</span>
+                                <span className="font-mono text-foreground">
+                                  [{lastEvent.currency}] {lastEvent.name}
+                                </span>
+                                <span
+                                  className={cn(
+                                    'px-1.5 py-0.5 rounded text-xs font-medium',
+                                    lastEvent.surprise_direction === 'positive'
+                                      ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
+                                      : lastEvent.surprise_direction === 'negative'
+                                      ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+                                      : 'bg-muted text-muted-foreground'
+                                  )}
+                                >
+                                  Sorpresa{' '}
+                                  {lastEvent.surprise_direction === 'positive'
+                                    ? 'POSITIVA'
+                                    : lastEvent.surprise_direction === 'negative'
+                                    ? 'NEGATIVA'
+                                    : 'NEUTRAL'}{' '}
+                                  (score: {lastEvent.surprise_score.toFixed(2)})
+                                </span>
+                                {timeAgo && <span className="text-muted-foreground">· {timeAgo}</span>}
+                                {isUpdated ? (
+                                  <span className="text-green-600 font-medium">
+                                    · Sesgo actualizado ✓
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-600 font-medium">
+                                    · Sesgo SIN actualizar ⚠
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    )
+                    
+                    return elements
+                  })}
                 </tbody>
               </table>
             </div>

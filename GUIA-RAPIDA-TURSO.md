@@ -94,3 +94,15 @@ bash scripts/force-update-now.sh
 
 Ver `CONFIGURAR-TURSO.md` para documentación completa.
 
+
+
+
+
+
+
+
+
+
+
+
+

@@ -16,10 +16,13 @@ import { z } from 'zod'
 
 const DEFAULT_WEIGHTS: Record<string, number> = {
   T10Y2Y: 0.08, T10Y3M: 0.07, T5YIE: 0.05, NFCI: 0.06,
-  GDPC1: 0.08, RSXFS: 0.04, INDPRO: 0.03, DGEXFI: 0.03, TTLCONS: 0.03,
+  GDPC1: 0.08, RSAFS: 0.04, INDPRO: 0.03, DGEXFI: 0.03, TTLCONS: 0.03,
   PAYEMS: 0.08, UNRATE: 0.06, ICSA: 0.03, PCEPI: 0.06, PCEPILFE: 0.06,
   CPIAUCSL: 0.04, CPILFESL: 0.03, PPIACO: 0.03, UMCSENT: 0.04,
   NFIBSL: 0.02, HOUST: 0.03, NAHB: 0.03, TCU: 0.02,
+  // Nuevos pesos: PMI manufacturero y JOLTS aperturas
+  USPMI: 0.04,
+  JTSJOL: 0.04,
 }
 
 const WeightsSchema = z.object({
@@ -53,7 +56,7 @@ const KEY_TO_SERIES: Record<string, string> = {
   twex: 'DTWEXBGS',
   gdp_qoq: 'GDPC1',
   gdp_yoy: 'GDPC1',
-  retail_yoy: 'RSXFS',
+  retail_yoy: 'RSAFS',
   indpro_yoy: 'INDPRO',
   caputil: 'TCU',
   durables_yoy: 'DGEXFI',
@@ -70,12 +73,12 @@ const KEY_TO_SERIES: Record<string, string> = {
   vix: 'VIXCLS',
   umich: 'UMCSENT',
   nfib: 'NFIBSL',
-  pmi_mfg: 'PMI_MFG',
+  pmi_mfg: 'USPMI',
   pmi_svcs: 'PMI_SVCS',
   housing_yoy: 'HOUST',
   nahb: 'NAHB',
   consumer_confidence: 'CONCCONF',
-  jolts_openings_yoy: 'JTSJOL',
+  jolts_openings: 'JTSJOL',
 }
 
 export function postureOf(key: string, value: number | null): Posture {
@@ -104,7 +107,7 @@ export function postureOf(key: string, value: number | null): Posture {
   }
 
   // Crecimiento (YoY): GDP, Retail, INDPRO, Durables, Construcción
-  if (k === 'GDPC1' || k === 'RSXFS' || k === 'INDPRO' || k === 'DGEXFI' || k === 'TTLCONS' || key.endsWith('_YOY')) {
+  if (k === 'GDPC1' || k === 'RSAFS' || k === 'INDPRO' || k === 'DGEXFI' || k === 'TTLCONS' || key.endsWith('_YOY')) {
     const thrLow = k === 'GDPC1' ? 1 : 0
     const thrHigh = k === 'GDPC1' ? 2.5 : 3
     if (value < thrLow) return 'Dovish'
@@ -141,6 +144,13 @@ export function postureOf(key: string, value: number | null): Posture {
   if (k === 'USSLIND') {
     if (value < 0) return 'Dovish'
     if (value <= 2) return 'Neutral'
+    return 'Hawkish'
+  }
+
+  // PMI manufacturero ISM (USPMI): <50 contracción, >52 expansión fuerte
+  if (k === 'USPMI') {
+    if (value < 50) return 'Dovish'
+    if (value <= 52) return 'Neutral'
     return 'Hawkish'
   }
 

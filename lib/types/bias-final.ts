@@ -16,8 +16,8 @@ export const BiasRowFinalSchema = z.object({
   confidence_level: ConfidenceLevelEnum,
   motivo_macro: z.string().min(1),
   corr_ref: z.string().min(1),
-  corr_12m: z.number().finite(),
-  corr_3m: z.number().finite(),
+  corr_12m: z.union([z.number().finite(), z.null()]).transform(val => val ?? 0),
+  corr_3m: z.union([z.number().finite(), z.null()]).transform(val => val ?? 0),
 })
 export type BiasRowFinal = z.infer<typeof BiasRowFinalSchema>
 

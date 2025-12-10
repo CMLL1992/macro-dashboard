@@ -19,36 +19,7 @@ export async function GET(request: NextRequest) {
     const nextMonth = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
     // Query directly to get ID
-    const { getDB } = await import('@/lib/db/schema')
-    const db = getDB()
-    
-    const rows = db.prepare(`
-      SELECT id, fecha, hora_local, pais, tema, evento, importancia, consenso
-      FROM macro_calendar
-      WHERE fecha >= ? AND fecha <= ?
-      ORDER BY fecha, hora_local
-      LIMIT ?
-    `).all(today, nextMonth, limit) as Array<{
-      id: number
-      fecha: string
-      hora_local: string | null
-      pais: string | null
-      tema: string
-      evento: string
-      importancia: string
-      consenso: string | null
-    }>
-
-    const events = rows.map(row => ({
-      id: row.id,
-      fecha: row.fecha,
-      hora_local: row.hora_local || undefined,
-      pais: row.pais || undefined,
-      tema: row.tema,
-      evento: row.evento,
-      importancia: row.importancia as 'low' | 'med' | 'high',
-      consenso: row.consenso || undefined,
-    }))
+    const events = await getCalendarEvents(today, nextMonth)
 
     return NextResponse.json({
       success: true,

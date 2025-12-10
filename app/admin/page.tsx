@@ -55,6 +55,17 @@ export default async function AdminPage() {
           </div>
         </Link>
 
+        {/* PMI Manufacturero */}
+        <Link href="/admin/pmi" className="rounded-lg border bg-card p-6 hover:shadow-md transition-shadow">
+          <h2 className="text-xl font-semibold mb-2">PMI Manufacturero</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Insertar valores del ISM Manufacturing PMI manualmente
+          </p>
+          <div className="text-xs text-muted-foreground">
+            Agregar valores del PMI cuando se publiquen mensualmente
+          </div>
+        </Link>
+
         {/* Noticias */}
         <Link href="/admin/news" className="rounded-lg border bg-card p-6 hover:shadow-md transition-shadow">
           <h2 className="text-xl font-semibold mb-2">Noticias</h2>

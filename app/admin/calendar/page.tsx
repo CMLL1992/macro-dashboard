@@ -21,7 +21,7 @@ export default function CalendarAdminPage() {
     setResult('')
 
     try {
-      const token = prompt('Ingresa CRON_TOKEN:')
+      const token = prompt('Ingresa INGEST_KEY o CRON_TOKEN:')
       if (!token) {
         setStatus('idle')
         return
@@ -30,7 +30,8 @@ export default function CalendarAdminPage() {
       const res = await fetch('/api/calendar/insert', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          // En desarrollo aceptamos tanto INGEST_KEY como CRON_TOKEN vía X-INGEST-KEY
+          'X-INGEST-KEY': token || '',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(formData),

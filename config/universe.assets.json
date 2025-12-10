@@ -36,13 +36,283 @@
     "region": "AU"
   },
   {
-    "symbol": "XAUUSD",
-    "class": "metal",
-    "base": "XAU",
-    "quote": "USD",
+    "symbol": "USDCAD",
+    "class": "fx",
+    "base": "USD",
+    "quote": "CAD",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "long_usd",
+    "region": "CA"
+  },
+  {
+    "symbol": "USDCHF",
+    "class": "fx",
+    "base": "USD",
+    "quote": "CHF",
     "risk_sensitivity": "risk_off",
+    "usd_exposure": "long_usd",
+    "region": "CH"
+  },
+  {
+    "symbol": "NZDUSD",
+    "class": "fx",
+    "base": "NZD",
+    "quote": "USD",
+    "risk_sensitivity": "risk_on",
     "usd_exposure": "short_usd",
-    "region": "GLOBAL"
+    "region": "NZ"
+  },
+  {
+    "symbol": "EURJPY",
+    "class": "fx",
+    "base": "EUR",
+    "quote": "JPY",
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "none",
+    "region": "EA"
+  },
+  {
+    "symbol": "EURGBP",
+    "class": "fx",
+    "base": "EUR",
+    "quote": "GBP",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "EA"
+  },
+  {
+    "symbol": "EURCHF",
+    "class": "fx",
+    "base": "EUR",
+    "quote": "CHF",
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "none",
+    "region": "EA"
+  },
+  {
+    "symbol": "GBPJPY",
+    "class": "fx",
+    "base": "GBP",
+    "quote": "JPY",
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "none",
+    "region": "UK"
+  },
+  {
+    "symbol": "AUDJPY",
+    "class": "fx",
+    "base": "AUD",
+    "quote": "JPY",
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "none",
+    "region": "JP"
+  },
+  {
+    "symbol": "AUDNZD",
+    "class": "fx",
+    "base": "AUD",
+    "quote": "NZD",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "AU"
+  },
+  {
+    "symbol": "CADJPY",
+    "class": "fx",
+    "base": "CAD",
+    "quote": "JPY",
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "none",
+    "region": "JP"
+  },
+  {
+    "symbol": "CHFJPY",
+    "class": "fx",
+    "base": "CHF",
+    "quote": "JPY",
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "none",
+    "region": "JP"
+  },
+  {
+    "symbol": "EURAUD",
+    "class": "fx",
+    "base": "EUR",
+    "quote": "AUD",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "EA"
+  },
+  {
+    "symbol": "EURCAD",
+    "class": "fx",
+    "base": "EUR",
+    "quote": "CAD",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "none",
+    "region": "EA"
+  },
+  {
+    "symbol": "EURNZD",
+    "class": "fx",
+    "base": "EUR",
+    "quote": "NZD",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "EA"
+  },
+  {
+    "symbol": "GBPAUD",
+    "class": "fx",
+    "base": "GBP",
+    "quote": "AUD",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "UK"
+  },
+  {
+    "symbol": "GBPCAD",
+    "class": "fx",
+    "base": "GBP",
+    "quote": "CAD",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "UK"
+  },
+  {
+    "symbol": "GBPCHF",
+    "class": "fx",
+    "base": "GBP",
+    "quote": "CHF",
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "none",
+    "region": "UK"
+  },
+  {
+    "symbol": "NZDJPY",
+    "class": "fx",
+    "base": "NZD",
+    "quote": "JPY",
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "none",
+    "region": "JP"
+  },
+  {
+    "symbol": "USDMXN",
+    "class": "fx",
+    "base": "USD",
+    "quote": "MXN",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "long_usd",
+    "region": "US"
+  },
+  {
+    "symbol": "USDZAR",
+    "class": "fx",
+    "base": "USD",
+    "quote": "ZAR",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "long_usd",
+    "region": "US"
+  },
+  {
+    "symbol": "USDSEK",
+    "class": "fx",
+    "base": "USD",
+    "quote": "SEK",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "long_usd",
+    "region": "US"
+  },
+  {
+    "symbol": "USDNOK",
+    "class": "fx",
+    "base": "USD",
+    "quote": "NOK",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "long_usd",
+    "region": "US"
+  },
+  {
+    "symbol": "USDDKK",
+    "class": "fx",
+    "base": "USD",
+    "quote": "DKK",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "long_usd",
+    "region": "US"
+  },
+  {
+    "symbol": "USDPLN",
+    "class": "fx",
+    "base": "USD",
+    "quote": "PLN",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "long_usd",
+    "region": "US"
+  },
+  {
+    "symbol": "USDTRY",
+    "class": "fx",
+    "base": "USD",
+    "quote": "TRY",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "long_usd",
+    "region": "US"
+  },
+  {
+    "symbol": "USDRUB",
+    "class": "fx",
+    "base": "USD",
+    "quote": "RUB",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "long_usd",
+    "region": "US"
+  },
+  {
+    "symbol": "USDCNH",
+    "class": "fx",
+    "base": "USD",
+    "quote": "CNH",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "long_usd",
+    "region": "US"
+  },
+  {
+    "symbol": "USDHKD",
+    "class": "fx",
+    "base": "USD",
+    "quote": "HKD",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "long_usd",
+    "region": "US"
+  },
+  {
+    "symbol": "USDSGD",
+    "class": "fx",
+    "base": "USD",
+    "quote": "SGD",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "long_usd",
+    "region": "US"
+  },
+  {
+    "symbol": "USDINR",
+    "class": "fx",
+    "base": "USD",
+    "quote": "INR",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "long_usd",
+    "region": "US"
+  },
+  {
+    "symbol": "USDBRL",
+    "class": "fx",
+    "base": "USD",
+    "quote": "BRL",
+    "risk_sensitivity": "neutral",
+    "usd_exposure": "long_usd",
+    "region": "US"
   },
   {
     "symbol": "SPX",
@@ -63,6 +333,132 @@
     "region": "US"
   },
   {
+    "symbol": "DJI",
+    "class": "index",
+    "base": null,
+    "quote": null,
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "US"
+  },
+  {
+    "symbol": "RUT",
+    "class": "index",
+    "base": null,
+    "quote": null,
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "US"
+  },
+  {
+    "symbol": "VIX",
+    "class": "index",
+    "base": null,
+    "quote": null,
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "none",
+    "region": "US"
+  },
+  {
+    "symbol": "DAX",
+    "class": "index",
+    "base": null,
+    "quote": null,
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "DE"
+  },
+  {
+    "symbol": "FTSE",
+    "class": "index",
+    "base": null,
+    "quote": null,
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "UK"
+  },
+  {
+    "symbol": "CAC",
+    "class": "index",
+    "base": null,
+    "quote": null,
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "FR"
+  },
+  {
+    "symbol": "IBEX",
+    "class": "index",
+    "base": null,
+    "quote": null,
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "ES"
+  },
+  {
+    "symbol": "N225",
+    "class": "index",
+    "base": null,
+    "quote": null,
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "JP"
+  },
+  {
+    "symbol": "HSI",
+    "class": "index",
+    "base": null,
+    "quote": null,
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "HK"
+  },
+  {
+    "symbol": "ASX",
+    "class": "index",
+    "base": null,
+    "quote": null,
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "none",
+    "region": "AU"
+  },
+  {
+    "symbol": "XAUUSD",
+    "class": "metal",
+    "base": "XAU",
+    "quote": "USD",
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "XAGUSD",
+    "class": "metal",
+    "base": "XAG",
+    "quote": "USD",
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "XPDUSD",
+    "class": "metal",
+    "base": "XPD",
+    "quote": "USD",
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "XPTUSD",
+    "class": "metal",
+    "base": "XPT",
+    "quote": "USD",
+    "risk_sensitivity": "risk_off",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
     "symbol": "BTCUSDT",
     "class": "crypto",
     "base": "BTC",
@@ -81,19 +477,210 @@
     "region": "GLOBAL"
   },
   {
-    "symbol": "WTI",
-    "class": "energy",
-    "base": "WTI",
-    "quote": "USD",
+    "symbol": "BNBUSDT",
+    "class": "crypto",
+    "base": "BNB",
+    "quote": "USDT",
     "risk_sensitivity": "risk_on",
-    "usd_exposure": "none",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "class": "crypto",
+    "base": "SOL",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "XRPUSDT",
+    "class": "crypto",
+    "base": "XRP",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "ADAUSDT",
+    "class": "crypto",
+    "base": "ADA",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "DOGEUSDT",
+    "class": "crypto",
+    "base": "DOGE",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "TRXUSDT",
+    "class": "crypto",
+    "base": "TRX",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "DOTUSDT",
+    "class": "crypto",
+    "base": "DOT",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "MATICUSDT",
+    "class": "crypto",
+    "base": "MATIC",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "LINKUSDT",
+    "class": "crypto",
+    "base": "LINK",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "LTCUSDT",
+    "class": "crypto",
+    "base": "LTC",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "BCHUSDT",
+    "class": "crypto",
+    "base": "BCH",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "AVAXUSDT",
+    "class": "crypto",
+    "base": "AVAX",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "UNIUSDT",
+    "class": "crypto",
+    "base": "UNI",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "ATOMUSDT",
+    "class": "crypto",
+    "base": "ATOM",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "ETCUSDT",
+    "class": "crypto",
+    "base": "ETC",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "XLMUSDT",
+    "class": "crypto",
+    "base": "XLM",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "ALGOUSDT",
+    "class": "crypto",
+    "base": "ALGO",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "VETUSDT",
+    "class": "crypto",
+    "base": "VET",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "FILUSDT",
+    "class": "crypto",
+    "base": "FIL",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "ICPUSDT",
+    "class": "crypto",
+    "base": "ICP",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "APTUSDT",
+    "class": "crypto",
+    "base": "APT",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "ARBUSDT",
+    "class": "crypto",
+    "base": "ARB",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
+    "region": "GLOBAL"
+  },
+  {
+    "symbol": "OPUSDT",
+    "class": "crypto",
+    "base": "OP",
+    "quote": "USDT",
+    "risk_sensitivity": "risk_on",
+    "usd_exposure": "short_usd",
     "region": "GLOBAL"
   }
 ]
-
-
-
-
-
-
-

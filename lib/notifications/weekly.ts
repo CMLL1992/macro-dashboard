@@ -3,7 +3,7 @@
  * Caso C: Enviar resumen semanal cada domingo 18:00 Europe/Madrid
  */
 
-import { getDB } from '@/lib/db/schema'
+import { getUnifiedDB } from '@/lib/db/unified-db'
 import { sendTelegramMessage } from './telegram'
 import { format, addDays, startOfWeek, endOfWeek, parseISO } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
@@ -32,18 +32,18 @@ export interface CalendarEvent {
  * Insert calendar event (with deduplication)
  * Returns true if inserted, false if duplicate
  */
-export function insertCalendarEvent(event: CalendarEvent): { inserted: boolean } {
-  const db = getDB()
+export async function insertCalendarEvent(event: CalendarEvent): Promise<{ inserted: boolean }> {
+  const db = getUnifiedDB()
   
   // Check if event already exists (same fecha, tema, evento)
-  const existing = db.prepare(`
+  const existing = (await db.prepare(`
     SELECT id FROM macro_calendar
     WHERE fecha = ? AND tema = ? AND evento = ?
-  `).get(event.fecha, event.tema, event.evento) as { id: number } | undefined
+  `).get(event.fecha, event.tema, event.evento)) as { id: number } | null
   
   if (existing) {
     // Update existing event (in case consenso or hora_local changed)
-    db.prepare(`
+    await db.prepare(`
       UPDATE macro_calendar
       SET hora_local = ?,
           pais = ?,
@@ -62,7 +62,7 @@ export function insertCalendarEvent(event: CalendarEvent): { inserted: boolean }
   }
   
   // Insert new event
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO macro_calendar (fecha, hora_local, pais, tema, evento, importancia, consenso)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(
@@ -82,8 +82,8 @@ export function insertCalendarEvent(event: CalendarEvent): { inserted: boolean }
  * Get events for next week (Monday to Sunday)
  * Calculates week range in Europe/Madrid timezone
  */
-function getNextWeekEvents(): CalendarEvent[] {
-  const db = getDB()
+async function getNextWeekEvents(): Promise<CalendarEvent[]> {
+  const db = getUnifiedDB()
   // Get current time in Madrid
   const currentUTC = new Date()
   const currentMadrid = toZonedTime(currentUTC, TIMEZONE)
@@ -94,13 +94,13 @@ function getNextWeekEvents(): CalendarEvent[] {
   const mondayStr = format(nextMonday, 'yyyy-MM-dd')
   const sundayStr = format(nextSunday, 'yyyy-MM-dd')
 
-  const rows = db.prepare(`
+  const rows = (await db.prepare(`
     SELECT fecha, hora_local, pais, tema, evento, importancia, consenso
     FROM macro_calendar
     WHERE fecha >= ? AND fecha <= ?
       AND importancia IN ('high', 'med')
     ORDER BY fecha, hora_local
-  `).all(mondayStr, sundayStr) as Array<{
+  `).all(mondayStr, sundayStr)) as Array<{
     fecha: string
     hora_local: string | null
     pais: string | null
@@ -124,30 +124,32 @@ function getNextWeekEvents(): CalendarEvent[] {
 /**
  * Check if weekly was already sent this week
  */
-function wasWeeklySentThisWeek(): boolean {
-  const db = getDB()
+async function wasWeeklySentThisWeek(): Promise<boolean> {
+  const db = getUnifiedDB()
   // Use current week in Madrid timezone
   const currentUTC = new Date()
   const currentMadrid = toZonedTime(currentUTC, TIMEZONE)
   const weekStart = startOfWeek(currentMadrid, { weekStartsOn: 1 })
   const weekKey = format(weekStart, 'yyyy-MM-dd')
 
-  const row = db.prepare('SELECT semana FROM weekly_sent WHERE semana = ?').get(weekKey) as { semana: string } | undefined
-  return !!row
+  const row = (await db
+    .prepare('SELECT semana FROM weekly_sent WHERE semana = ?')
+    .get(weekKey)) as { semana: string } | null
+  return !!row?.semana
 }
 
 /**
  * Mark weekly as sent
  */
-function markWeeklySent(): void {
-  const db = getDB()
+async function markWeeklySent(): Promise<void> {
+  const db = getUnifiedDB()
   // Use current week in Madrid timezone
   const currentUTC = new Date()
   const currentMadrid = toZonedTime(currentUTC, TIMEZONE)
   const weekStart = startOfWeek(currentMadrid, { weekStartsOn: 1 })
   const weekKey = format(weekStart, 'yyyy-MM-dd')
 
-  db.prepare(`
+  await db.prepare(`
     INSERT OR REPLACE INTO weekly_sent (semana, sent_at)
     VALUES (?, ?)
   `).run(weekKey, new Date().toISOString())
@@ -228,12 +230,12 @@ function buildWeeklyMessage(events: CalendarEvent[]): string {
  */
 export async function sendWeeklyAhead(): Promise<{ success: boolean; error?: string; eventCount?: number }> {
   // Check if already sent this week
-  if (wasWeeklySentThisWeek()) {
+  if (await wasWeeklySentThisWeek()) {
     console.log('[weekly] skipped reason=already_sent_this_week')
     return { success: false, error: 'Already sent this week' }
   }
 
-  const events = getNextWeekEvents()
+  const events = await getNextWeekEvents()
 
   // Build message (all logic inside function, not at module level)
   const message = buildWeeklyMessage(events)
@@ -244,8 +246,8 @@ export async function sendWeeklyAhead(): Promise<{ success: boolean; error?: str
   
   // Log to notification_history
   try {
-    const db = getDB()
-    db.prepare(`
+    const db = getUnifiedDB()
+    await db.prepare(`
       INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
       VALUES (?, ?, ?, ?, ?)
     `).run(
@@ -260,7 +262,7 @@ export async function sendWeeklyAhead(): Promise<{ success: boolean; error?: str
   }
 
   if (result.success) {
-    markWeeklySent()
+    await markWeeklySent()
     incrementMetric('notification_sent', 'status=sent')
     console.log(`[weekly] sent eventCount=${events.length}`)
     return { success: true, eventCount: events.length }
@@ -274,9 +276,9 @@ export async function sendWeeklyAhead(): Promise<{ success: boolean; error?: str
 /**
  * Get calendar events
  */
-export function getCalendarEvents(startDate?: string, endDate?: string): CalendarEvent[] {
-  const db = getDB()
-  
+export async function getCalendarEvents(startDate?: string, endDate?: string): Promise<CalendarEvent[]> {
+  const db = getUnifiedDB()
+
   let query = 'SELECT fecha, hora_local, pais, tema, evento, importancia, consenso FROM macro_calendar WHERE 1=1'
   const params: any[] = []
 
@@ -291,7 +293,7 @@ export function getCalendarEvents(startDate?: string, endDate?: string): Calenda
 
   query += ' ORDER BY fecha, hora_local'
 
-  const rows = db.prepare(query).all(...params) as Array<{
+  const rows = (await db.prepare(query).all(...params)) as Array<{
     fecha: string
     hora_local: string | null
     pais: string | null

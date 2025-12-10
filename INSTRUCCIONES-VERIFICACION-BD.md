@@ -173,3 +173,15 @@ Si `rawInput` es igual pero `value`/`previous` es distinto → problema en la tr
 - Puedes modificar el endpoint para probar otros indicadores cambiando `seriesId`
 - Los logs de debug solo aparecen en desarrollo o con `DEBUG_DASHBOARD=true`
 
+
+
+
+
+
+
+
+
+
+
+
+

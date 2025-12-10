@@ -8,9 +8,14 @@
 
 import getBiasState from '@/domain/macro-engine/bias'
 import getCorrelationState from '@/domain/macro-engine/correlations'
-import { detectScenarios } from '@/domain/scenarios'
+import { detectScenarios, getInstitutionalScenarios } from '@/domain/scenarios'
 import type { BiasState } from '@/domain/macro-engine/bias'
 import type { CorrelationState } from '@/domain/macro-engine/correlations'
+import { WEIGHTS } from '@/domain/posture'
+import { MAP_KEY_TO_WEIGHT_KEY } from '@/domain/diagnostic'
+import type { BiasRow } from '@/domain/bias'
+import { getRecentEventsWithImpact } from '@/lib/db/recent-events'
+import type { RecentEventWithImpact } from '@/lib/db/recent-events'
 
 export type IndicatorRow = {
   key: string
@@ -22,9 +27,11 @@ export type IndicatorRow = {
   posture: string | null
   weight: number | null
   date: string | null
+  observation_period?: string | null // Periodo del dato (observation_date) para mostrar en tooltip
   originalKey?: string | null
   unit?: string | null
   isStale?: boolean
+  section?: string | null
 }
 
 export type TacticalRowSafe = {
@@ -34,6 +41,14 @@ export type TacticalRowSafe = {
   confidence: string
   corr12m?: number | null
   corr3m?: number | null
+  last_relevant_event?: {
+    currency: string
+    name: string
+    surprise_direction: string
+    surprise_score: number
+    release_time_utc: string
+  } | null
+  updated_after_last_event?: boolean
 }
 
 export type Scenario = {
@@ -41,6 +56,13 @@ export type Scenario = {
   title: string
   severity: string
   actionHint: string
+  // Campos adicionales para escenarios institucionales
+  pair?: string
+  direction?: 'BUY' | 'SELL'
+  confidence?: 'Alta' | 'Media' | 'Baja'
+  macroReasons?: string[]
+  setupRecommendation?: string
+  why?: string
 }
 
 export type CorrInsight = {
@@ -67,6 +89,15 @@ export type DashboardData = {
     risk: string
   }
   
+  // Regímenes macro por moneda (nuevo)
+  currencyRegimes?: {
+    USD?: { regime: string; probability: number; description: string }
+    EUR?: { regime: string; probability: number; description: string }
+    GBP?: { regime: string; probability: number; description: string }
+    JPY?: { regime: string; probability: number; description: string }
+    AUD?: { regime: string; probability: number; description: string }
+  }
+  
   // Métricas
   metrics: {
     usdScore: number
@@ -80,6 +111,8 @@ export type DashboardData = {
   indicators: IndicatorRow[]
   tacticalRows: TacticalRowSafe[]
   scenarios: Scenario[]
+  scenariosActive: Scenario[]      // Confianza Alta
+  scenariosWatchlist: Scenario[]    // Confianza Media
   
   // Correlaciones
   correlations: {
@@ -99,6 +132,13 @@ export type DashboardData = {
   // Timestamps
   biasUpdatedAt: Date
   correlationUpdatedAt: Date
+  
+  // Eventos recientes
+  recentEvents: RecentEventWithImpact[]
+  meta: {
+    bias_updated_at: string | null
+    last_event_applied_at: string | null
+  }
 }
 
 const USD_LABELS: Record<string, 'Fuerte' | 'Débil' | 'Neutral'> = {
@@ -111,20 +151,57 @@ const normalizeSymbol = (symbol?: string | null) =>
   symbol ? symbol.replace('/', '').toUpperCase() : ''
 
 function buildIndicatorRows(table: any[]): IndicatorRow[] {
-  const rows = table.map((row) => ({
-    key: row.key ?? row.originalKey ?? '',
-    label: row.label ?? row.key ?? '',
-    category: row.category ?? 'Otros',
-    previous: row.value_previous ?? row.previous ?? null,
-    value: row.value ?? null,
-    trend: row.trend ?? null,
-    posture: row.posture ?? null,
-    weight: row.weight ?? null,
-    date: row.date ?? null,
-    originalKey: row.originalKey ?? row.key ?? null,
-    unit: row.unit ?? null,
-    isStale: row.isStale ?? false,
-  }))
+  // Log raw input for debugging
+  if (table.length > 0) {
+    console.log('[dashboard-data] buildIndicatorRows - Raw input sample:', {
+      key: table[0]?.key,
+      value: table[0]?.value,
+      value_previous: table[0]?.value_previous,
+      previous: table[0]?.previous,
+      date: table[0]?.date,
+      date_previous: table[0]?.date_previous,
+      allKeys: Object.keys(table[0] || {}),
+    })
+  }
+  
+  // DEBUG: Log European indicators in raw input
+  const euRows = table.filter((r: any) => (r.originalKey ?? r.key ?? '').toString().startsWith('eu_'))
+  if (euRows.length > 0) {
+    console.log('[dashboard-data] buildIndicatorRows - DEBUG: European rows in raw input:', euRows.map((r: any) => ({
+      key: r.key,
+      originalKey: r.originalKey,
+      value: r.value,
+      value_previous: r.value_previous,
+      label: r.label,
+      date: r.date,
+    })))
+  }
+  
+  const rows = table.map((row) => {
+    // Use originalKey if available, otherwise use key
+    // This ensures European indicators use their original key (eu_cpi_yoy) instead of transformed key (EU_CPI_YOY)
+    const finalKey = row.originalKey ?? row.key ?? ''
+    
+    // Determine section: EUROZONA for EU indicators, undefined for others
+    const section = finalKey.startsWith('eu_') ? 'EUROZONA' : undefined
+    
+    return {
+      key: finalKey,
+      label: row.label ?? row.key ?? '',
+      category: row.category ?? 'Otros',
+      previous: row.value_previous ?? row.previous ?? null,
+      value: row.value ?? null,
+      trend: row.trend ?? null,
+      posture: row.posture ?? null,
+      weight: row.weight ?? null,
+      date: row.date ?? null,
+      observation_period: row.observation_period ?? null,
+      originalKey: row.originalKey ?? row.key ?? null,
+      unit: row.unit ?? null,
+      isStale: row.isStale ?? false,
+      section: section ?? null,
+    }
+  })
   
   // Log first row for debugging (only in development or when explicitly enabled)
   if (process.env.NODE_ENV === 'development' || process.env.DEBUG_DASHBOARD === 'true') {
@@ -148,7 +225,52 @@ function buildIndicatorRows(table: any[]): IndicatorRow[] {
     }
   }
   
-  return rows
+  // DEBUG: Log final European rows
+  const euFinalRows = rows.filter(r => (r.originalKey ?? r.key ?? '').toString().startsWith('eu_'))
+  if (euFinalRows.length > 0) {
+    console.log('[dashboard-data] buildIndicatorRows - DEBUG: Final European rows:', euFinalRows.map(r => ({
+      key: r.key,
+      originalKey: r.originalKey,
+      value: r.value,
+      previous: r.previous,
+      label: r.label,
+      date: r.date,
+      category: r.category,
+    })))
+    
+    // Log specifically CPI indicators
+    const cpiRows = euFinalRows.filter(r => r.key.includes('cpi'))
+    if (cpiRows.length > 0) {
+      console.log('[dashboard-data] buildIndicatorRows - DEBUG: CPI rows specifically:', cpiRows.map(r => ({
+        key: r.key,
+        value: r.value,
+        previous: r.previous,
+        date: r.date,
+      })))
+    }
+  }
+  
+  // Filter: Only show indicators that have weight > 0 in the macro engine
+  // This ensures VIX, PCEPI (headline), and other excluded indicators don't appear
+  const filteredRows = rows.filter((row): row is IndicatorRow => {
+    // Must have key and label
+    if (!row.key || !row.label) return false
+    
+    // Check if indicator has weight configured
+    const finalKey = row.originalKey ?? row.key
+    const weightKey = MAP_KEY_TO_WEIGHT_KEY[finalKey] ?? finalKey
+    
+    // If weight is explicitly set in the row, use it
+    if (row.weight != null) {
+      return row.weight > 0
+    }
+    
+    // Otherwise check WEIGHTS config
+    const weight = WEIGHTS[weightKey]
+    return weight != null && weight > 0
+  })
+  
+  return filteredRows
 }
 
 function buildScenarioItems(table: any[]) {
@@ -174,6 +296,8 @@ function buildTacticalSafe(rows: any[]): TacticalRowSafe[] {
     confidence: row.confidence ?? row.confianza ?? 'Media',
     corr12m: row.corr12m ?? null,
     corr3m: row.corr3m ?? null,
+    last_relevant_event: row.last_relevant_event ?? null,
+    updated_after_last_event: row.updated_after_last_event ?? false,
   }))
 }
 
@@ -326,9 +450,21 @@ export async function getDashboardData(): Promise<DashboardData> {
   }
 
   // Build indicator rows
-  const indicatorRows = buildIndicatorRows(
-    Array.isArray(biasState.table) ? biasState.table : []
-  )
+  // DEBUG: Log biasState.table before building indicator rows
+  const biasTable = Array.isArray(biasState.table) ? biasState.table : []
+  const euBiasRows = biasTable.filter((r: any) => (r.originalKey ?? r.key ?? '').toString().startsWith('eu_'))
+  if (euBiasRows.length > 0) {
+    console.log('[dashboard-data] getDashboardData - DEBUG: European rows in biasState.table:', euBiasRows.map((r: any) => ({
+      key: r.key,
+      originalKey: r.originalKey,
+      value: r.value,
+      value_previous: r.value_previous,
+      label: r.label,
+      date: r.date,
+    })))
+  }
+  
+  const indicatorRows = buildIndicatorRows(biasTable)
   
   // Build scenario items
   const scenarioItems = buildScenarioItems(
@@ -341,13 +477,48 @@ export async function getDashboardData(): Promise<DashboardData> {
     : []
   const tacticalRowsSafe = buildTacticalSafe(tacticalRows)
 
-  // Detect scenarios
+  // Detect scenarios (método institucional + macro)
   let scenarios: Scenario[] = []
+  let scenariosActive: Scenario[] = []
+  let scenariosWatchlist: Scenario[] = []
+  
   try {
-    scenarios = detectScenarios(scenarioItems, biasState.regime.overall)
+    // Usar el nuevo método institucional que combina macro + confianza + pares tácticos
+    const tacticalRowsForScenarios = Array.isArray(biasState.tableTactical)
+      ? biasState.tableTactical.map((row: any) => ({
+          par: row.pair ?? row.par ?? row.symbol ?? '',
+          pair: row.pair ?? row.par ?? row.symbol ?? '',
+          sesgoMacro: row.sesgoMacro ?? row.macroBias ?? row.bias ?? '',
+          accion: row.accion ?? row.action ?? (row.trend === 'Alcista' ? 'Buscar compras' : row.trend === 'Bajista' ? 'Buscar ventas' : 'Rango/táctico'),
+          action: row.action ?? row.accion ?? (row.trend === 'Alcista' ? 'Buscar compras' : row.trend === 'Bajista' ? 'Buscar ventas' : 'Rango/táctico'),
+          motivo: row.motivo ?? row.reason ?? '',
+          confianza: row.confianza ?? row.confidence ?? 'Media',
+          confidence: row.confidence ?? row.confianza ?? 'Media',
+          trend: row.trend ?? row.tactico ?? null,
+        }))
+      : []
+    
+    const usdBiasLabel = biasState.regime.usd_label || 'Neutral'
+    const institutionalScenariosGrouped = getInstitutionalScenarios(
+      tacticalRowsForScenarios,
+      usdBiasLabel,
+      biasState.regime.overall
+    )
+    
+    // Combinar con escenarios tradicionales (si los hay)
+    const traditionalScenarios = detectScenarios(scenarioItems, biasState.regime.overall)
+    
+    // Separar escenarios institucionales en Activos y Watchlist
+    scenariosActive = institutionalScenariosGrouped.active
+    scenariosWatchlist = institutionalScenariosGrouped.watchlist
+    
+    // Todos los escenarios (para compatibilidad)
+    scenarios = [...institutionalScenariosGrouped.active, ...institutionalScenariosGrouped.watchlist, ...traditionalScenarios]
   } catch (error) {
     console.warn('[dashboard-data] detectScenarios failed, using empty array', error)
     scenarios = []
+    scenariosActive = []
+    scenariosWatchlist = []
   }
 
   // Build insights
@@ -364,6 +535,21 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   // Get USD label
   const usdLabel = USD_LABELS[biasState.regime.usd_direction] ?? 'Neutral'
+
+  // Get recent events with impact
+  let recentEvents: RecentEventWithImpact[] = []
+  let lastEventAppliedAt: string | null = null
+  try {
+    recentEvents = await getRecentEventsWithImpact({
+      hours: 48,
+      currencies: ['USD', 'EUR', 'GBP', 'JPY', 'AUD'],
+      min_importance: 'medium',
+      min_surprise_score: 0.3,
+    })
+    lastEventAppliedAt = recentEvents.length > 0 ? recentEvents[0].release_time_utc : null
+  } catch (error) {
+    console.warn('[dashboard-data] getRecentEventsWithImpact failed:', error)
+  }
 
   return {
     regime: {
@@ -385,6 +571,9 @@ export async function getDashboardData(): Promise<DashboardData> {
     indicators: indicatorRows,
     tacticalRows: tacticalRowsSafe,
     scenarios,
+    scenariosActive,
+    scenariosWatchlist,
+    currencyRegimes: biasState.currencyRegimes, // Regímenes macro por moneda
     correlations: {
       count: correlationState.summary.length,
       summary: correlationState.summary,
@@ -396,6 +585,11 @@ export async function getDashboardData(): Promise<DashboardData> {
     updatedAt: updatedAtIso,
     biasUpdatedAt: biasState.updatedAt,
     correlationUpdatedAt: correlationState.updatedAt,
+    recentEvents,
+    meta: {
+      bias_updated_at: updatedAtIso,
+      last_event_applied_at: lastEventAppliedAt,
+    },
   }
 }
 

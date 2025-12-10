@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       consenso: body.consenso,
     }
 
-    const result = insertCalendarEvent(event)
+    const result = await insertCalendarEvent(event)
 
     return NextResponse.json({
       success: true,

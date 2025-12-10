@@ -30,6 +30,16 @@ export const CATEGORY_MAP: Record<string, Category> = {
   DGEXFI: 'Crecimiento / Actividad',
   TTLCONS: 'Crecimiento / Actividad',
   USSLIND: 'Crecimiento / Actividad',
+  // European Growth Indicators
+  EU_GDP_QOQ: 'Crecimiento / Actividad',
+  EU_GDP_YOY: 'Crecimiento / Actividad',
+  EU_PMI_MANUFACTURING: 'Crecimiento / Actividad',
+  EU_PMI_SERVICES: 'Crecimiento / Actividad',
+  EU_PMI_COMPOSITE: 'Crecimiento / Actividad',
+  EU_RETAIL_SALES_YOY: 'Crecimiento / Actividad',
+  EU_INDUSTRIAL_PRODUCTION_YOY: 'Crecimiento / Actividad',
+  EU_CONSUMER_CONFIDENCE: 'Crecimiento / Actividad',
+  EU_ZEW_SENTIMENT: 'Crecimiento / Actividad',
 
   // Mercado laboral
   PAYEMS: 'Mercado laboral',
@@ -39,6 +49,8 @@ export const CATEGORY_MAP: Record<string, Category> = {
   JTSJOL: 'Mercado laboral',
   JTSJOL_YOY: 'Mercado laboral',
   U6RATE: 'Mercado laboral',
+  // European Labor Market
+  EU_UNEMPLOYMENT: 'Mercado laboral',
 
   // Precios / Inflación
   PCEPI: 'Precios / Inflación',
@@ -46,14 +58,33 @@ export const CATEGORY_MAP: Record<string, Category> = {
   CPIAUCSL: 'Precios / Inflación',
   CPILFESL: 'Precios / Inflación',
   PPIACO: 'Precios / Inflación',
+  // European Inflation
+  EU_CPI_YOY: 'Precios / Inflación',
+  EU_CPI_CORE_YOY: 'Precios / Inflación',
 
   // Otros
   // FEDFUNDS pertenece en Otros (no duplicar en Financieros / Curva)
   FEDFUNDS: 'Otros',
+  // European Monetary Policy
+  EU_ECB_RATE: 'Otros',
 }
 
 export function categoryFor(key: string): Category {
-  return CATEGORY_MAP[key] ?? 'Otros'
+  // Try exact match first
+  if (CATEGORY_MAP[key]) {
+    return CATEGORY_MAP[key]
+  }
+  // Try uppercase match (for keys like 'eu_cpi_yoy' -> 'EU_CPI_YOY')
+  const upperKey = key.toUpperCase()
+  if (CATEGORY_MAP[upperKey]) {
+    return CATEGORY_MAP[upperKey]
+  }
+  // Try lowercase match (for keys like 'EU_CPI_YOY' -> 'eu_cpi_yoy')
+  const lowerKey = key.toLowerCase()
+  if (CATEGORY_MAP[lowerKey]) {
+    return CATEGORY_MAP[lowerKey]
+  }
+  return 'Otros'
 }
 
 

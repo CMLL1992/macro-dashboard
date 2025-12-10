@@ -13,7 +13,7 @@ import { fetchBiasInputs } from '@/lib/bias/inputs'
 import { fedfunds } from '@/lib/fred'
 import { postureOf } from '@/domain/posture'
 import { getMacroDiagnosis } from '@/domain/diagnostic'
-import { getBiasTable, usdBias, macroQuadrant } from '@/domain/bias'
+import { getBiasTableFromUniverse, usdBias, macroQuadrant } from '@/domain/bias'
 import { getCalendarEvents } from './weekly'
 import type { LatestPoint } from '@/lib/fred'
 
@@ -510,12 +510,12 @@ async function buildWeeklyNarrativeMessage(): Promise<string> {
   const nextSunday = endOfWeek(nextMonday, { weekStartsOn: 1 })
   const mondayStr = format(nextMonday, 'yyyy-MM-dd')
   const sundayStr = format(nextSunday, 'yyyy-MM-dd')
-  const nextWeekEvents = getCalendarEvents(mondayStr, sundayStr)
+  const nextWeekEvents = await getCalendarEvents(mondayStr, sundayStr)
   
   // Get all pairs
   const usd = usdBias(diagnosis.items as LatestPoint[])
   const quad = macroQuadrant(diagnosis.items as LatestPoint[])
-  const pairs = getBiasTable(diagnosis.regime, usd, quad)
+  const pairs = await getBiasTableFromUniverse(diagnosis.regime, usd, quad)
   
   // Get indicators updated this week
   const indicatorsThisWeek = getIndicatorsUpdatedThisWeek(diagnosis.items, weekStart)

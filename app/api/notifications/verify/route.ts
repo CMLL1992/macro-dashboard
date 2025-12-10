@@ -155,7 +155,7 @@ export async function GET() {
   try {
     const today = new Date().toISOString().split('T')[0]
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    const events = getCalendarEvents(today, nextWeek)
+    const events = await getCalendarEvents(today, nextWeek)
     results.checks.calendar = {
       status: 'passed',
       upcoming_count: events.length,

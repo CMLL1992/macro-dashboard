@@ -97,7 +97,7 @@ async function main() {
   try {
     const today = new Date().toISOString().split('T')[0]
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    const events = getCalendarEvents(today, nextWeek)
+    const events = await getCalendarEvents(today, nextWeek)
     console.log(`   ✅ Eventos próximos 7 días: ${events.length}`)
     if (events.length > 0) {
       console.log('   Próximos eventos:')

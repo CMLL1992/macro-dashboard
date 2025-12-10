@@ -9,24 +9,45 @@ import { getUnifiedDB, isUsingTurso } from './unified-db'
 import { labelOf, yoy, mom, last, sma } from '@/lib/fred'
 import type { LatestPoint, SeriesPoint } from '@/lib/fred'
 import { computePrevCurr, isStale, getFrequency, type Observation } from '@/lib/macro/prev-curr'
+import { MACRO_INDICATORS_CONFIG, getIndicatorConfig, formatIndicatorValue, formatIndicatorDate, type Transform } from '@/config/macro-indicators'
 
 // Mapa de claves internas a series_id en macro_observations
 export const KEY_TO_SERIES_ID: Record<string, string> = {
+  // US Indicators
   cpi_yoy: 'CPIAUCSL',
   corecpi_yoy: 'CPILFESL',
   pce_yoy: 'PCEPI',
   corepce_yoy: 'PCEPILFE',
+  // Core PCE mensual (nivel): usamos misma serie, transformación específica en getAllLatestFromDB
+  corepce_mom: 'PCEPILFE',
   ppi_yoy: 'PPIACO',
   gdp_qoq: 'GDPC1',
   gdp_yoy: 'GDPC1',
   indpro_yoy: 'INDPRO',
-  retail_yoy: 'RSXFS',
+  retail_yoy: 'RSAFS', // Changed from RSXFS to RSAFS (Total Retail and Food Services)
   payems_delta: 'PAYEMS',
   unrate: 'UNRATE',
   claims_4w: 'ICSA',
   t10y2y: 'T10Y2Y',
   fedfunds: 'FEDFUNDS',
   vix: 'VIXCLS',
+  // Encuestas / mercado laboral avanzado
+  pmi_mfg: 'USPMI',
+  jolts_openings: 'JTSJOL',  // Cambiado de jolts_openings_yoy a jolts_openings (nivel, no YoY)
+  // European Indicators (Eurozone)
+  eu_gdp_qoq: 'EU_GDP_QOQ',
+  eu_gdp_yoy: 'EU_GDP_YOY',
+  eu_cpi_yoy: 'EU_CPI_YOY',
+  eu_cpi_core_yoy: 'EU_CPI_CORE_YOY',
+  eu_unemployment: 'EU_UNEMPLOYMENT',
+  eu_pmi_manufacturing: 'EU_PMI_MANUFACTURING',
+  eu_pmi_services: 'EU_PMI_SERVICES',
+  eu_pmi_composite: 'EU_PMI_COMPOSITE',
+  eu_ecb_rate: 'EU_ECB_RATE',
+  eu_retail_sales_yoy: 'EU_RETAIL_SALES_YOY',
+  eu_industrial_production_yoy: 'EU_INDUSTRIAL_PRODUCTION_YOY',
+  eu_consumer_confidence: 'EU_CONSUMER_CONFIDENCE',
+  eu_zew_sentiment: 'EU_ZEW_SENTIMENT',
 }
 
 /**
@@ -120,12 +141,12 @@ export async function getSeriesPrevCurr(seriesId: string): Promise<{
  * Get latest observation for a series from macro_observations
  * Works with both Turso (async) and better-sqlite3 (sync)
  */
-async function getLatestObservation(seriesId: string): Promise<{ date: string; value: number } | null> {
+async function getLatestObservation(seriesId: string): Promise<{ date: string; value: number; observation_period?: string | null } | null> {
   if (isUsingTurso()) {
     const db = getUnifiedDB()
     try {
-      const result = await db.prepare('SELECT date, value FROM macro_observations WHERE series_id = ? AND value IS NOT NULL ORDER BY date DESC LIMIT 1').get(seriesId)
-      const row = result as { date: string; value: number } | undefined
+      const result = await db.prepare('SELECT date, value, observation_period FROM macro_observations WHERE series_id = ? AND value IS NOT NULL ORDER BY date DESC LIMIT 1').get(seriesId)
+      const row = result as { date: string; value: number; observation_period?: string | null } | undefined
       return row || null
     } catch (error) {
       return null
@@ -134,8 +155,8 @@ async function getLatestObservation(seriesId: string): Promise<{ date: string; v
     const db = getDB()
     try {
       const row = db
-        .prepare('SELECT date, value FROM macro_observations WHERE series_id = ? AND value IS NOT NULL ORDER BY date DESC LIMIT 1')
-        .get(seriesId) as { date: string; value: number } | undefined
+        .prepare('SELECT date, value, observation_period FROM macro_observations WHERE series_id = ? AND value IS NOT NULL ORDER BY date DESC LIMIT 1')
+        .get(seriesId) as { date: string; value: number; observation_period?: string | null } | undefined
       return row || null
     } catch (error) {
       return null
@@ -149,6 +170,7 @@ async function getLatestObservation(seriesId: string): Promise<{ date: string; v
 export type LatestPointWithPrev = LatestPoint & {
   value_previous?: number | null
   date_previous?: string | null
+  observation_period?: string | null // Periodo del dato (observation_date) para mostrar en tooltip
   isStale?: boolean
 }
 
@@ -179,6 +201,11 @@ export async function getAllLatestFromDB(): Promise<LatestPoint[]> {
     payems_delta: 'Nóminas No Agrícolas (NFP Δ miles)',
     unrate: 'Tasa de Desempleo (U3)',
     claims_4w: 'Solicitudes Iniciales de Subsidio por Desempleo (Media 4 semanas)',
+    // PMI / encuestas
+    pmi_mfg: 'PMI manufacturero (ISM)',
+    jolts_openings: 'Ofertas de empleo JOLTS',
+    // Core PCE mensual
+    corepce_mom: 'Core PCE mensual (MoM)',
     // Financieros / Curva
     t10y2y: 'Curva 10Y–2Y (spread %)',
     fedfunds: 'Tasa Efectiva de Fondos Federales',
@@ -187,15 +214,24 @@ export async function getAllLatestFromDB(): Promise<LatestPoint[]> {
   }
 
   for (const [key, seriesId] of Object.entries(KEY_TO_SERIES_ID)) {
+    // Skip corepce_mom - it's not used in the dashboard
+    if (key === 'corepce_mom') {
+      continue
+    }
+    
     const series = await getSeriesObservations(seriesId)
     
+    // Get indicator configuration
+    const config = getIndicatorConfig(key)
+    
     if (series.length === 0) {
+      const label = config?.label ?? KEY_LABELS[key] ?? labelOf(seriesId)
       results.push({
         key,
-        label: KEY_LABELS[key] ?? labelOf(seriesId),
+        label,
         value: null,
         date: undefined,
-        unit: key.includes('_yoy') || key.includes('_qoq') ? '%' : undefined,
+        unit: config ? (config.unit === 'percent' ? '%' : config.unit === 'thousands' ? 'K' : config.unit === 'millions' ? 'M' : config.unit === 'index' ? 'index' : undefined) : (key.includes('_yoy') || key.includes('_qoq') ? '%' : undefined),
       })
       continue
     }
@@ -205,57 +241,127 @@ export async function getAllLatestFromDB(): Promise<LatestPoint[]> {
     let unit: string | undefined
     let transformedSeries: SeriesPoint[] = []
 
-    // Apply transformations based on key
-    if (key.includes('_yoy')) {
-      // Calculate YoY
-      transformedSeries = yoy(series)
+    // Apply transformations based on config
+    if (config) {
+      // Use configuration-based transformation
+      switch (config.transform) {
+        case 'yoy':
+          transformedSeries = yoy(series)
+          break
+        case 'qoq':
+          if (series.length >= 2) {
+            const qoqSeries: SeriesPoint[] = []
+            for (let i = 1; i < series.length; i++) {
+              const recent = series[i]
+              const prev = series[i - 1]
+              if (prev.value !== 0) {
+                const qoqValue = ((recent.value / prev.value) ** 4 - 1) * 100
+                qoqSeries.push({ date: recent.date, value: qoqValue })
+              }
+            }
+            transformedSeries = qoqSeries
+          }
+          break
+        case 'mom':
+          transformedSeries = mom(series)
+          break
+        case 'delta':
+          transformedSeries = mom(series)  // Delta is same as MoM for now
+          break
+        case 'sma4':
+          transformedSeries = sma(series, 4)
+          break
+        case 'none':
+        default:
+          transformedSeries = series
+          break
+      }
+      
       const lastPoint = last(transformedSeries)
       value = lastPoint?.value ?? null
       date = lastPoint?.date
-      unit = '%'
-    } else if (key === 'gdp_qoq') {
-      // Calculate QoQ annualized
-      if (series.length >= 2) {
-        const qoqSeries: SeriesPoint[] = []
-        for (let i = 1; i < series.length; i++) {
-          const recent = series[i]
-          const prev = series[i - 1]
-          if (prev.value !== 0) {
-            const qoqValue = ((recent.value / prev.value) ** 4 - 1) * 100
-            qoqSeries.push({ date: recent.date, value: qoqValue })
-          }
-        }
-        transformedSeries = qoqSeries
-        const lastPoint = last(qoqSeries)
+      
+      // Apply scale from config
+      if (value !== null && config.scale !== 1) {
+        value = value * config.scale
+      }
+      
+      // Determine unit from config
+      switch (config.unit) {
+        case 'percent':
+          unit = '%'
+          break
+        case 'thousands':
+          unit = 'K'
+          break
+        case 'millions':
+          unit = 'M'
+          break
+        case 'index':
+          unit = 'index'
+          break
+        case 'level':
+        default:
+          unit = undefined
+          break
+      }
+    } else {
+      // Fallback: legacy logic for indicators not in config
+      if (key.includes('_yoy')) {
+        transformedSeries = yoy(series)
+        const lastPoint = last(transformedSeries)
         value = lastPoint?.value ?? null
         date = lastPoint?.date
+        unit = '%'
+      } else if (key === 'gdp_qoq' || key === 'eu_gdp_qoq') {
+        if (series.length >= 2) {
+          const qoqSeries: SeriesPoint[] = []
+          for (let i = 1; i < series.length; i++) {
+            const recent = series[i]
+            const prev = series[i - 1]
+            if (prev.value !== 0) {
+              const qoqValue = ((recent.value / prev.value) ** 4 - 1) * 100
+              qoqSeries.push({ date: recent.date, value: qoqValue })
+            }
+          }
+          transformedSeries = qoqSeries
+          const lastPoint = last(qoqSeries)
+          value = lastPoint?.value ?? null
+          date = lastPoint?.date
+        }
+        unit = '%'
+      } else if (key === 'payems_delta') {
+        transformedSeries = mom(series)
+        const lastPoint = last(transformedSeries)
+        value = lastPoint?.value ?? null
+        date = lastPoint?.date
+        unit = 'k'
+      } else if (key === 'claims_4w') {
+        transformedSeries = sma(series, 4)
+        const lastPoint = last(transformedSeries)
+        value = lastPoint?.value ?? null
+        date = lastPoint?.date
+      } else {
+        transformedSeries = series
+        const lastPoint = last(series)
+        value = lastPoint?.value ?? null
+        date = lastPoint?.date
+        if (key === 'unrate' || key === 'fedfunds' || key === 't10y2y' || 
+            key === 'eu_unemployment' || key === 'eu_ecb_rate' ||
+            key === 'eu_pmi_manufacturing' || key === 'eu_pmi_services' || 
+            key === 'eu_pmi_composite' || key === 'eu_consumer_confidence' ||
+            key === 'eu_zew_sentiment') {
+          unit = key.includes('pmi') || key.includes('confidence') || key.includes('sentiment') ? 'index' : '%'
+        }
       }
-      unit = '%'
-    } else if (key === 'payems_delta') {
-      // Calculate MoM delta
-      transformedSeries = mom(series)
-      const lastPoint = last(transformedSeries)
-      value = lastPoint?.value ?? null
-      date = lastPoint?.date
-      unit = 'k'
-    } else if (key === 'claims_4w') {
-      // Calculate 4-week SMA
-      transformedSeries = sma(series, 4)
-      const lastPoint = last(transformedSeries)
-      value = lastPoint?.value ?? null
-      date = lastPoint?.date
-    } else {
-      // Direct value (unrate, fedfunds, t10y2y, vix)
-      transformedSeries = series
-      const lastPoint = last(series)
-      value = lastPoint?.value ?? null
-      date = lastPoint?.date
-      if (key === 'unrate' || key === 'fedfunds' || key === 't10y2y') unit = '%'
     }
+
+    // Use config label if available, otherwise fallback
+    const label = config?.label ?? KEY_LABELS[key] ?? labelOf(seriesId)
 
     results.push({
       key,
-      label: KEY_LABELS[key] ?? labelOf(seriesId),
+      label,
       value,
       date,
       unit,
@@ -275,6 +381,7 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
 
   // Labels canónicos por clave interna
   const KEY_LABELS: Record<string, string> = {
+    // US Indicators
     cpi_yoy: 'Inflación CPI (YoY)',
     corecpi_yoy: 'Inflación Core CPI (YoY)',
     pce_yoy: 'Inflación PCE (YoY)',
@@ -287,14 +394,46 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
     payems_delta: 'Nóminas No Agrícolas (NFP Δ miles)',
     unrate: 'Tasa de Desempleo (U3)',
     claims_4w: 'Solicitudes Iniciales de Subsidio por Desempleo (Media 4 semanas)',
+    pmi_mfg: 'PMI manufacturero (ISM)',
+    jolts_openings: 'Ofertas de empleo JOLTS',
     t10y2y: 'Curva 10Y–2Y (spread %)',
     fedfunds: 'Tasa Efectiva de Fondos Federales',
     vix: 'Índice de Volatilidad VIX',
+    // European Indicators (Eurozone)
+    eu_gdp_qoq: 'PIB Eurozona (QoQ)',
+    eu_gdp_yoy: 'PIB Eurozona (YoY)',
+    eu_cpi_yoy: 'Inflación Eurozona (CPI YoY)',
+    eu_cpi_core_yoy: 'Inflación Core Eurozona (Core CPI YoY)',
+    eu_unemployment: 'Tasa de Desempleo Eurozona',
+    eu_pmi_manufacturing: 'PMI Manufacturero Eurozona',
+    eu_pmi_services: 'PMI Servicios Eurozona',
+    eu_pmi_composite: 'PMI Compuesto Eurozona',
+    eu_ecb_rate: 'Tasa de Interés BCE (Main Refinancing Rate)',
+    eu_retail_sales_yoy: 'Ventas Minoristas Eurozona (YoY)',
+    eu_industrial_production_yoy: 'Producción Industrial Eurozona (YoY)',
+    eu_consumer_confidence: 'Confianza del Consumidor Eurozona',
+    eu_zew_sentiment: 'ZEW Economic Sentiment Eurozona',
+  }
+
+  // DEBUG: Log European keys being processed
+  const euKeys = Object.keys(KEY_TO_SERIES_ID).filter(k => k.startsWith('eu_'))
+  if (euKeys.length > 0) {
+    console.log('[getAllLatestFromDBWithPrev] DEBUG: Processing European keys:', euKeys)
   }
 
   for (const [key, seriesId] of Object.entries(KEY_TO_SERIES_ID)) {
+    // Skip corepce_mom - it's not used in the dashboard
+    if (key === 'corepce_mom') {
+      continue
+    }
+    
     const series = await getSeriesObservations(seriesId)
     const frequency = await getSeriesFrequency(seriesId)
+    
+    // DEBUG: Log for European indicators
+    if (key.startsWith('eu_')) {
+      console.log(`[getAllLatestFromDBWithPrev] DEBUG: ${key} -> ${seriesId}: ${series.length} observations`)
+    }
     
     if (series.length === 0) {
       results.push({
@@ -310,33 +449,118 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
       continue
     }
 
+    // Get indicator configuration
+    const config = getIndicatorConfig(key)
+    
     let transformedSeries: SeriesPoint[] = []
     let unit: string | undefined
 
-    // Apply transformations based on key
-    if (key.includes('_yoy')) {
-      transformedSeries = yoy(series)
-      unit = '%'
-    } else if (key === 'gdp_qoq') {
-      const qoqSeries: SeriesPoint[] = []
-      for (let i = 1; i < series.length; i++) {
-        const recent = series[i]
-        const prev = series[i - 1]
-        if (prev.value !== 0) {
-          const qoqValue = ((recent.value / prev.value) ** 4 - 1) * 100
-          qoqSeries.push({ date: recent.date, value: qoqValue })
-        }
+    // Apply transformations based on config
+    if (config) {
+      // Use configuration-based transformation
+      switch (config.transform) {
+        case 'yoy':
+          transformedSeries = yoy(series)
+          break
+        case 'qoq':
+          const qoqSeries: SeriesPoint[] = []
+          for (let i = 1; i < series.length; i++) {
+            const recent = series[i]
+            const prev = series[i - 1]
+            if (prev.value !== 0 && prev.value > 0) {
+              // Para USA GDP: QoQ anualizado: ((recent/prev)^4 - 1) * 100
+              // Para Eurozone GDP: QoQ simple: ((recent/prev) - 1) * 100
+              const isEurozone = key.startsWith('eu_')
+              const qoqValue = isEurozone 
+                ? ((recent.value / prev.value) - 1) * 100  // QoQ simple para Eurozona
+                : ((recent.value / prev.value) ** 4 - 1) * 100  // QoQ anualizado para USA
+              qoqSeries.push({ date: recent.date, value: qoqValue })
+            }
+          }
+          transformedSeries = qoqSeries
+          break
+        case 'mom':
+          transformedSeries = mom(series)
+          break
+        case 'delta':
+          transformedSeries = mom(series)  // Delta is same as MoM for now
+          break
+        case 'sma4':
+          transformedSeries = sma(series, 4)
+          break
+        case 'none':
+        default:
+          transformedSeries = series
+          break
       }
-      transformedSeries = qoqSeries
-      unit = '%'
-    } else if (key === 'payems_delta') {
-      transformedSeries = mom(series)
-      unit = 'k'
-    } else if (key === 'claims_4w') {
-      transformedSeries = sma(series, 4)
+      
+      // Determine unit from config
+      switch (config.unit) {
+        case 'percent':
+          unit = '%'
+          break
+        case 'thousands':
+          unit = 'K'
+          break
+        case 'millions':
+          unit = 'M'
+          break
+        case 'index':
+          unit = 'index'
+          break
+        case 'level':
+        default:
+          unit = undefined
+          break
+      }
     } else {
-      transformedSeries = series
-      if (key === 'unrate' || key === 'fedfunds' || key === 't10y2y') unit = '%'
+      // Fallback: legacy logic for indicators not in config
+      if (key.includes('_yoy')) {
+        transformedSeries = yoy(series)
+        unit = '%'
+      } else if (key === 'gdp_qoq') {
+        // USA GDP QoQ: calcular desde nivel
+        const qoqSeries: SeriesPoint[] = []
+        for (let i = 1; i < series.length; i++) {
+          const recent = series[i]
+          const prev = series[i - 1]
+          if (prev.value !== 0) {
+            const qoqValue = ((recent.value / prev.value) ** 4 - 1) * 100
+            qoqSeries.push({ date: recent.date, value: qoqValue })
+          }
+        }
+        transformedSeries = qoqSeries
+        unit = '%'
+      } else if (key === 'eu_gdp_qoq' || key === 'eu_gdp_yoy') {
+        // Eurozone GDP: Si viene de ECB como nivel, calcular QoQ/YoY
+        // Si viene de TradingEconomics como porcentaje, usar directamente
+        // Por ahora, asumimos que viene como nivel desde ECB y calculamos
+        if (key === 'eu_gdp_qoq') {
+          const qoqSeries: SeriesPoint[] = []
+          for (let i = 1; i < series.length; i++) {
+            const recent = series[i]
+            const prev = series[i - 1]
+            if (prev.value !== 0 && prev.value > 0) {
+              // QoQ: ((recent/prev) - 1) * 100 (sin anualizar para Eurozona)
+              const qoqValue = ((recent.value / prev.value) - 1) * 100
+              qoqSeries.push({ date: recent.date, value: qoqValue })
+            }
+          }
+          transformedSeries = qoqSeries
+        } else if (key === 'eu_gdp_yoy') {
+          // YoY: buscar valor del año anterior
+          transformedSeries = yoy(series)
+        }
+        unit = '%'
+      } else if (key === 'payems_delta') {
+        transformedSeries = mom(series)
+        unit = 'k'
+      } else if (key === 'claims_4w') {
+        transformedSeries = sma(series, 4)
+      } else {
+        transformedSeries = series
+        if (key === 'unrate' || key === 'fedfunds' || key === 't10y2y') unit = '%'
+      }
     }
 
     // Calculate previous/current from transformed series using robust date-based logic
@@ -348,16 +572,67 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
     const { previous, current } = computePrevCurr(obs)
     const stale = isStale(current?.date ?? null, getFrequency(frequency))
 
+    // DEBUG: Log for European indicators, retail_yoy, and GDP with results
+    if (key.startsWith('eu_') || key === 'retail_yoy' || key === 'eu_gdp_qoq' || key === 'eu_gdp_yoy' || key === 'jolts_openings') {
+      const rawValue = current?.value ?? null
+      const scaledValue = config && rawValue !== null ? rawValue * config.scale : null
+      console.log(`[getAllLatestFromDBWithPrev] DEBUG: ${key} result:`, {
+        raw_value: rawValue,
+        scaled_value: scaledValue,
+        value_previous: previous?.value ?? null,
+        date: current?.date,
+        date_previous: previous?.date ?? null,
+        transformedSeriesLength: transformedSeries.length,
+        config: config ? { scale: config.scale, unit: config.unit, decimals: config.decimals, transform: config.transform } : null,
+      })
+    }
+
+    // Apply scale from config if available
+    let displayValue = current?.value ?? null
+    let displayValuePrevious = previous?.value ?? null
+    
+    if (config && displayValue !== null) {
+      displayValue = displayValue * config.scale
+    }
+    if (config && displayValuePrevious !== null) {
+      displayValuePrevious = displayValuePrevious * config.scale
+    }
+    
+    // Use config label if available, otherwise fallback
+    const label = config?.label ?? KEY_LABELS[key] ?? labelOf(seriesId)
+
+    // Obtener observation_period del último dato si está disponible
+    let observationPeriod: string | null = null
+    if (current?.date) {
+      try {
+        const latestObs = await getLatestObservation(seriesId)
+        observationPeriod = latestObs?.observation_period || null
+      } catch {
+        // Ignorar errores al obtener observation_period
+      }
+    }
+
     results.push({
       key,
-      label: KEY_LABELS[key] ?? labelOf(seriesId),
-      value: current?.value ?? null,
+      label,
+      value: displayValue,
       date: current?.date,
       unit,
-      value_previous: previous?.value ?? null,
+      value_previous: displayValuePrevious,
       date_previous: previous?.date ?? null,
+      observation_period: observationPeriod,
       isStale: stale,
     })
+  }
+
+  // DEBUG: Log final European results
+  const euResults = results.filter(r => r.key.startsWith('eu_'))
+  if (euResults.length > 0) {
+    console.log('[getAllLatestFromDBWithPrev] DEBUG: Final European results:', euResults.map(r => ({
+      key: r.key,
+      value: r.value,
+      date: r.date,
+    })))
   }
 
   return results

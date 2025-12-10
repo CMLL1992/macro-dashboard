@@ -1,0 +1,303 @@
+{
+  "description": "Mapeo de indicadores macro a eventos de calendario. Usado para obtener eventos de Trading Economics y calcular fechas estimadas.",
+  "indicators": {
+    "CPIAUCSL": {
+      "country": "US",
+      "provider": "trading_economics",
+      "te_category": "Inflation Rate",
+      "te_symbol": "USCPIYOY",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 10
+    },
+    "CPILFESL": {
+      "country": "US",
+      "provider": "trading_economics",
+      "te_category": "Core Inflation Rate",
+      "te_symbol": "USCORECPIYOY",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 10
+    },
+    "PCEPILFE": {
+      "country": "US",
+      "provider": "trading_economics",
+      "te_category": "Core PCE Price Index",
+      "te_symbol": "USCOREPCEYOY",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 28
+    },
+    "PAYEMS": {
+      "country": "US",
+      "provider": "trading_economics",
+      "te_category": "Non Farm Payrolls",
+      "te_symbol": "NFP",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 1
+    },
+    "GDPC1": {
+      "country": "US",
+      "provider": "trading_economics",
+      "te_category": "GDP Growth Rate",
+      "te_symbol": "USGDPQOQ",
+      "impact": "high",
+      "frequency": "quarterly",
+      "typical_day": 28
+    },
+    "UNRATE": {
+      "country": "US",
+      "provider": "trading_economics",
+      "te_category": "Unemployment Rate",
+      "te_symbol": "USUNRATE",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 1
+    },
+    "FEDFUNDS": {
+      "country": "US",
+      "provider": "trading_economics",
+      "te_category": "Fed Interest Rate Decision",
+      "te_symbol": "USFEDFUNDS",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 15
+    },
+    "USPMI": {
+      "country": "US",
+      "provider": "trading_economics",
+      "te_category": "ISM Manufacturing PMI",
+      "te_symbol": "USPMI",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 1
+    },
+    "USPMI_SERVICES": {
+      "country": "US",
+      "provider": "trading_economics",
+      "te_category": "ISM Services PMI",
+      "te_symbol": "USPMISERVICES",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 3
+    },
+    "EU_CPI_YOY": {
+      "country": "EA",
+      "provider": "trading_economics",
+      "te_category": "Inflation Rate",
+      "te_symbol": "EUCPIYOY",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 17
+    },
+    "EU_CPI_CORE_YOY": {
+      "country": "EA",
+      "provider": "trading_economics",
+      "te_category": "Core Inflation Rate",
+      "te_symbol": "EUCORECPIYOY",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 17
+    },
+    "EU_GDP_QOQ": {
+      "country": "EA",
+      "provider": "trading_economics",
+      "te_category": "GDP Growth Rate",
+      "te_symbol": "EUGDPQOQ",
+      "impact": "high",
+      "frequency": "quarterly",
+      "typical_day": 7
+    },
+    "EU_GDP_YOY": {
+      "country": "EA",
+      "provider": "trading_economics",
+      "te_category": "GDP Growth Rate",
+      "te_symbol": "EUGDPYOY",
+      "impact": "high",
+      "frequency": "quarterly",
+      "typical_day": 7
+    },
+    "EU_UNEMPLOYMENT": {
+      "country": "EA",
+      "provider": "trading_economics",
+      "te_category": "Unemployment Rate",
+      "te_symbol": "EUUNRATE",
+      "impact": "medium",
+      "frequency": "monthly",
+      "typical_day": 1
+    },
+    "EU_ECB_RATE": {
+      "country": "EA",
+      "provider": "trading_economics",
+      "te_category": "ECB Interest Rate Decision",
+      "te_symbol": "EUECBRATE",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 7
+    },
+    "EU_PMI_COMPOSITE": {
+      "country": "EA",
+      "provider": "trading_economics",
+      "te_category": "Composite PMI",
+      "te_symbol": "EUPMICOMPOSITE",
+      "impact": "medium",
+      "frequency": "monthly",
+      "typical_day": 23
+    },
+    "EU_PMI_MANUFACTURING": {
+      "country": "EA",
+      "provider": "trading_economics",
+      "te_category": "Manufacturing PMI",
+      "te_symbol": "EUPMIMANUFACTURING",
+      "impact": "medium",
+      "frequency": "monthly",
+      "typical_day": 1
+    },
+    "EU_PMI_SERVICES": {
+      "country": "EA",
+      "provider": "trading_economics",
+      "te_category": "Services PMI",
+      "te_symbol": "EUPMISERVICES",
+      "impact": "medium",
+      "frequency": "monthly",
+      "typical_day": 3
+    },
+    "UK_GDP_QOQ": {
+      "country": "GB",
+      "provider": "trading_economics",
+      "te_category": "GDP Growth Rate",
+      "te_symbol": "UKGDPQOQ",
+      "impact": "high",
+      "frequency": "quarterly",
+      "typical_day": 28
+    },
+    "UK_GDP_YOY": {
+      "country": "GB",
+      "provider": "trading_economics",
+      "te_category": "GDP Growth Rate",
+      "te_symbol": "UKGDPYOY",
+      "impact": "high",
+      "frequency": "quarterly",
+      "typical_day": 28
+    },
+    "UK_SERVICES_PMI": {
+      "country": "GB",
+      "provider": "trading_economics",
+      "te_category": "Services PMI",
+      "te_symbol": "UKPMISERVICES",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 3
+    },
+    "UK_MANUFACTURING_PMI": {
+      "country": "GB",
+      "provider": "trading_economics",
+      "te_category": "Manufacturing PMI",
+      "te_symbol": "UKPMIMANUFACTURING",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 1
+    },
+    "UK_CPI_YOY": {
+      "country": "GB",
+      "provider": "trading_economics",
+      "te_category": "Inflation Rate",
+      "te_symbol": "UKCPIYOY",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 17
+    },
+    "UK_CORE_CPI_YOY": {
+      "country": "GB",
+      "provider": "trading_economics",
+      "te_category": "Core Inflation Rate",
+      "te_symbol": "UKCORECPIYOY",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 17
+    },
+    "UK_UNEMPLOYMENT_RATE": {
+      "country": "GB",
+      "provider": "trading_economics",
+      "te_category": "Unemployment Rate",
+      "te_symbol": "UKUNRATE",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 15
+    },
+    "UK_BOE_RATE": {
+      "country": "GB",
+      "provider": "trading_economics",
+      "te_category": "BoE Interest Rate Decision",
+      "te_symbol": "UKBOERATE",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 7
+    },
+    "JP_GDP_QOQ": {
+      "country": "JP",
+      "provider": "trading_economics",
+      "te_category": "GDP Growth Rate",
+      "te_symbol": "JPGDPQOQ",
+      "impact": "high",
+      "frequency": "quarterly",
+      "typical_day": 8
+    },
+    "JP_GDP_YOY": {
+      "country": "JP",
+      "provider": "trading_economics",
+      "te_category": "GDP Growth Rate",
+      "te_symbol": "JPGDPYOY",
+      "impact": "high",
+      "frequency": "quarterly",
+      "typical_day": 8
+    },
+    "JP_TANKAN_MANUFACTURING": {
+      "country": "JP",
+      "provider": "trading_economics",
+      "te_category": "Tankan Large Manufacturing Index",
+      "te_symbol": "JPTANKAN",
+      "impact": "high",
+      "frequency": "quarterly",
+      "typical_day": 1
+    },
+    "JP_CPI_YOY": {
+      "country": "JP",
+      "provider": "trading_economics",
+      "te_category": "Inflation Rate",
+      "te_symbol": "JPCPIYOY",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 20
+    },
+    "JP_CORE_CPI_YOY": {
+      "country": "JP",
+      "provider": "trading_economics",
+      "te_category": "Core Inflation Rate",
+      "te_symbol": "JPCORECPIYOY",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 20
+    },
+    "JP_UNEMPLOYMENT_RATE": {
+      "country": "JP",
+      "provider": "trading_economics",
+      "te_category": "Unemployment Rate",
+      "te_symbol": "JPUNRATE",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 1
+    },
+    "JP_BOJ_RATE": {
+      "country": "JP",
+      "provider": "trading_economics",
+      "te_category": "BoJ Interest Rate Decision",
+      "te_symbol": "JPBOJRATE",
+      "impact": "high",
+      "frequency": "monthly",
+      "typical_day": 15
+    }
+  }
+}
+

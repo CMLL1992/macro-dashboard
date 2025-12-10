@@ -47,3 +47,15 @@ curl https://macro-dashboard-seven.vercel.app/api/health
 
 Deberías ver `"hasData": true` y datos en `observationCount`.
 
+
+
+
+
+
+
+
+
+
+
+
+

@@ -27,6 +27,9 @@ export default function AdminLayout({
                 <Link href="/admin/calendar" className="text-muted-foreground hover:text-foreground">
                   Calendario
                 </Link>
+                <Link href="/admin/pmi" className="text-muted-foreground hover:text-foreground">
+                  PMI
+                </Link>
                 <Link href="/admin/news" className="text-muted-foreground hover:text-foreground">
                   Noticias
                 </Link>
