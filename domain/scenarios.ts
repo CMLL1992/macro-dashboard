@@ -26,6 +26,7 @@ export type ScenariosGrouped = {
 type TacticalRowForScenarios = {
   par?: string
   pair?: string
+  symbol?: string
   sesgoMacro?: string
   accion?: string
   action?: string
@@ -92,11 +93,12 @@ export function getInstitutionalScenarios(
   const INSTITUTIONAL = ['EURUSD', 'GBPUSD', 'XAUUSD', 'AUDUSD', 'NZDUSD', 'USDJPY', 'USDCAD', 'USDCHF']
 
   // Normalizar rows a formato simple
-  const normalizedRows: TacticalRow[] = tacticalRows.map(row => ({
-    symbol: (row.par ?? row.pair ?? row.symbol ?? '').toString(),
-    action: (row.accion ?? row.action ?? '').toString(),
-    confidence: (row.confianza ?? row.confidence ?? 'Media').toString(),
-  }))
+  const normalizedRows: TacticalRow[] = tacticalRows.map(row => {
+    const symbol = (row.par ?? row.pair ?? row.symbol ?? '').toString()
+    const action = (row.accion ?? row.action ?? '').toString()
+    const confidence = (row.confianza ?? row.confidence ?? 'Media').toString()
+    return { symbol, action, confidence }
+  })
 
   // Log para diagnóstico
   console.log('[getInstitutionalScenarios] tacticalRows count:', tacticalRows.length)

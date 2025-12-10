@@ -735,8 +735,9 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                                 </tr>
                                 {categoryRows.map((row) => {
                         // Format values using indicator config
-                        const valCurrent = formatIndicatorValueSimple(row.value, row.originalKey || row.key, row.unit)
-                        const valPrevious = formatIndicatorValueSimple(row.previous, row.originalKey || row.key, row.unit)
+                         const indicatorKey = (row.originalKey ?? row.key) ?? undefined
+                         const valCurrent = formatIndicatorValueSimple(row.value, indicatorKey, row.unit ?? undefined)
+                         const valPrevious = formatIndicatorValueSimple(row.previous, indicatorKey, row.unit ?? undefined)
 
                         const p = row.posture ?? 'Neutral'
 
@@ -819,7 +820,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                                 <span 
                                   title={row.date ? formatIndicatorDateTooltip(row.date, row.observation_period) : ''}
                                 >
-                                  {formatIndicatorDate(row.date, row.originalKey || row.key)}
+                                  {formatIndicatorDate(row.date, indicatorKey)}
                                 </span>
                                 {row.isStale && row.date && (
                                   <span

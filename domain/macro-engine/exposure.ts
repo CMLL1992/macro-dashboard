@@ -143,7 +143,9 @@ export async function calculateExposureOverlap(
       alert,
     }
   } catch (error) {
-    logger.error('[calculateExposureOverlap] Error:', error)
+    logger.error('[calculateExposureOverlap] Error:', { 
+      error: error instanceof Error ? error.message : String(error) 
+    })
     return {
       usdStrong: { label: 'USD fuerte', percentage: 0, trades: [] },
       usdWeak: { label: 'USD débil', percentage: 0, trades: [] },

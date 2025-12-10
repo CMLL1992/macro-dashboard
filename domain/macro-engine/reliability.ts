@@ -151,7 +151,9 @@ export async function calculateReliabilityScore(): Promise<ReliabilityScore> {
       },
     }
   } catch (error) {
-    logger.error('[calculateReliabilityScore] Error:', error)
+    logger.error('[calculateReliabilityScore] Error:', { 
+      error: error instanceof Error ? error.message : String(error) 
+    })
     return {
       score: 0,
       status: 'normal',

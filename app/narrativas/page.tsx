@@ -60,11 +60,11 @@ export default async function NarrativasPage() {
   try {
     const results = await Promise.all([
       getBiasState().catch((err) => {
-        logger.error('[NarrativasPage] getBiasState failed', { error: err instanceof Error ? err.message : String(err) })
+        console.error('[NarrativasPage] getBiasState failed', { error: err instanceof Error ? err.message : String(err) })
         throw err
       }),
       getCorrelationState().catch((err) => {
-        logger.error('[NarrativasPage] getCorrelationState failed', { error: err instanceof Error ? err.message : String(err) })
+        console.error('[NarrativasPage] getCorrelationState failed', { error: err instanceof Error ? err.message : String(err) })
         throw err
       }),
     ])
@@ -72,7 +72,7 @@ export default async function NarrativasPage() {
     correlationState = results[1]
   } catch (err) {
     error = err instanceof Error ? err.message : 'Error desconocido al cargar datos'
-    logger.error('[NarrativasPage] Failed to load data', { error })
+    console.error('[NarrativasPage] Failed to load data', { error })
   }
 
   if (error || !biasState || !correlationState) {

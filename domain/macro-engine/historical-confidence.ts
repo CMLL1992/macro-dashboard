@@ -95,7 +95,9 @@ export async function calculateHistoricalConfidence(
       successfulSignals: Math.round(simulatedSuccessRate * totalSignals),
     }
   } catch (error) {
-    logger.error('[calculateHistoricalConfidence] Error:', error)
+    logger.error('[calculateHistoricalConfidence] Error:', { 
+      error: error instanceof Error ? error.message : String(error) 
+    })
     return null
   }
 }

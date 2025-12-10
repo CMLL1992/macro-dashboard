@@ -25,7 +25,7 @@ export async function calculateOpportunitiesRadar(): Promise<OpportunityPair[]> 
       getUpcomingEventsForWeek(),
     ])
 
-    const tacticalRows = biasState.tactical || []
+    const tacticalRows = biasState.tableTactical || []
     const summary = correlationState.summary || []
     const shifts = correlationState.shifts || []
 
@@ -114,7 +114,9 @@ export async function calculateOpportunitiesRadar(): Promise<OpportunityPair[]> 
     candidates.sort((a, b) => b.score - a.score)
     return candidates.slice(0, 5)
   } catch (error) {
-    logger.error('[calculateOpportunitiesRadar] Error:', error)
+    logger.error('[calculateOpportunitiesRadar] Error:', { 
+      error: error instanceof Error ? error.message : String(error) 
+    })
     return []
   }
 }
