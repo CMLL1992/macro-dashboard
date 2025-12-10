@@ -201,8 +201,8 @@ export async function fetchFredSeries(
       byObservationDate.set(obs.date, obs)
     } else {
       // Si hay realtime_start, preferir la versión más reciente
-      const existingRealtime = existing.realtime_start ? new Date(existing.realtime_start).getTime() : 0
-      const currentRealtime = obs.realtime_start ? new Date(obs.realtime_start).getTime() : 0
+      const existingRealtime = existing.realtime_start && typeof existing.realtime_start === 'string' ? new Date(existing.realtime_start).getTime() : 0
+      const currentRealtime = obs.realtime_start && typeof obs.realtime_start === 'string' ? new Date(obs.realtime_start).getTime() : 0
       if (currentRealtime > existingRealtime) {
         byObservationDate.set(obs.date, obs)
       }
