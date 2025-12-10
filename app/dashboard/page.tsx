@@ -680,41 +680,29 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                   </tr>
                 </thead>
                 <tbody>
-                  {(() => {
-                    // Debug logging for UI rendering (only when DEBUG_DASHBOARD is enabled)
-                    if (process.env.DEBUG_DASHBOARD === 'true' && indicatorRows.length > 0) {
-                      const gdpRow = indicatorRows.find(r => r.key === 'gdp_yoy')
-                      if (gdpRow) {
-                        console.log('[debug-ui] macroIndicators row gdp_yoy', {
-                          key: gdpRow.key,
-                          previous: gdpRow.previous,
-                          value: gdpRow.value,
-                          date: gdpRow.date,
-                          isStale: gdpRow.isStale,
-                        })
-                      }
-                    }
-                    return null
-                  })()}
+                  {/* Removed debug logging that could cause hydration issues */}
                   {(() => {
                     // Normalize category names for comparison (handle encoding issues)
-                    const normalizeCategory = (cat: string) => cat.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    const normalizeCategory = (cat: string) => {
+                      if (!cat || typeof cat !== 'string') return ''
+                      return cat.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    }
                     
                     // Group indicators by section (EUROZONA vs GLOBAL)
-                    const groupedBySection = new Map<string, typeof indicatorRows>()
+                    const groupedBySection: Record<string, typeof indicatorRows> = {}
                     for (const row of indicatorRows) {
                       const section = row.section ?? 'GLOBAL'
-                      if (!groupedBySection.has(section)) {
-                        groupedBySection.set(section, [])
+                      if (!groupedBySection[section]) {
+                        groupedBySection[section] = []
                       }
-                      groupedBySection.get(section)!.push(row)
+                      groupedBySection[section].push(row)
                     }
                     
                     // Render sections in order: EUROZONA first, then GLOBAL
                     const sections = ['EUROZONA', 'GLOBAL']
                     
                     return sections.map((section) => {
-                      const sectionRows = groupedBySection.get(section) || []
+                      const sectionRows = groupedBySection[section] || []
                       if (sectionRows.length === 0) return null
                       
                       return (
