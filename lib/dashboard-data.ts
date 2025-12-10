@@ -498,7 +498,9 @@ export async function getDashboardData(): Promise<DashboardData> {
         }))
       : []
     
-    const usdBiasLabel = biasState.regime.usd_label || 'Neutral'
+    // Get USD label from usd_direction (calculated below)
+    const usdLabelFromDirection = USD_LABELS[biasState.regime.usd_direction] ?? 'Neutral'
+    const usdBiasLabel = usdLabelFromDirection
     const institutionalScenariosGrouped = getInstitutionalScenarios(
       tacticalRowsForScenarios,
       usdBiasLabel,
