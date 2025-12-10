@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 type DateDisplayProps = {
   isoString: string | null | undefined
   format: 'datetime' | 'date'
-  label: string
+  label?: string
   showTimezone?: boolean
 }
 
@@ -73,7 +73,7 @@ export default function DateDisplay({
   //   componente ya en el cliente (sin errores de hidratación).
   return (
     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-      <span className="font-medium">{label}:</span>
+      {label && <span className="font-medium">{label}:</span>}
       <span suppressHydrationWarning>
         {text ?? '—'}
       </span>

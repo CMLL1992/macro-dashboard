@@ -3,7 +3,7 @@ import { postureOf, weightedScore, diagnose, WEIGHTS, toNumeric } from './postur
 import { categoryFor, CATEGORY_ORDER, type Category } from './categories'
 import { calculateTrend, type Trend } from './trend'
 import { getAllLatestFromDBWithPrev, type LatestPointWithPrev } from '@/lib/db/read-macro'
-import { getDB, getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
+import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -187,18 +187,11 @@ export async function getMacroDiagnosis() {
   // Función helper para obtener valores históricos de una serie (para z-score)
   async function getHistoricalValues(seriesId: string): Promise<number[]> {
     try {
-      if (isUsingTurso()) {
-        const db = getUnifiedDB()
-        const result = await db.prepare('SELECT value FROM macro_observations WHERE series_id = ? AND value IS NOT NULL ORDER BY date ASC').all(seriesId)
-        const rows = result as Array<{ value: number }>
-        return rows.map(r => r.value).filter(v => v != null && isFinite(v))
-      } else {
-        const db = getDB()
-        const rows = db
-          .prepare('SELECT value FROM macro_observations WHERE series_id = ? AND value IS NOT NULL ORDER BY date ASC')
-          .all(seriesId) as Array<{ value: number }>
-        return rows.map(r => r.value).filter(v => v != null && isFinite(v))
-      }
+      // All methods are async now, so always use await
+      const db = getUnifiedDB()
+      const result = await db.prepare('SELECT value FROM macro_observations WHERE series_id = ? AND value IS NOT NULL ORDER BY date ASC').all(seriesId)
+      const rows = result as Array<{ value: number }>
+      return rows.map(r => r.value).filter(v => v != null && isFinite(v))
     } catch (error) {
       console.warn(`[getMacroDiagnosis] Failed to get historical values for ${seriesId}:`, error)
       return []
