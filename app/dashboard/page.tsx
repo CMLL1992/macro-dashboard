@@ -25,7 +25,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   // Get all dashboard data from database (single source of truth)
   let data: DashboardData
   try {
-    console.log('[Dashboard] Starting data fetch...')
+    // Starting data fetch
     data = await getDashboardData()
     
     // Validate that we have actual data
@@ -51,12 +51,14 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
       )
     }
     
-    console.log('[Dashboard] Data loaded successfully', {
-      hasData: !!data,
-      indicatorsCount: data?.indicators?.length || 0,
-      tacticalRowsCount: data?.tacticalRows?.length || 0,
-      regime: data?.regime?.overall || 'unknown',
-    })
+    // Data loaded successfully - simplified logging
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Dashboard] Data loaded successfully', {
+        indicatorsCount: data?.indicators?.length || 0,
+        tacticalRowsCount: data?.tacticalRows?.length || 0,
+        regime: data?.regime?.overall || 'unknown',
+      })
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
     const errorStack = error instanceof Error ? error.stack : undefined
@@ -107,24 +109,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     meta,
   } = data
 
-  // DEBUG: Log European indicators received by React component
-  const euIndicators = indicatorRows.filter(r => (r.originalKey ?? r.key ?? '').toString().startsWith('eu_'))
-  console.log('[Dashboard] Server-side: EU INDICATORS ON PAGE:', euIndicators.map(i => ({
-    key: i.key,
-    originalKey: i.originalKey,
-    label: i.label,
-    value: i.value,
-    previous: i.previous,
-    date: i.date,
-    category: i.category,
-    weight: i.weight,
-  })))
-  
-  if (euIndicators.length === 0) {
-    console.log('[Dashboard] Server-side: NO European indicators found in indicatorRows')
-    console.log('[Dashboard] Server-side: Total indicators:', indicatorRows.length)
-    console.log('[Dashboard] Server-side: Sample keys:', indicatorRows.slice(0, 10).map(r => ({ key: r.key, originalKey: r.originalKey })))
-  }
+  // Removed debug logs that could cause serialization issues
 
   return (
     <main className="p-6">

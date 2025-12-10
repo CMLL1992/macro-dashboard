@@ -26,11 +26,12 @@ export default function JobStatusIndicator() {
 
   useEffect(() => {
     let cancelled = false
+    let mounted = true
 
     async function load() {
+      if (!mounted || cancelled) return
+      
       try {
-        console.log('[JobStatusIndicator] fetching /api/status/jobs')
-
         // RUTA RELATIVA - NUNCA http://localhost:3000
         const res = await fetch('/api/status/jobs', {
           method: 'GET',
@@ -44,25 +45,36 @@ export default function JobStatusIndicator() {
 
         const json = (await res.json()) as JobStatus
 
-        if (!cancelled) {
+        if (!cancelled && mounted) {
           setStatus(json)
           setError(null)
           setLoading(false)
         }
       } catch (err) {
-        console.error('[JobStatusIndicator] Error fetching status:', err)
-        if (!cancelled) {
+        if (!cancelled && mounted) {
+          // Solo loguear errores en desarrollo
+          if (process.env.NODE_ENV === 'development') {
+            console.error('[JobStatusIndicator] Error fetching status:', err)
+          }
           setError('Error al cargar estado de jobs')
           setLoading(false)
         }
       }
     }
 
+    // Cargar inmediatamente
     load()
-    const id = setInterval(load, 60_000)
+    
+    // Configurar intervalo solo si el componente sigue montado
+    const id = setInterval(() => {
+      if (mounted && !cancelled) {
+        load()
+      }
+    }, 60_000)
 
     return () => {
       cancelled = true
+      mounted = false
       clearInterval(id)
     }
   }, [])

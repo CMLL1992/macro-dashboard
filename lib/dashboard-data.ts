@@ -129,9 +129,9 @@ export type DashboardData = {
   latestDataDate: string | null
   updatedAt: string | null
   
-  // Timestamps
-  biasUpdatedAt: Date
-  correlationUpdatedAt: Date
+  // Timestamps (ISO strings for serialization)
+  biasUpdatedAt: string | null
+  correlationUpdatedAt: string | null
   
   // Eventos recientes
   recentEvents: RecentEventWithImpact[]
@@ -153,33 +153,33 @@ const normalizeSymbol = (symbol?: string | null) =>
 function buildIndicatorRows(table: any[]): IndicatorRow[] {
   // Simplified - removed debug logs that were causing errors
   
-  const rows = table.map((row: any) => {
-    if (!row) return null
-    
-    // Use originalKey if available, otherwise use key
-    // This ensures European indicators use their original key (eu_cpi_yoy) instead of transformed key (EU_CPI_YOY)
-    const finalKey = String(row.originalKey ?? row.key ?? '')
-    
-    // Determine section: EUROZONA for EU indicators, undefined for others
-    const section = finalKey.startsWith('eu_') ? 'EUROZONA' : undefined
-    
-    return {
-      key: finalKey,
-      label: String(row.label ?? row.key ?? ''),
-      category: String(row.category ?? 'Otros'),
-      previous: row.value_previous ?? row.previous ?? null,
-      value: row.value ?? null,
-      trend: row.trend ?? null,
-      posture: row.posture ?? null,
-      weight: row.weight ?? null,
-      date: row.date ?? null,
-      observation_period: row.observation_period ?? null,
-      originalKey: row.originalKey ?? row.key ?? null,
-      unit: row.unit ?? null,
-      isStale: row.isStale ?? false,
-      section: section ?? null,
-    }
-  }).filter((row): row is IndicatorRow => row !== null)
+  const rows: IndicatorRow[] = table
+    .filter((row: any) => row != null)
+    .map((row: any) => {
+      // Use originalKey if available, otherwise use key
+      // This ensures European indicators use their original key (eu_cpi_yoy) instead of transformed key (EU_CPI_YOY)
+      const finalKey = String(row?.originalKey ?? row?.key ?? '')
+      
+      // Determine section: EUROZONA for EU indicators, undefined for others
+      const section = (finalKey && finalKey.startsWith('eu_')) ? 'EUROZONA' : undefined
+      
+      return {
+        key: finalKey,
+        label: String(row?.label ?? row?.key ?? ''),
+        category: String(row?.category ?? 'Otros'),
+        previous: row?.value_previous ?? row?.previous ?? null,
+        value: row?.value ?? null,
+        trend: row?.trend ?? null,
+        posture: row?.posture ?? null,
+        weight: row?.weight ?? null,
+        date: row?.date ?? null,
+        observation_period: row?.observation_period ?? null,
+        originalKey: row?.originalKey ?? row?.key ?? null,
+        unit: row?.unit ?? null,
+        isStale: row?.isStale ?? false,
+        section: section ?? null,
+      }
+    })
   
   // Filter: Only show indicators that have weight > 0 in the macro engine
   // This ensures VIX, PCEPI (headline), and other excluded indicators don't appear
@@ -448,10 +448,23 @@ export async function getDashboardData(): Promise<DashboardData> {
   // Get latest data date
   const latestDataDate = deriveLatestDataDate(indicatorRows)
   
-  // Format updated at
-  const updatedAtIso = biasState.updatedAt
-    ? new Date(biasState.updatedAt).toISOString()
-    : null
+  // Format updated at - ensure it's a valid ISO string or null
+  let updatedAtIso: string | null = null
+  try {
+    if (biasState.updatedAt) {
+      const date = typeof biasState.updatedAt === 'string' 
+        ? new Date(biasState.updatedAt)
+        : biasState.updatedAt instanceof Date
+        ? biasState.updatedAt
+        : null
+      if (date && !isNaN(date.getTime())) {
+        updatedAtIso = date.toISOString()
+      }
+    }
+  } catch (e) {
+    // Invalid date, keep as null
+    updatedAtIso = null
+  }
 
   // Get USD label
   const usdLabel = USD_LABELS[biasState.regime.usd_direction] ?? 'Neutral'
@@ -503,8 +516,16 @@ export async function getDashboardData(): Promise<DashboardData> {
     usdMarketInsights,
     latestDataDate,
     updatedAt: updatedAtIso,
-    biasUpdatedAt: biasState.updatedAt,
-    correlationUpdatedAt: correlationState.updatedAt,
+    biasUpdatedAt: biasState.updatedAt instanceof Date 
+      ? biasState.updatedAt.toISOString()
+      : typeof biasState.updatedAt === 'string'
+      ? biasState.updatedAt
+      : null,
+    correlationUpdatedAt: correlationState.updatedAt instanceof Date
+      ? correlationState.updatedAt.toISOString()
+      : typeof correlationState.updatedAt === 'string'
+      ? correlationState.updatedAt
+      : null,
     recentEvents,
     meta: {
       bias_updated_at: updatedAtIso,
