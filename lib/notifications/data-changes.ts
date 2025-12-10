@@ -30,7 +30,6 @@ export async function detectDataChanges(
   }>
 ): Promise<DataChange[]> {
   const db = getUnifiedDB()
-  const usingTurso = isUsingTurso()
 
   const changes: DataChange[] = []
 
@@ -45,12 +44,8 @@ export async function detectDataChanges(
       LIMIT 1
     `
 
-    let previous: any = null
-    if (usingTurso) {
-      previous = await db.prepare(query).get(indicator.key, indicator.date) as any
-    } else {
-      previous = await db.prepare(query).get(indicator.key, indicator.date) as any
-    }
+    // All methods are async now, so always use await
+    const previous = await db.prepare(query).get(indicator.key, indicator.date) as any
 
     if (!previous || previous.value === null || indicator.value === null) continue
 

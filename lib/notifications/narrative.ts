@@ -3,7 +3,7 @@
  * Caso B: Detectar y notificar cambios de narrativa macro
  */
 
-import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
+import { getUnifiedDB } from '@/lib/db/unified-db'
 import { sendTelegramMessage } from './telegram'
 import { getNotificationSettingNumber } from './settings'
 import { incrementMetric } from './metrics'
@@ -32,14 +32,9 @@ interface NewsItemForNarrative {
  */
 export async function getCurrentNarrative(): Promise<NarrativeState> {
   const db = getUnifiedDB()
-  const usingTurso = isUsingTurso()
-  let row: { narrativa_actual: string } | undefined
   
-  if (usingTurso) {
-    row = await db.prepare('SELECT narrativa_actual FROM narrative_state ORDER BY id DESC LIMIT 1').get() as { narrativa_actual: string } | undefined
-  } else {
-    row = await db.prepare('SELECT narrativa_actual FROM narrative_state ORDER BY id DESC LIMIT 1').get() as { narrativa_actual: string } | undefined
-  }
+  // All methods are async now, so always use await
+  const row = await db.prepare('SELECT narrativa_actual FROM narrative_state ORDER BY id DESC LIMIT 1').get() as { narrativa_actual: string } | undefined
   
   return (row?.narrativa_actual as NarrativeState) || 'NEUTRAL'
 }
@@ -49,14 +44,9 @@ export async function getCurrentNarrative(): Promise<NarrativeState> {
  */
 async function isCooldownActive(): Promise<boolean> {
   const db = getUnifiedDB()
-  const usingTurso = isUsingTurso()
-  let row: { cooldown_hasta: string | null } | undefined
   
-  if (usingTurso) {
-    row = await db.prepare('SELECT cooldown_hasta FROM narrative_state ORDER BY id DESC LIMIT 1').get() as { cooldown_hasta: string | null } | undefined
-  } else {
-    row = await db.prepare('SELECT cooldown_hasta FROM narrative_state ORDER BY id DESC LIMIT 1').get() as { cooldown_hasta: string | null } | undefined
-  }
+  // All methods are async now, so always use await
+  const row = await db.prepare('SELECT cooldown_hasta FROM narrative_state ORDER BY id DESC LIMIT 1').get() as { cooldown_hasta: string | null } | undefined
   
   if (!row?.cooldown_hasta) return false
 
@@ -120,34 +110,20 @@ export async function calculateNarrativeCandidate(
  */
 export async function checkMultipleNegativeSurprises(): Promise<NarrativeState | null> {
   const db = getUnifiedDB()
-  const usingTurso = isUsingTurso()
   const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
 
   // Get today's news items with negative surprises
-  let rows: Array<{ titulo: string; tema: string | null; valor_publicado: number; valor_esperado: number }>
-  if (usingTurso) {
-    rows = await db.prepare(`
-      SELECT titulo, tema, valor_publicado, valor_esperado
-      FROM news_items
-      WHERE DATE(published_at) = ?
-        AND impacto = 'high'
-        AND valor_publicado IS NOT NULL
-        AND valor_esperado IS NOT NULL
-        AND (tema LIKE '%NFP%' OR tema LIKE '%PMI%' OR tema LIKE '%Ventas%' OR tema LIKE '%Crecimiento%')
-      ORDER BY published_at DESC
-    `).all(today) as Array<{ titulo: string; tema: string | null; valor_publicado: number; valor_esperado: number }>
-  } else {
-    rows = await db.prepare(`
-      SELECT titulo, tema, valor_publicado, valor_esperado
-      FROM news_items
-      WHERE DATE(published_at) = ?
-        AND impacto = 'high'
-        AND valor_publicado IS NOT NULL
-        AND valor_esperado IS NOT NULL
-        AND (tema LIKE '%NFP%' OR tema LIKE '%PMI%' OR tema LIKE '%Ventas%' OR tema LIKE '%Crecimiento%')
-      ORDER BY published_at DESC
-    `).all(today) as Array<{ titulo: string; tema: string | null; valor_publicado: number; valor_esperado: number }>
-  }
+  // All methods are async now, so always use await
+  const rows = await db.prepare(`
+    SELECT titulo, tema, valor_publicado, valor_esperado
+    FROM news_items
+    WHERE DATE(published_at) = ?
+      AND impacto = 'high'
+      AND valor_publicado IS NOT NULL
+      AND valor_esperado IS NOT NULL
+      AND (tema LIKE '%NFP%' OR tema LIKE '%PMI%' OR tema LIKE '%Ventas%' OR tema LIKE '%Crecimiento%')
+    ORDER BY published_at DESC
+  `).all(today) as Array<{ titulo: string; tema: string | null; valor_publicado: number; valor_esperado: number }>
 
   // Count negative surprises (worse than expected)
   const negativeSurprises = rows.filter(row => {
@@ -180,7 +156,6 @@ export async function updateNarrative(
   sourceNewsItem?: NewsItemForNarrative
 ): Promise<{ changed: boolean; notified: boolean; error?: string }> {
   const db = getUnifiedDB()
-  const usingTurso = isUsingTurso()
   const current = await getCurrentNarrative()
 
   // If same state, no change
@@ -199,27 +174,16 @@ export async function updateNarrative(
     const cooldownMinutes = await getCooldownMinutes()
     cooldownUntil.setMinutes(cooldownUntil.getMinutes() + cooldownMinutes)
 
-    if (usingTurso) {
-      await db.prepare(`
-        INSERT INTO narrative_state (narrativa_actual, narrativa_anterior, cambiado_en, cooldown_hasta)
-        VALUES (?, ?, ?, ?)
-      `).run(
-        candidate,
-        current,
-        new Date().toISOString(),
-        cooldownUntil.toISOString()
-      )
-    } else {
-      await db.prepare(`
-        INSERT INTO narrative_state (narrativa_actual, narrativa_anterior, cambiado_en, cooldown_hasta)
-        VALUES (?, ?, ?, ?)
-      `).run(
-        candidate,
-        current,
-        new Date().toISOString(),
-        cooldownUntil.toISOString()
-      )
-    }
+    // All methods are async now, so always use await
+    await db.prepare(`
+      INSERT INTO narrative_state (narrativa_actual, narrativa_anterior, cambiado_en, cooldown_hasta)
+      VALUES (?, ?, ?, ?)
+    `).run(
+      candidate,
+      current,
+      new Date().toISOString(),
+      cooldownUntil.toISOString()
+    )
 
     // Build notification message
     const motivo = sourceNewsItem
@@ -237,30 +201,17 @@ export async function updateNarrative(
     // Log to notification_history
     try {
       const dbHistory = getUnifiedDB()
-      const usingTursoHistory = isUsingTurso()
-      if (usingTursoHistory) {
-        await dbHistory.prepare(`
-          INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
-          VALUES (?, ?, ?, ?, ?)
-        `).run(
-          'narrative',
-          message,
-          result.success ? 'sent' : 'failed',
-          result.success ? now : null,
-          now
-        )
-      } else {
-        await dbHistory.prepare(`
-          INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
-          VALUES (?, ?, ?, ?, ?)
-        `).run(
-          'narrative',
-          message,
-          result.success ? 'sent' : 'failed',
-          result.success ? now : null,
-          now
-        )
-      }
+      // All methods are async now, so always use await
+      await dbHistory.prepare(`
+        INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(
+        'narrative',
+        message,
+        result.success ? 'sent' : 'failed',
+        result.success ? now : null,
+        now
+      )
     } catch (err) {
       console.warn('[narrative] Could not log to notification_history:', err)
     }

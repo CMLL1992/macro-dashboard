@@ -3,7 +3,7 @@
  * Resumen semanal de todas las narrativas de la semana pasada
  */
 
-import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
+import { getUnifiedDB } from '@/lib/db/unified-db'
 import { enqueueMessage } from './queue'
 import { sendTelegramMessage } from './telegram'
 import { format, subDays, startOfWeek, endOfWeek, addDays } from 'date-fns'
@@ -33,7 +33,6 @@ interface NarrativeChange {
  */
 async function getWeeklyNarrativeChanges(): Promise<NarrativeChange[]> {
   const db = getUnifiedDB()
-  const usingTurso = isUsingTurso()
   const nowUTC = new Date()
   const madridNow = toZonedTime(nowUTC, TIMEZONE)
   
@@ -42,22 +41,13 @@ async function getWeeklyNarrativeChanges(): Promise<NarrativeChange[]> {
   const weekStartISO = format(weekStart, 'yyyy-MM-dd')
   
   // Get all changes from this week
-  let rows: NarrativeChange[]
-  if (usingTurso) {
-    rows = await db.prepare(`
-      SELECT narrativa_anterior, narrativa_actual, cambiado_en
-      FROM narrative_state
-      WHERE DATE(cambiado_en) >= ?
-      ORDER BY cambiado_en ASC
-    `).all(weekStartISO) as NarrativeChange[]
-  } else {
-    rows = await db.prepare(`
-      SELECT narrativa_anterior, narrativa_actual, cambiado_en
-      FROM narrative_state
-      WHERE DATE(cambiado_en) >= ?
-      ORDER BY cambiado_en ASC
-    `).all(weekStartISO) as NarrativeChange[]
-  }
+  // All methods are async now, so always use await
+  const rows = await db.prepare(`
+    SELECT narrativa_anterior, narrativa_actual, cambiado_en
+    FROM narrative_state
+    WHERE DATE(cambiado_en) >= ?
+    ORDER BY cambiado_en ASC
+  `).all(weekStartISO) as NarrativeChange[]
 
   return rows
 }
@@ -762,30 +752,17 @@ export async function sendWeeklyNarrativeSummary(): Promise<{ success: boolean; 
       try {
         const { getUnifiedDB, isUsingTurso } = await import('@/lib/db/unified-db')
         const db = getUnifiedDB()
-        const usingTurso = isUsingTurso()
-        if (usingTurso) {
-          await db.prepare(`
-            INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
-            VALUES (?, ?, ?, ?, ?)
-          `).run(
-            'narrative_weekly',
-            message.substring(0, 200),
-            result.success ? 'sent' : 'failed',
-            result.success ? sentAtISO : null,
-            sentAtISO
-          )
-        } else {
-          await db.prepare(`
-            INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
-            VALUES (?, ?, ?, ?, ?)
-          `).run(
-            'narrative_weekly',
-            message.substring(0, 200),
-            result.success ? 'sent' : 'failed',
-            result.success ? sentAtISO : null,
-            sentAtISO
-          )
-        }
+        // All methods are async now, so always use await
+        await db.prepare(`
+          INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(
+          'narrative_weekly',
+          message.substring(0, 200),
+          result.success ? 'sent' : 'failed',
+          result.success ? sentAtISO : null,
+          sentAtISO
+        )
       } catch (err) {
         console.warn('[narrative-weekly] Could not log to notification_history:', err)
       }

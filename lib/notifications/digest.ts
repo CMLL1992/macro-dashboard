@@ -3,7 +3,7 @@
  * Optional daily summary at 17:00 Europe/Madrid
  */
 
-import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
+import { getUnifiedDB } from '@/lib/db/unified-db'
 import { sendTelegramMessage } from './telegram'
 import { format, startOfDay, endOfDay, addDays, parseISO } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
@@ -20,17 +20,12 @@ async function wasDigestSentToday(): Promise<boolean> {
   if (!ENABLE_DAILY_DIGEST) return false
 
   const db = getUnifiedDB()
-  const usingTurso = isUsingTurso()
   const currentUTC = new Date()
   const currentMadrid = toZonedTime(currentUTC, TIMEZONE)
   const today = format(startOfDay(currentMadrid), 'yyyy-MM-dd')
 
-  let row: { fecha: string } | undefined
-  if (usingTurso) {
-    row = await db.prepare('SELECT fecha FROM daily_digest_sent WHERE fecha = ?').get(today) as { fecha: string } | undefined
-  } else {
-    row = db.prepare('SELECT fecha FROM daily_digest_sent WHERE fecha = ?').get(today) as { fecha: string } | undefined
-  }
+  // All methods are async now, so always use await
+  const row = await db.prepare('SELECT fecha FROM daily_digest_sent WHERE fecha = ?').get(today) as { fecha: string } | undefined
   return !!row
 }
 
@@ -39,25 +34,17 @@ async function wasDigestSentToday(): Promise<boolean> {
  */
 async function markDigestSent(): Promise<void> {
   const db = getUnifiedDB()
-  const usingTurso = isUsingTurso()
   const currentUTC = new Date()
   const currentMadrid = toZonedTime(currentUTC, TIMEZONE)
   const today = format(startOfDay(currentMadrid), 'yyyy-MM-dd')
   const now = new Date().toISOString()
 
-  if (usingTurso) {
-    await db.prepare(`
-      INSERT INTO daily_digest_sent (fecha, sent_at)
-      VALUES (?, ?)
-      ON CONFLICT(fecha) DO UPDATE SET sent_at = excluded.sent_at
-    `).run(today, now)
-  } else {
-    db.prepare(`
-      INSERT INTO daily_digest_sent (fecha, sent_at)
-      VALUES (?, ?)
-      ON CONFLICT(fecha) DO UPDATE SET sent_at = excluded.sent_at
-    `).run(today, now)
-  }
+  // All methods are async now, so always use await
+  await db.prepare(`
+    INSERT INTO daily_digest_sent (fecha, sent_at)
+    VALUES (?, ?)
+    ON CONFLICT(fecha) DO UPDATE SET sent_at = excluded.sent_at
+  `).run(today, now)
 }
 
 /**
@@ -65,28 +52,18 @@ async function markDigestSent(): Promise<void> {
  */
 async function getTodayNewsCounts(): Promise<{ high: number; med: number; low: number }> {
   const db = getUnifiedDB()
-  const usingTurso = isUsingTurso()
   const currentUTC = new Date()
   const currentMadrid = toZonedTime(currentUTC, TIMEZONE)
   const todayStart = format(startOfDay(currentMadrid), 'yyyy-MM-dd')
   const todayEnd = format(endOfDay(currentMadrid), 'yyyy-MM-dd')
 
-  let rows: Array<{ impacto: string; count: number }>
-  if (usingTurso) {
-    rows = await db.prepare(`
-      SELECT impacto, COUNT(*) as count
-      FROM news_items
-      WHERE DATE(published_at) BETWEEN ? AND ?
-      GROUP BY impacto
-    `).all(todayStart, todayEnd) as Array<{ impacto: string; count: number }>
-  } else {
-    rows = db.prepare(`
-      SELECT impacto, COUNT(*) as count
-      FROM news_items
-      WHERE DATE(published_at) BETWEEN ? AND ?
-      GROUP BY impacto
-    `).all(todayStart, todayEnd) as Array<{ impacto: string; count: number }>
-  }
+  // All methods are async now, so always use await
+  const rows = await db.prepare(`
+    SELECT impacto, COUNT(*) as count
+    FROM news_items
+    WHERE DATE(published_at) BETWEEN ? AND ?
+    GROUP BY impacto
+  `).all(todayStart, todayEnd) as Array<{ impacto: string; count: number }>
 
   const counts = { high: 0, med: 0, low: 0 }
   for (const row of rows) {
@@ -103,48 +80,25 @@ async function getTodayNewsCounts(): Promise<{ high: number; med: number; low: n
  */
 async function getNextHighEvents(): Promise<Array<{ fecha: string; hora_local: string | null; pais: string | null; evento: string }>> {
   const db = getUnifiedDB()
-  const usingTurso = isUsingTurso()
   const currentUTC = new Date()
   const currentMadrid = toZonedTime(currentUTC, TIMEZONE)
   const tomorrow = addDays(currentMadrid, 1)
   const tomorrowNoon = format(tomorrow.setHours(12, 0, 0, 0), 'yyyy-MM-dd HH:mm')
 
-  let rows: Array<{
+  // All methods are async now, so always use await
+  const rows = await db.prepare(`
+    SELECT fecha, hora_local, pais, evento
+    FROM macro_calendar
+    WHERE importancia = 'high'
+      AND (fecha || ' ' || COALESCE(hora_local, '00:00')) <= ?
+    ORDER BY fecha, hora_local
+    LIMIT 3
+  `).all(tomorrowNoon) as Array<{
     fecha: string
     hora_local: string | null
     pais: string | null
     evento: string
   }>
-  
-  if (usingTurso) {
-    rows = await db.prepare(`
-      SELECT fecha, hora_local, pais, evento
-      FROM macro_calendar
-      WHERE importancia = 'high'
-        AND (fecha || ' ' || COALESCE(hora_local, '00:00')) <= ?
-      ORDER BY fecha, hora_local
-      LIMIT 3
-    `).all(tomorrowNoon) as Array<{
-      fecha: string
-      hora_local: string | null
-      pais: string | null
-      evento: string
-    }>
-  } else {
-    rows = db.prepare(`
-      SELECT fecha, hora_local, pais, evento
-      FROM macro_calendar
-      WHERE importancia = 'high'
-        AND (fecha || ' ' || COALESCE(hora_local, '00:00')) <= ?
-      ORDER BY fecha, hora_local
-      LIMIT 3
-    `).all(tomorrowNoon) as Array<{
-      fecha: string
-      hora_local: string | null
-      pais: string | null
-      evento: string
-    }>
-  }
 
   return rows
 }
@@ -154,42 +108,22 @@ async function getNextHighEvents(): Promise<Array<{ fecha: string; hora_local: s
  */
 async function getNarrativeChangeToday(): Promise<{ changed: boolean; from?: string; to?: string }> {
   const db = getUnifiedDB()
-  const usingTurso = isUsingTurso()
   const currentUTC = new Date()
   const currentMadrid = toZonedTime(currentUTC, TIMEZONE)
   const todayStart = format(startOfDay(currentMadrid), 'yyyy-MM-dd')
 
-  let row: {
+  // All methods are async now, so always use await
+  const row = await db.prepare(`
+    SELECT narrativa_anterior, narrativa_actual, cambiado_en
+    FROM narrative_state
+    WHERE DATE(cambiado_en) = ?
+    ORDER BY id DESC
+    LIMIT 1
+  `).get(todayStart) as {
     narrativa_anterior: string | null
     narrativa_actual: string
     cambiado_en: string
   } | undefined
-  
-  if (usingTurso) {
-    row = await db.prepare(`
-      SELECT narrativa_anterior, narrativa_actual, cambiado_en
-      FROM narrative_state
-      WHERE DATE(cambiado_en) = ?
-      ORDER BY id DESC
-      LIMIT 1
-    `).get(todayStart) as {
-      narrativa_anterior: string | null
-      narrativa_actual: string
-      cambiado_en: string
-    } | undefined
-  } else {
-    row = await db.prepare(`
-      SELECT narrativa_anterior, narrativa_actual, cambiado_en
-      FROM narrative_state
-      WHERE DATE(cambiado_en) = ?
-      ORDER BY id DESC
-      LIMIT 1
-    `).get(todayStart) as {
-      narrativa_anterior: string | null
-      narrativa_actual: string
-      cambiado_en: string
-    } | undefined
-  }
 
   if (row && row.narrativa_anterior && row.narrativa_anterior !== row.narrativa_actual) {
     return {
@@ -263,30 +197,17 @@ export async function sendDailyDigest(): Promise<{ success: boolean; error?: str
     // Log to notification_history
     try {
       const db = getUnifiedDB()
-      const usingTurso = isUsingTurso()
-      if (usingTurso) {
-        await db.prepare(`
-          INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
-          VALUES (?, ?, ?, ?, ?)
-        `).run(
-          'digest',
-          message.substring(0, 200),
-          result.success ? 'sent' : 'failed',
-          result.success ? sentAtISO : null,
-          sentAtISO
-        )
-      } else {
-        db.prepare(`
-          INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
-          VALUES (?, ?, ?, ?, ?)
-        `).run(
-          'digest',
-          message.substring(0, 200),
-          result.success ? 'sent' : 'failed',
-          result.success ? sentAtISO : null,
-          sentAtISO
-        )
-      }
+      // All methods are async now, so always use await
+      await db.prepare(`
+        INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(
+        'digest',
+        message.substring(0, 200),
+        result.success ? 'sent' : 'failed',
+        result.success ? sentAtISO : null,
+        sentAtISO
+      )
     } catch (err) {
       console.warn('[digest] Could not log to notification_history:', err)
     }
