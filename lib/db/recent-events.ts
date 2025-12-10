@@ -83,7 +83,13 @@ export async function getRecentEventsWithImpact(params: {
         ORDER BY created_at DESC
         LIMIT 1
       `)
-      impact = await stmt.get(release.event_id, release.event.currency) as typeof impact
+      const result = await stmt.get(release.event_id, release.event.currency) as {
+        currency_score_before: number | null
+        currency_score_after: number | null
+        regime_before: string | null
+        regime_after: string | null
+      } | undefined
+      impact = result || null
     } else {
       const db = getDB()
       const stmt = db.prepare(`
@@ -97,7 +103,13 @@ export async function getRecentEventsWithImpact(params: {
         ORDER BY created_at DESC
         LIMIT 1
       `)
-      impact = stmt.get(release.event_id, release.event.currency) as typeof impact
+      const result = stmt.get(release.event_id, release.event.currency) as {
+        currency_score_before: number | null
+        currency_score_after: number | null
+        regime_before: string | null
+        regime_after: string | null
+      } | undefined
+      impact = result || null
     }
 
     eventsWithImpact.push({
