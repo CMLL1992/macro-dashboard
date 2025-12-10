@@ -121,7 +121,7 @@ export async function insertNewsItem(item: NewsItem): Promise<{ inserted: boolea
       if (notified.success) {
         // Mark as notified
         db.prepare('UPDATE news_items SET notificado_at = ? WHERE id = ?').run(now, row.id)
-        incrementMetric('notification_sent', 'status=sent')
+        await incrementMetric('notification_sent', 'status=sent')
         console.log(`[news] sent id=${item.id_fuente} reason=success`)
         return { inserted: true, notified: true }
       } else {
@@ -137,7 +137,7 @@ export async function insertNewsItem(item: NewsItem): Promise<{ inserted: boolea
           return { inserted: true, notified: false, error: 'Notifications disabled' }
         } else {
           // Error real (red, token inválido, etc.)
-          incrementMetric('notification_sent', 'status=failed')
+          await incrementMetric('notification_sent', 'status=failed')
           console.error(`[news] failed id=${item.id_fuente} reason=${notified.error || 'unknown'}`)
           return { inserted: true, notified: false, error: notified.error }
         }

@@ -263,11 +263,11 @@ export async function sendWeeklyAhead(): Promise<{ success: boolean; error?: str
 
   if (result.success) {
     await markWeeklySent()
-    incrementMetric('notification_sent', 'status=sent')
+    await incrementMetric('notification_sent', 'status=sent')
     console.log(`[weekly] sent eventCount=${events.length}`)
     return { success: true, eventCount: events.length }
   } else {
-    incrementMetric('notification_sent', 'status=failed')
+    await incrementMetric('notification_sent', 'status=failed')
     console.error(`[weekly] failed reason=${result.error || 'unknown'}`)
     return { success: false, error: result.error }
   }

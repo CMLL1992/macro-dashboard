@@ -208,17 +208,17 @@ export async function sendDailyDigest(): Promise<{ success: boolean; error?: str
 
     if (result.success) {
       markDigestSent()
-      incrementMetric('notification_sent', 'status=sent')
+      await incrementMetric('notification_sent', 'status=sent')
       console.log('[digest] sent')
       return { success: true }
     } else {
-      incrementMetric('notification_sent', 'status=failed')
+      await incrementMetric('notification_sent', 'status=failed')
       console.error(`[digest] failed reason=${result.error || 'unknown'}`)
       return { success: false, error: result.error }
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    incrementMetric('notification_sent', 'status=failed')
+    await incrementMetric('notification_sent', 'status=failed')
     console.error(`[digest] failed reason=${errorMessage}`)
     return { success: false, error: errorMessage }
   }

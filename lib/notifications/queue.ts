@@ -178,7 +178,7 @@ async function processQueue(): Promise<void> {
         
         // Update metrics
         const { incrementMetric } = await import('./metrics')
-        incrementMetric('notification_sent_total', JSON.stringify({ type: message.type, status: 'sent' }))
+        await incrementMetric('notification_sent_total', JSON.stringify({ type: message.type, status: 'sent' }))
         
         // Log success
         try {
@@ -208,7 +208,7 @@ async function processQueue(): Promise<void> {
           
           // Update metrics
           const { incrementMetric } = await import('./metrics')
-          incrementMetric('notification_sent_total', JSON.stringify({ type: message.type, status: 'failed' }))
+          await incrementMetric('notification_sent_total', JSON.stringify({ type: message.type, status: 'failed' }))
           
           try {
             const db = getDB()
