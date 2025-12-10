@@ -51,6 +51,8 @@ async function getUpcomingEvents(days: number = 14): Promise<EconomicEvent[]> {
       consensus_range_min: row.consensus_range_min,
       consensus_range_max: row.consensus_range_max,
       directionality: row.directionality,
+      notified_at: row.notified_at || null,
+      notify_lead_minutes: row.notify_lead_minutes ?? 30,
       created_at: row.created_at,
       updated_at: row.updated_at,
     }))

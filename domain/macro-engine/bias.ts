@@ -7,6 +7,7 @@ import {
 import { getCorrMap } from '@/domain/corr-bridge'
 import { categoryFor } from '@/domain/categories'
 import type { LatestPoint } from '@/lib/fred'
+import type { LatestPointWithPrev } from '@/lib/db/read-macro'
 import {
   getMacroBias,
   getMacroTacticalBias,
@@ -338,9 +339,9 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
     const datePreviousValue = item.date_previous ?? null
     const observationPeriod = item.observation_period ?? null
     
-    // Get weight - use item.weight if available and > 0, otherwise calculate from key
-    let weight = (item.weight != null && item.weight > 0) ? item.weight : null
-    const originalKey = item.originalKey ?? item.key ?? null
+    // Get weight - calculate from key (LatestPointWithPrev doesn't have weight property)
+    let weight: number | null = null
+    const originalKey = (item as any).originalKey ?? item.key ?? null
     
     if (weight == null && originalKey) {
       // Fallback: try to get weight from WEIGHTS using the key
@@ -352,7 +353,6 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
         console.log(`[getBiasRaw] DEBUG corepce_yoy:`, {
           key: item.key,
           originalKey,
-          itemWeight: item.weight,
           weightKey,
           weightFromWEIGHTS: WEIGHTS[weightKey],
           finalWeight: weight,
@@ -367,7 +367,6 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
         key: item.key,
         originalKey,
         weight,
-        itemWeight: item.weight,
         weightKey: debugWeightKey,
         weightFromWEIGHTS: (debugWeightKey && WEIGHTS) ? WEIGHTS[debugWeightKey] : null,
       })
@@ -378,14 +377,14 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
       label: item.label ?? null,
       value: item.value ?? null,
       value_previous: item.value_previous ?? null,
-      trend: item.trend ?? null,
-      posture: item.posture ?? null,
+      trend: (item as any).trend ?? null,
+      posture: (item as any).posture ?? null,
       weight: weight,
-      category: item.category ?? categoryFor(item.key ?? item.originalKey ?? ''),
+      category: (item as any).category ?? categoryFor(item.key ?? originalKey ?? ''),
       date: dateValue,
       date_previous: datePreviousValue,
       observation_period: observationPeriod,
-      originalKey: item.originalKey ?? item.key ?? null,
+      originalKey: originalKey,
       unit: item.unit ?? null,
     }
   }).filter((item): item is NonNullable<typeof item> => item !== null)

@@ -192,9 +192,10 @@ export function CalendarClient({ initialEvents }: CalendarClientProps) {
                               </span>
                               {(() => {
                                 const regionCode = event.region || getRegionCode(event.country) || null
-                                return regionCode && (
+                                if (!regionCode) return null
+                                return (
                                   <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                                    {REGION_NAMES[regionCode] || regionCode}
+                                    {REGION_NAMES[regionCode as RegionCode] ?? regionCode}
                                   </span>
                                 )
                               })()}

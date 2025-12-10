@@ -38,7 +38,7 @@ export function Accordion({ title, description, children, defaultOpen = false }:
       </CardHeader>
       {isOpen && (
         <CardContent className="pt-0">
-          {children}
+          <>{children}</>
         </CardContent>
       )}
     </Card>
