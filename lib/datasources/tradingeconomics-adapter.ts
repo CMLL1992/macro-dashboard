@@ -3,8 +3,7 @@
  * Normaliza respuestas de TradingEconomics para que devuelvan el mismo formato que FRED
  */
 
-import type { MacroSeries } from '@/lib/types/macro'
-import type { SeriesPoint } from '@/lib/fred'
+import type { MacroSeries, DataPoint } from '@/lib/types/macro'
 import { fetchTradingEconomics } from '@/packages/ingestors/tradingeconomics'
 
 export interface TradingEconomicsConfig {
@@ -29,8 +28,8 @@ export async function fetchTradingEconomicsSeries(
   try {
     const observations = await fetchTradingEconomics(endpoint, apiKey, country)
     
-    // Convert TradingEconomics observations to SeriesPoint format
-    const data: SeriesPoint[] = observations.map(obs => ({
+    // Convert TradingEconomics observations to DataPoint format
+    const data: DataPoint[] = observations.map(obs => ({
       date: obs.date,
       value: obs.value,
     }))

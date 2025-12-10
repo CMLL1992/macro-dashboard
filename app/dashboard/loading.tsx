@@ -1,7 +1,8 @@
 import DashboardInitializing from '@/components/DashboardInitializing'
 
 export default function DashboardLoading() {
-  return <DashboardInitializing />
+  // Pass initialHasData=true to skip polling since server already has data
+  return <DashboardInitializing initialHasData={true} />
 }
 
 

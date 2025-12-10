@@ -151,44 +151,22 @@ const normalizeSymbol = (symbol?: string | null) =>
   symbol ? symbol.replace('/', '').toUpperCase() : ''
 
 function buildIndicatorRows(table: any[]): IndicatorRow[] {
-  // Log raw input for debugging
-  if (table.length > 0) {
-    console.log('[dashboard-data] buildIndicatorRows - Raw input sample:', {
-      key: table[0]?.key,
-      value: table[0]?.value,
-      value_previous: table[0]?.value_previous,
-      previous: table[0]?.previous,
-      date: table[0]?.date,
-      date_previous: table[0]?.date_previous,
-      allKeys: Object.keys(table[0] || {}),
-    })
-  }
+  // Simplified - removed debug logs that were causing errors
   
-  // DEBUG: Log European indicators in raw input
-  const euRows = table.filter((r: any) => (r.originalKey ?? r.key ?? '').toString().startsWith('eu_'))
-  if (euRows.length > 0) {
-    console.log('[dashboard-data] buildIndicatorRows - DEBUG: European rows in raw input:', euRows.map((r: any) => ({
-      key: r.key,
-      originalKey: r.originalKey,
-      value: r.value,
-      value_previous: r.value_previous,
-      label: r.label,
-      date: r.date,
-    })))
-  }
-  
-  const rows = table.map((row) => {
+  const rows = table.map((row: any) => {
+    if (!row) return null
+    
     // Use originalKey if available, otherwise use key
     // This ensures European indicators use their original key (eu_cpi_yoy) instead of transformed key (EU_CPI_YOY)
-    const finalKey = row.originalKey ?? row.key ?? ''
+    const finalKey = String(row.originalKey ?? row.key ?? '')
     
     // Determine section: EUROZONA for EU indicators, undefined for others
     const section = finalKey.startsWith('eu_') ? 'EUROZONA' : undefined
     
     return {
       key: finalKey,
-      label: row.label ?? row.key ?? '',
-      category: row.category ?? 'Otros',
+      label: String(row.label ?? row.key ?? ''),
+      category: String(row.category ?? 'Otros'),
       previous: row.value_previous ?? row.previous ?? null,
       value: row.value ?? null,
       trend: row.trend ?? null,
@@ -201,54 +179,7 @@ function buildIndicatorRows(table: any[]): IndicatorRow[] {
       isStale: row.isStale ?? false,
       section: section ?? null,
     }
-  })
-  
-  // Log first row for debugging (only in development or when explicitly enabled)
-  if (process.env.NODE_ENV === 'development' || process.env.DEBUG_DASHBOARD === 'true') {
-    if (rows.length > 0) {
-      console.log('[dashboard-data] buildIndicatorRows - First row sample:', {
-        key: rows[0].key,
-        label: rows[0].label,
-        value: rows[0].value,
-        previous: rows[0].previous,
-        date: rows[0].date,
-        isStale: rows[0].isStale,
-        rawInput: {
-          key: table[0]?.key,
-          value: table[0]?.value,
-          value_previous: table[0]?.value_previous,
-          previous: table[0]?.previous,
-          date: table[0]?.date,
-          isStale: table[0]?.isStale,
-        },
-      })
-    }
-  }
-  
-  // DEBUG: Log final European rows
-  const euFinalRows = rows.filter(r => (r.originalKey ?? r.key ?? '').toString().startsWith('eu_'))
-  if (euFinalRows.length > 0) {
-    console.log('[dashboard-data] buildIndicatorRows - DEBUG: Final European rows:', euFinalRows.map(r => ({
-      key: r.key,
-      originalKey: r.originalKey,
-      value: r.value,
-      previous: r.previous,
-      label: r.label,
-      date: r.date,
-      category: r.category,
-    })))
-    
-    // Log specifically CPI indicators
-    const cpiRows = euFinalRows.filter(r => r.key.includes('cpi'))
-    if (cpiRows.length > 0) {
-      console.log('[dashboard-data] buildIndicatorRows - DEBUG: CPI rows specifically:', cpiRows.map(r => ({
-        key: r.key,
-        value: r.value,
-        previous: r.previous,
-        date: r.date,
-      })))
-    }
-  }
+  }).filter((row): row is IndicatorRow => row !== null)
   
   // Filter: Only show indicators that have weight > 0 in the macro engine
   // This ensures VIX, PCEPI (headline), and other excluded indicators don't appear
@@ -450,20 +381,7 @@ export async function getDashboardData(): Promise<DashboardData> {
   }
 
   // Build indicator rows
-  // DEBUG: Log biasState.table before building indicator rows
   const biasTable = Array.isArray(biasState.table) ? biasState.table : []
-  const euBiasRows = biasTable.filter((r: any) => (r.originalKey ?? r.key ?? '').toString().startsWith('eu_'))
-  if (euBiasRows.length > 0) {
-    console.log('[dashboard-data] getDashboardData - DEBUG: European rows in biasState.table:', euBiasRows.map((r: any) => ({
-      key: r.key,
-      originalKey: r.originalKey,
-      value: r.value,
-      value_previous: r.value_previous,
-      label: r.label,
-      date: r.date,
-    })))
-  }
-  
   const indicatorRows = buildIndicatorRows(biasTable)
   
   // Build scenario items
@@ -553,7 +471,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     console.warn('[dashboard-data] getRecentEventsWithImpact failed:', error)
   }
 
-  return {
+  const dashboardData = {
     regime: {
       overall: biasState.regime.overall,
       usd_direction: biasState.regime.usd_direction,
@@ -593,6 +511,10 @@ export async function getDashboardData(): Promise<DashboardData> {
       last_event_applied_at: lastEventAppliedAt,
     },
   }
+  
+  // Dashboard data ready
+  
+  return dashboardData
 }
 
 

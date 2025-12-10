@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+export const revalidate = 0 // No cache, always fresh data
 
 import { getDashboardData, type DashboardData } from '@/lib/dashboard-data'
 import { CATEGORY_ORDER } from '@/domain/categories'
@@ -26,6 +27,30 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
   try {
     console.log('[Dashboard] Starting data fetch...')
     data = await getDashboardData()
+    
+    // Validate that we have actual data
+    const hasIndicators = data?.indicators && Array.isArray(data.indicators) && data.indicators.length > 0
+    const hasTacticalRows = data?.tacticalRows && Array.isArray(data.tacticalRows) && data.tacticalRows.length > 0
+    
+    if (!hasIndicators && !hasTacticalRows) {
+      console.warn('[Dashboard] No data available, showing loading state')
+      // Return loading state if no data
+      return (
+        <main className="p-6">
+          <div className="max-w-5xl mx-auto space-y-6">
+            <div className="rounded-lg border bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800 p-6 text-yellow-900 dark:text-yellow-200">
+              <h1 className="text-xl font-semibold">Inicializando datos…</h1>
+              <p className="mt-2 text-sm">Estamos preparando la base de datos y recalculando correlaciones y sesgos. La página se actualizará automáticamente.</p>
+              <div className="mt-4 flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-yellow-500 dark:bg-yellow-400 animate-pulse"></div>
+                <span className="text-xs">Verificando estado del sistema...</span>
+              </div>
+            </div>
+          </div>
+        </main>
+      )
+    }
+    
     console.log('[Dashboard] Data loaded successfully', {
       hasData: !!data,
       indicatorsCount: data?.indicators?.length || 0,
