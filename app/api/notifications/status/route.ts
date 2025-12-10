@@ -8,7 +8,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { getInitializationStatus, ensureNotificationsInitialized } from '@/lib/notifications/init'
 import { getCurrentNarrative } from '@/lib/notifications/narrative'
-import { getDB } from '@/lib/db/schema'
+import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 import { getDay, setHours, setMinutes, addDays } from 'date-fns'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { isIngestKeyConfigured } from '@/lib/security/ingest'
@@ -49,32 +49,58 @@ export async function GET() {
     }
 
     try {
-      const db = getDB()
+      const db = getUnifiedDB()
+      const usingTurso = isUsingTurso()
       
       // Get recent notifications with id_fuente and fuente from news_items join
       try {
-        recentNotifications = db.prepare(`
-          SELECT 
-            nh.tipo, 
-            nh.status, 
-            nh.sent_at, 
-            nh.created_at,
-            nh.mensaje,
-            ni.id_fuente,
-            ni.fuente
-          FROM notification_history nh
-          LEFT JOIN news_items ni ON nh.mensaje LIKE '%' || ni.titulo || '%'
-          ORDER BY nh.created_at DESC
-          LIMIT 20
-        `).all() as Array<{
-          tipo: string
-          status: string
-          sent_at: string | null
-          created_at: string
-          mensaje: string
-          id_fuente: string | null
-          fuente: string | null
-        }>
+        if (usingTurso) {
+          recentNotifications = await db.prepare(`
+            SELECT 
+              nh.tipo, 
+              nh.status, 
+              nh.sent_at, 
+              nh.created_at,
+              nh.mensaje,
+              ni.id_fuente,
+              ni.fuente
+            FROM notification_history nh
+            LEFT JOIN news_items ni ON nh.mensaje LIKE '%' || ni.titulo || '%'
+            ORDER BY nh.created_at DESC
+            LIMIT 20
+          `).all() as Array<{
+            tipo: string
+            status: string
+            sent_at: string | null
+            created_at: string
+            mensaje: string
+            id_fuente: string | null
+            fuente: string | null
+          }>
+        } else {
+          recentNotifications = db.prepare(`
+            SELECT 
+              nh.tipo, 
+              nh.status, 
+              nh.sent_at, 
+              nh.created_at,
+              nh.mensaje,
+              ni.id_fuente,
+              ni.fuente
+            FROM notification_history nh
+            LEFT JOIN news_items ni ON nh.mensaje LIKE '%' || ni.titulo || '%'
+            ORDER BY nh.created_at DESC
+            LIMIT 20
+          `).all() as Array<{
+            tipo: string
+            status: string
+            sent_at: string | null
+            created_at: string
+            mensaje: string
+            id_fuente: string | null
+            fuente: string | null
+          }>
+        }
         
         // Map to expected format
         recentNotifications = recentNotifications.map(n => ({
@@ -88,19 +114,35 @@ export async function GET() {
       } catch (err) {
         // Fallback to simple query if join fails
         try {
-          recentNotifications = db.prepare(`
-            SELECT tipo, status, sent_at, created_at
-            FROM notification_history
-            ORDER BY created_at DESC
-            LIMIT 20
-          `).all() as Array<{
-            tipo: string
-            status: string
-            sent_at: string | null
-            created_at: string
-            id_fuente?: string | null
-            fuente?: string | null
-          }>
+          if (usingTurso) {
+            recentNotifications = await db.prepare(`
+              SELECT tipo, status, sent_at, created_at
+              FROM notification_history
+              ORDER BY created_at DESC
+              LIMIT 20
+            `).all() as Array<{
+              tipo: string
+              status: string
+              sent_at: string | null
+              created_at: string
+              id_fuente?: string | null
+              fuente?: string | null
+            }>
+          } else {
+            recentNotifications = db.prepare(`
+              SELECT tipo, status, sent_at, created_at
+              FROM notification_history
+              ORDER BY created_at DESC
+              LIMIT 20
+            `).all() as Array<{
+              tipo: string
+              status: string
+              sent_at: string | null
+              created_at: string
+              id_fuente?: string | null
+              fuente?: string | null
+            }>
+          }
         } catch (err2) {
           console.warn('[notifications/status] notification_history table not found, skipping')
         }
@@ -108,24 +150,42 @@ export async function GET() {
 
       // Get weekly sent status
       try {
-        weeklySent = db.prepare(`
-          SELECT semana, sent_at
-          FROM weekly_sent
-          ORDER BY sent_at DESC
-          LIMIT 1
-        `).get() as { semana: string; sent_at: string } | undefined
+        if (usingTurso) {
+          weeklySent = await db.prepare(`
+            SELECT semana, sent_at
+            FROM weekly_sent
+            ORDER BY sent_at DESC
+            LIMIT 1
+          `).get() as { semana: string; sent_at: string } | undefined
+        } else {
+          weeklySent = db.prepare(`
+            SELECT semana, sent_at
+            FROM weekly_sent
+            ORDER BY sent_at DESC
+            LIMIT 1
+          `).get() as { semana: string; sent_at: string } | undefined
+        }
       } catch (err) {
         console.warn('[notifications/status] weekly_sent table not found, skipping')
       }
 
       // Get daily digest sent status
       try {
-        dailyDigestSent = db.prepare(`
-          SELECT fecha, sent_at
-          FROM daily_digest_sent
-          ORDER BY sent_at DESC
-          LIMIT 1
-        `).get() as { fecha: string; sent_at: string } | undefined
+        if (usingTurso) {
+          dailyDigestSent = await db.prepare(`
+            SELECT fecha, sent_at
+            FROM daily_digest_sent
+            ORDER BY sent_at DESC
+            LIMIT 1
+          `).get() as { fecha: string; sent_at: string } | undefined
+        } else {
+          dailyDigestSent = db.prepare(`
+            SELECT fecha, sent_at
+            FROM daily_digest_sent
+            ORDER BY sent_at DESC
+            LIMIT 1
+          `).get() as { fecha: string; sent_at: string } | undefined
+        }
       } catch (err) {
         console.warn('[notifications/status] daily_digest_sent table not found, skipping')
       }
@@ -165,7 +225,7 @@ export async function GET() {
     const chatOk = validation?.chat_ok ?? false
 
     // Get metrics
-    const metrics = getAggregatedMetrics()
+    const metrics = await getAggregatedMetrics()
 
     // Get server times (reuse nowUTC from above)
     const nowMadrid = toZonedTime(nowUTC, TIMEZONE)

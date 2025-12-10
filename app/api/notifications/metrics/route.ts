@@ -7,15 +7,15 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { getAllMetrics, getAggregatedMetrics } from '@/lib/notifications/metrics'
-import { getDB } from '@/lib/db/schema'
+import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 
 export async function GET() {
   try {
-    const metrics = getAllMetrics()
-    const aggregated = getAggregatedMetrics()
+    const metrics = await getAllMetrics()
+    const aggregated = await getAggregatedMetrics()
 
     // Get last sent timestamps
-    const db = getDB()
+    const db = getUnifiedDB()
     let lastNewsSentAt: string | null = null
     let lastNarrativeChangeAt: string | null = null
     let weeklyLastSentAt: string | null = null
@@ -23,33 +23,67 @@ export async function GET() {
 
     try {
       // Last news notification
-      const lastNews = db.prepare(`
-        SELECT sent_at FROM notification_history
-        WHERE tipo = 'news' AND status = 'sent'
-        ORDER BY sent_at DESC LIMIT 1
-      `).get() as { sent_at: string } | undefined
+      let lastNews: { sent_at: string } | undefined
+      if (isUsingTurso()) {
+        lastNews = await db.prepare(`
+          SELECT sent_at FROM notification_history
+          WHERE tipo = 'news' AND status = 'sent'
+          ORDER BY sent_at DESC LIMIT 1
+        `).get() as { sent_at: string } | undefined
+      } else {
+        lastNews = db.prepare(`
+          SELECT sent_at FROM notification_history
+          WHERE tipo = 'news' AND status = 'sent'
+          ORDER BY sent_at DESC LIMIT 1
+        `).get() as { sent_at: string } | undefined
+      }
       lastNewsSentAt = lastNews?.sent_at || null
 
       // Last narrative change
-      const lastNarrative = db.prepare(`
-        SELECT cambiado_en FROM narrative_state
-        WHERE narrativa_anterior IS NOT NULL
-        ORDER BY cambiado_en DESC LIMIT 1
-      `).get() as { cambiado_en: string } | undefined
+      let lastNarrative: { cambiado_en: string } | undefined
+      if (isUsingTurso()) {
+        lastNarrative = await db.prepare(`
+          SELECT cambiado_en FROM narrative_state
+          WHERE narrativa_anterior IS NOT NULL
+          ORDER BY cambiado_en DESC LIMIT 1
+        `).get() as { cambiado_en: string } | undefined
+      } else {
+        lastNarrative = db.prepare(`
+          SELECT cambiado_en FROM narrative_state
+          WHERE narrativa_anterior IS NOT NULL
+          ORDER BY cambiado_en DESC LIMIT 1
+        `).get() as { cambiado_en: string } | undefined
+      }
       lastNarrativeChangeAt = lastNarrative?.cambiado_en || null
 
       // Weekly last sent
-      const weeklySent = db.prepare(`
-        SELECT sent_at FROM weekly_sent
-        ORDER BY sent_at DESC LIMIT 1
-      `).get() as { sent_at: string } | undefined
+      let weeklySent: { sent_at: string } | undefined
+      if (isUsingTurso()) {
+        weeklySent = await db.prepare(`
+          SELECT sent_at FROM weekly_sent
+          ORDER BY sent_at DESC LIMIT 1
+        `).get() as { sent_at: string } | undefined
+      } else {
+        weeklySent = db.prepare(`
+          SELECT sent_at FROM weekly_sent
+          ORDER BY sent_at DESC LIMIT 1
+        `).get() as { sent_at: string } | undefined
+      }
       weeklyLastSentAt = weeklySent?.sent_at || null
 
       // Daily digest last sent
-      const dailySent = db.prepare(`
-        SELECT sent_at FROM daily_digest_sent
-        ORDER BY sent_at DESC LIMIT 1
-      `).get() as { sent_at: string } | undefined
+      let dailySent: { sent_at: string } | undefined
+      if (isUsingTurso()) {
+        dailySent = await db.prepare(`
+          SELECT sent_at FROM daily_digest_sent
+          ORDER BY sent_at DESC LIMIT 1
+        `).get() as { sent_at: string } | undefined
+      } else {
+        dailySent = db.prepare(`
+          SELECT sent_at FROM daily_digest_sent
+          ORDER BY sent_at DESC LIMIT 1
+        `).get() as { sent_at: string } | undefined
+      }
       dailyLastSentAt = dailySent?.sent_at || null
     } catch (err) {
       console.warn('[notifications/metrics] Error getting last sent timestamps:', err)
