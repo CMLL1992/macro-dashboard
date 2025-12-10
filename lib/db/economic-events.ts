@@ -271,7 +271,25 @@ export async function upsertEconomicRelease(params: {
     notes,
   } = params
 
-  const surprise = calculateSurprise(actual_value, consensus_value, directionality)
+  // Validate that actual_value and consensus_value are numbers before calculating surprise
+  let surprise: {
+    surprise_raw: number | null
+    surprise_pct: number | null
+    surprise_score: number | null
+    surprise_direction: 'positive' | 'negative' | null
+  }
+  
+  if (actual_value != null && consensus_value != null && typeof actual_value === 'number' && typeof consensus_value === 'number') {
+    surprise = calculateSurprise(actual_value, consensus_value, directionality)
+  } else {
+    // If values are missing, set surprise to null
+    surprise = {
+      surprise_raw: null,
+      surprise_pct: null,
+      surprise_score: null,
+      surprise_direction: null,
+    }
+  }
 
   if (isUsingTurso()) {
     const db = getUnifiedDB()
