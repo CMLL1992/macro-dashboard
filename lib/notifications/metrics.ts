@@ -28,7 +28,7 @@ export async function incrementMetric(metricName: string, labels?: string, amoun
           updated_at = CURRENT_TIMESTAMP
       `).run(metricName, amount, labelsStr, amount)
     } else {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO notification_metrics (metric_name, metric_value, labels)
         VALUES (?, ?, ?)
         ON CONFLICT(metric_name, labels) DO UPDATE SET
@@ -56,7 +56,7 @@ export async function getMetric(metricName: string, labels?: string): Promise<nu
         WHERE metric_name = ? AND labels = ?
       `).get(metricName, labelsStr) as { metric_value: number } | undefined
     } else {
-      row = db.prepare(`
+      row = await db.prepare(`
         SELECT metric_value FROM notification_metrics
         WHERE metric_name = ? AND labels = ?
       `).get(metricName, labelsStr) as { metric_value: number } | undefined
@@ -93,7 +93,7 @@ export async function getAllMetrics(): Promise<Metric[]> {
         labels: string | null
       }>
     } else {
-      rows = db.prepare(`
+      rows = await db.prepare(`
         SELECT metric_name, metric_value, labels
         FROM notification_metrics
         ORDER BY metric_name, labels

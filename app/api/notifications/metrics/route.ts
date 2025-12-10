@@ -16,6 +16,7 @@ export async function GET() {
 
     // Get last sent timestamps
     const db = getUnifiedDB()
+    const usingTurso = isUsingTurso()
     let lastNewsSentAt: string | null = null
     let lastNarrativeChangeAt: string | null = null
     let weeklyLastSentAt: string | null = null
@@ -24,14 +25,14 @@ export async function GET() {
     try {
       // Last news notification
       let lastNews: { sent_at: string } | undefined
-      if (isUsingTurso()) {
+      if (usingTurso) {
         lastNews = await db.prepare(`
           SELECT sent_at FROM notification_history
           WHERE tipo = 'news' AND status = 'sent'
           ORDER BY sent_at DESC LIMIT 1
         `).get() as { sent_at: string } | undefined
       } else {
-        lastNews = db.prepare(`
+        lastNews = await db.prepare(`
           SELECT sent_at FROM notification_history
           WHERE tipo = 'news' AND status = 'sent'
           ORDER BY sent_at DESC LIMIT 1
@@ -41,14 +42,14 @@ export async function GET() {
 
       // Last narrative change
       let lastNarrative: { cambiado_en: string } | undefined
-      if (isUsingTurso()) {
+      if (usingTurso) {
         lastNarrative = await db.prepare(`
           SELECT cambiado_en FROM narrative_state
           WHERE narrativa_anterior IS NOT NULL
           ORDER BY cambiado_en DESC LIMIT 1
         `).get() as { cambiado_en: string } | undefined
       } else {
-        lastNarrative = db.prepare(`
+        lastNarrative = await db.prepare(`
           SELECT cambiado_en FROM narrative_state
           WHERE narrativa_anterior IS NOT NULL
           ORDER BY cambiado_en DESC LIMIT 1
@@ -58,13 +59,13 @@ export async function GET() {
 
       // Weekly last sent
       let weeklySent: { sent_at: string } | undefined
-      if (isUsingTurso()) {
+      if (usingTurso) {
         weeklySent = await db.prepare(`
           SELECT sent_at FROM weekly_sent
           ORDER BY sent_at DESC LIMIT 1
         `).get() as { sent_at: string } | undefined
       } else {
-        weeklySent = db.prepare(`
+        weeklySent = await db.prepare(`
           SELECT sent_at FROM weekly_sent
           ORDER BY sent_at DESC LIMIT 1
         `).get() as { sent_at: string } | undefined
@@ -73,13 +74,13 @@ export async function GET() {
 
       // Daily digest last sent
       let dailySent: { sent_at: string } | undefined
-      if (isUsingTurso()) {
+      if (usingTurso) {
         dailySent = await db.prepare(`
           SELECT sent_at FROM daily_digest_sent
           ORDER BY sent_at DESC LIMIT 1
         `).get() as { sent_at: string } | undefined
       } else {
-        dailySent = db.prepare(`
+        dailySent = await db.prepare(`
           SELECT sent_at FROM daily_digest_sent
           ORDER BY sent_at DESC LIMIT 1
         `).get() as { sent_at: string } | undefined

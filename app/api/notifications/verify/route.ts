@@ -93,7 +93,7 @@ export async function GET() {
         if (usingTurso) {
           result = await db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number }
         } else {
-          result = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number }
+          result = await db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number }
         }
         tableStatus[table] = {
           status: 'passed',

@@ -78,7 +78,7 @@ export async function GET() {
             fuente: string | null
           }>
         } else {
-          recentNotifications = db.prepare(`
+          recentNotifications = await db.prepare(`
             SELECT 
               nh.tipo, 
               nh.status, 
@@ -129,7 +129,7 @@ export async function GET() {
               fuente?: string | null
             }>
           } else {
-            recentNotifications = db.prepare(`
+            recentNotifications = await db.prepare(`
               SELECT tipo, status, sent_at, created_at
               FROM notification_history
               ORDER BY created_at DESC
@@ -158,7 +158,7 @@ export async function GET() {
             LIMIT 1
           `).get() as { semana: string; sent_at: string } | undefined
         } else {
-          weeklySent = db.prepare(`
+          weeklySent = await db.prepare(`
             SELECT semana, sent_at
             FROM weekly_sent
             ORDER BY sent_at DESC
@@ -179,7 +179,7 @@ export async function GET() {
             LIMIT 1
           `).get() as { fecha: string; sent_at: string } | undefined
         } else {
-          dailyDigestSent = db.prepare(`
+          dailyDigestSent = await db.prepare(`
             SELECT fecha, sent_at
             FROM daily_digest_sent
             ORDER BY sent_at DESC
