@@ -19,7 +19,7 @@ type InternalMapping = {
   importance: 'low' | 'medium' | 'high'
   seriesId?: string | null
   indicatorKey?: string | null
-  directionality: 'higher_is_positive' | 'lower_is_positive'
+  directionality?: 'higher_is_positive' | 'lower_is_positive' | null
 }
 
 /**
@@ -223,7 +223,7 @@ export function mapProviderEventToInternal(ev: ProviderCalendarEvent): InternalM
         importance: ev.importance,
         seriesId: undefined,
         indicatorKey: undefined,
-        directionality: undefined,
+        directionality: null,
       }
     }
     if (nameLower.includes('fed') && (nameLower.includes('rate') || nameLower.includes('interest'))) {

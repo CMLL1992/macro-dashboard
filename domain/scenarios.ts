@@ -107,7 +107,7 @@ export function getInstitutionalScenarios(
 
   // Filtrar y generar escenarios - MOSTRAR TODOS los pares con dirección clara y confianza Alta/Media
   // No limitar solo a pares institucionales, mostrar todos los que cumplan criterios
-  let scenarios: InstitutionalScenario[] = normalizedRows
+  const scenarioCandidates: (InstitutionalScenario | null)[] = normalizedRows
     .filter((row) => isDirectional(row.action))
     .map((row) => {
       const symbolNorm = normalizeSymbol(row.symbol)
@@ -129,7 +129,8 @@ export function getInstitutionalScenarios(
         confidence,
       }
     })
-    .filter((x): x is InstitutionalScenario => x !== null)
+  
+  let scenarios: InstitutionalScenario[] = scenarioCandidates.filter((x): x is InstitutionalScenario => x !== null)
   
   // Priorizar pares institucionales (ponerlos primero), pero incluir todos
   scenarios.sort((a, b) => {
@@ -228,207 +229,6 @@ export function getInstitutionalScenarios(
     }
   })
 
-  return {
-    active: activeScenarios,
-    watchlist: watchlistScenarios,
-  }
-  
-  // Agrupar por dirección
-  const buyPairs = highQualityPairs.filter(row => {
-    const action = (row.accion ?? row.action ?? '').toLowerCase()
-    return action.includes('compr') || action.includes('buy')
-  })
-  
-  const sellPairs = highQualityPairs.filter(row => {
-    const action = (row.accion ?? row.action ?? '').toLowerCase()
-    return action.includes('venta') || action.includes('sell')
-  })
-  
-  // Generar escenarios según bias del USD
-  if (usdBias === 'Fuerte') {
-    // USD Hawkish → Solo buscamos shorts en EUR/USD, GBP/USD, XAU/USD
-    const usdShortPairs = sellPairs.filter(row => {
-      const pair = ((row.par ?? row.pair) || '').toUpperCase()
-      const normalizedPair = pair.replace('/', '').replace('_', '')
-      const isInstitutional = 
-        normalizedPair.includes('EURUSD') || 
-        normalizedPair.includes('GBPUSD') || 
-        normalizedPair.includes('XAUUSD') ||
-        normalizedPair.includes('AUDUSD') ||
-        normalizedPair.includes('NZDUSD') ||
-        pair.includes('EUR/USD') || 
-        pair.includes('GBP/USD') || 
-        pair.includes('XAU/USD') ||
-        pair.includes('AUD/USD') ||
-        pair.includes('NZD/USD')
-      
-      if (isInstitutional) {
-        console.log('[getInstitutionalScenarios] USD Hawkish - Found SELL pair:', pair, 'confidence:', row.confianza ?? row.confidence)
-      }
-      
-      return isInstitutional
-    })
-    
-    console.log('[getInstitutionalScenarios] USD Hawkish - usdShortPairs count:', usdShortPairs.length)
-    
-    // Priorizar por confianza
-    usdShortPairs
-      .sort((a, b) => {
-        const confA = (a.confianza ?? a.confidence ?? 'media').toLowerCase()
-        const confB = (b.confianza ?? b.confidence ?? 'media').toLowerCase()
-        if (confA === 'alta' && confB !== 'alta') return -1
-        if (confB === 'alta' && confA !== 'alta') return 1
-        return 0
-      })
-      .slice(0, 3) // Top 3
-      .forEach((row, index) => {
-        const pair = (row.par ?? row.pair) || 'Unknown'
-        const confidence = (row.confianza ?? row.confidence ?? 'Media') as string
-        const confidenceLower = confidence.toLowerCase()
-        const macroReasons = buildMacroReasons(row, usdBias, regime)
-        
-        const scenario: Scenario = {
-          id: `usd_hawkish_short_${index + 1}`,
-          title: `${pair} – SELL (Institucional setup)`,
-          severity: confidenceLower === 'alta' ? 'alta' : 'media',
-          why: `USD Hawkish: ${macroReasons.join('; ')}`,
-          actionHint: buildSetupRecommendation(pair, 'SELL', confidence),
-          pair,
-          direction: 'SELL',
-          confidence: (confidenceLower === 'alta' ? 'Alta' : confidenceLower === 'media' ? 'Media' : 'Baja') as 'Alta' | 'Media' | 'Baja',
-          macroReasons,
-          setupRecommendation: buildSetupRecommendation(pair, 'SELL', confidence),
-        }
-        
-        // Separar en Activos (Alta) vs Watchlist (Media)
-        if (confidenceLower === 'alta') {
-          activeScenarios.push(scenario)
-        } else if (confidenceLower === 'media') {
-          watchlistScenarios.push(scenario)
-        }
-      })
-  } else if (usdBias === 'Débil') {
-    // USD Dovish → Solo buscamos longs contra USD
-    const usdLongPairs = buyPairs.filter(row => {
-      const pair = ((row.par ?? row.pair) || '').toUpperCase()
-      const normalizedPair = pair.replace('/', '').replace('_', '')
-      const isInstitutional = 
-        normalizedPair.includes('EURUSD') || 
-        normalizedPair.includes('GBPUSD') || 
-        normalizedPair.includes('XAUUSD') ||
-        normalizedPair.includes('AUDUSD') ||
-        normalizedPair.includes('NZDUSD') ||
-        pair.includes('EUR/USD') || 
-        pair.includes('GBP/USD') || 
-        pair.includes('XAU/USD') ||
-        pair.includes('AUD/USD') ||
-        pair.includes('NZD/USD')
-      
-      if (isInstitutional) {
-        console.log('[getInstitutionalScenarios] USD Dovish - Found BUY pair:', pair, 'confidence:', row.confianza ?? row.confidence)
-      }
-      
-      return isInstitutional
-    })
-    
-    console.log('[getInstitutionalScenarios] USD Dovish - usdLongPairs count:', usdLongPairs.length)
-    
-    // Priorizar por confianza
-    usdLongPairs
-      .sort((a, b) => {
-        const confA = (a.confianza ?? a.confidence ?? 'media').toLowerCase()
-        const confB = (b.confianza ?? b.confidence ?? 'media').toLowerCase()
-        if (confA === 'alta' && confB !== 'alta') return -1
-        if (confB === 'alta' && confA !== 'alta') return 1
-        return 0
-      })
-      .slice(0, 3) // Top 3
-      .forEach((row, index) => {
-        const pair = (row.par ?? row.pair) || 'Unknown'
-        const confidence = (row.confianza ?? row.confidence ?? 'Media') as string
-        const confidenceLower = confidence.toLowerCase()
-        const macroReasons = buildMacroReasons(row, usdBias, regime)
-        
-        const scenario: Scenario = {
-          id: `usd_dovish_long_${index + 1}`,
-          title: `${pair} – BUY (Institucional setup)`,
-          severity: confidenceLower === 'alta' ? 'alta' : 'media',
-          why: `USD Dovish: ${macroReasons.join('; ')}`,
-          actionHint: buildSetupRecommendation(pair, 'BUY', confidence),
-          pair,
-          direction: 'BUY',
-          confidence: (confidenceLower === 'alta' ? 'Alta' : confidenceLower === 'media' ? 'Media' : 'Baja') as 'Alta' | 'Media' | 'Baja',
-          macroReasons,
-          setupRecommendation: buildSetupRecommendation(pair, 'BUY', confidence),
-        }
-        
-        // Separar en Activos (Alta) vs Watchlist (Media)
-        if (confidenceLower === 'alta') {
-          activeScenarios.push(scenario)
-        } else if (confidenceLower === 'media') {
-          watchlistScenarios.push(scenario)
-        }
-      })
-  } else {
-    // USD Neutral: Aún así podemos mostrar pares con confianza Alta/Media si tienen dirección clara
-    // Esto permite que aparezcan escenarios incluso cuando el USD no tiene sesgo claro
-    console.log('[getInstitutionalScenarios] USD Neutral - checking for high confidence pairs anyway')
-    
-    const allDirectionalPairs = [...buyPairs, ...sellPairs].filter(row => {
-      const pair = ((row.par ?? row.pair) || '').toUpperCase()
-      const normalizedPair = pair.replace('/', '').replace('_', '')
-      return normalizedPair.includes('EURUSD') || 
-             normalizedPair.includes('GBPUSD') || 
-             normalizedPair.includes('XAUUSD') ||
-             normalizedPair.includes('AUDUSD') ||
-             normalizedPair.includes('NZDUSD') ||
-             pair.includes('EUR/USD') || 
-             pair.includes('GBP/USD') || 
-             pair.includes('XAU/USD') ||
-             pair.includes('AUD/USD') ||
-             pair.includes('NZD/USD')
-    })
-    
-    console.log('[getInstitutionalScenarios] USD Neutral - allDirectionalPairs count:', allDirectionalPairs.length)
-    
-    // Si hay pares con confianza Alta incluso con USD Neutral, los mostramos
-    allDirectionalPairs
-      .filter(row => {
-        const confidence = (row.confianza ?? row.confidence ?? 'media').toLowerCase()
-        return confidence === 'alta' || confidence === 'high'
-      })
-      .slice(0, 3)
-      .forEach((row, index) => {
-        const pair = (row.par ?? row.pair) || 'Unknown'
-        const action = (row.accion ?? row.action ?? '').toLowerCase()
-        const direction = action.includes('compr') || action.includes('buy') ? 'BUY' : 'SELL'
-        const confidence = (row.confianza ?? row.confidence ?? 'Media') as string
-        const confidenceLower = confidence.toLowerCase()
-        const macroReasons = buildMacroReasons(row, usdBias, regime)
-        
-        const scenario: Scenario = {
-          id: `usd_neutral_${direction.toLowerCase()}_${index + 1}`,
-          title: `${pair} – ${direction} (Institucional setup)`,
-          severity: confidenceLower === 'alta' ? 'alta' : 'media',
-          why: `USD Neutral pero confianza ${confidence}: ${macroReasons.join('; ')}`,
-          actionHint: buildSetupRecommendation(pair, direction, confidence),
-          pair,
-          direction: direction as 'BUY' | 'SELL',
-          confidence: (confidenceLower === 'alta' ? 'Alta' : confidenceLower === 'media' ? 'Media' : 'Baja') as 'Alta' | 'Media' | 'Baja',
-          macroReasons,
-          setupRecommendation: buildSetupRecommendation(pair, direction, confidence),
-        }
-        
-        if (confidenceLower === 'alta') {
-          activeScenarios.push(scenario)
-        } else if (confidenceLower === 'media') {
-          watchlistScenarios.push(scenario)
-        }
-      })
-  }
-  
-  console.log('[getInstitutionalScenarios] Final result - active:', activeScenarios.length, 'watchlist:', watchlistScenarios.length)
-  
   return {
     active: activeScenarios,
     watchlist: watchlistScenarios,

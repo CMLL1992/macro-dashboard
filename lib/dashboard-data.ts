@@ -268,7 +268,7 @@ function buildIndicatorRows(table: any[]): IndicatorRow[] {
     // Otherwise check WEIGHTS config
     const weight = WEIGHTS[weightKey]
     return weight != null && weight > 0
-  })
+  }) as IndicatorRow[]
   
   return filteredRows
 }
