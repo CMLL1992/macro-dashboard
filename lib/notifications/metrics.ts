@@ -3,7 +3,7 @@
  * Simple counters for observability
  */
 
-import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
+import { getUnifiedDB } from '@/lib/db/unified-db'
 
 export interface Metric {
   metric_name: string
@@ -19,23 +19,14 @@ export async function incrementMetric(metricName: string, labels?: string, amoun
   const labelsStr = labels ? JSON.stringify(labels) : null
 
   try {
-    if (isUsingTurso()) {
-      await db.prepare(`
-        INSERT INTO notification_metrics (metric_name, metric_value, labels)
-        VALUES (?, ?, ?)
-        ON CONFLICT(metric_name, labels) DO UPDATE SET
-          metric_value = metric_value + ?,
-          updated_at = CURRENT_TIMESTAMP
-      `).run(metricName, amount, labelsStr, amount)
-    } else {
-      await db.prepare(`
-        INSERT INTO notification_metrics (metric_name, metric_value, labels)
-        VALUES (?, ?, ?)
-        ON CONFLICT(metric_name, labels) DO UPDATE SET
-          metric_value = metric_value + ?,
-          updated_at = CURRENT_TIMESTAMP
-      `).run(metricName, amount, labelsStr, amount)
-    }
+    // All methods are async now, so always use await
+    await db.prepare(`
+      INSERT INTO notification_metrics (metric_name, metric_value, labels)
+      VALUES (?, ?, ?)
+      ON CONFLICT(metric_name, labels) DO UPDATE SET
+        metric_value = metric_value + ?,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(metricName, amount, labelsStr, amount)
   } catch (err) {
     console.warn(`[notifications/metrics] Could not increment ${metricName}:`, err)
   }
@@ -49,18 +40,11 @@ export async function getMetric(metricName: string, labels?: string): Promise<nu
   const labelsStr = labels ? JSON.stringify(labels) : null
 
   try {
-    let row: { metric_value: number } | undefined
-    if (isUsingTurso()) {
-      row = await db.prepare(`
-        SELECT metric_value FROM notification_metrics
-        WHERE metric_name = ? AND labels = ?
-      `).get(metricName, labelsStr) as { metric_value: number } | undefined
-    } else {
-      row = await db.prepare(`
-        SELECT metric_value FROM notification_metrics
-        WHERE metric_name = ? AND labels = ?
-      `).get(metricName, labelsStr) as { metric_value: number } | undefined
-    }
+    // All methods are async now, so always use await
+    const row = await db.prepare(`
+      SELECT metric_value FROM notification_metrics
+      WHERE metric_name = ? AND labels = ?
+    `).get(metricName, labelsStr) as { metric_value: number } | undefined
 
     return row?.metric_value ?? 0
   } catch (err) {
@@ -76,33 +60,16 @@ export async function getAllMetrics(): Promise<Metric[]> {
   const db = getUnifiedDB()
 
   try {
-    let rows: Array<{
+    // All methods are async now, so always use await
+    const rows = await db.prepare(`
+      SELECT metric_name, metric_value, labels
+      FROM notification_metrics
+      ORDER BY metric_name, labels
+    `).all() as Array<{
       metric_name: string
       metric_value: number
       labels: string | null
     }>
-    
-    if (isUsingTurso()) {
-      rows = await db.prepare(`
-        SELECT metric_name, metric_value, labels
-        FROM notification_metrics
-        ORDER BY metric_name, labels
-      `).all() as Array<{
-        metric_name: string
-        metric_value: number
-        labels: string | null
-      }>
-    } else {
-      rows = await db.prepare(`
-        SELECT metric_name, metric_value, labels
-        FROM notification_metrics
-        ORDER BY metric_name, labels
-      `).all() as Array<{
-        metric_name: string
-        metric_value: number
-        labels: string | null
-      }>
-    }
 
     return rows.map(row => ({
       metric_name: row.metric_name,

@@ -11,7 +11,7 @@ import { getCurrentNarrative } from '@/lib/notifications/narrative'
 import { getRecentNewsItems } from '@/lib/notifications/news'
 import { getCalendarEvents } from '@/lib/notifications/weekly'
 import { getAggregatedMetrics } from '@/lib/notifications/metrics'
-import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
+import { getUnifiedDB } from '@/lib/db/unified-db'
 
 export async function GET() {
   const results: Record<string, any> = {
@@ -76,7 +76,6 @@ export async function GET() {
   // 3. Verificar tablas de BD
   try {
     const db = getUnifiedDB()
-    const usingTurso = isUsingTurso()
     const tables = [
       'news_items',
       'narrative_state',
@@ -89,12 +88,8 @@ export async function GET() {
     const tableStatus: Record<string, any> = {}
     for (const table of tables) {
       try {
-        let result: { count: number }
-        if (usingTurso) {
-          result = await db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number }
-        } else {
-          result = await db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number }
-        }
+        // All methods are async now, so always use await
+        const result = await db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number }
         tableStatus[table] = {
           status: 'passed',
           count: result.count,
