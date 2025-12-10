@@ -228,8 +228,8 @@ export async function fetchFredSeries(
         }
       } else {
         // Datos de nivel: usar realtime_start como fecha de publicación
-        const releaseDate = o.realtime_start || o.date
-        const observationPeriod = o.realtime_start && o.date !== o.realtime_start ? o.date : undefined
+        const releaseDate = (typeof o.realtime_start === 'string' ? o.realtime_start : null) || o.date
+        const observationPeriod = (typeof o.realtime_start === 'string' && o.realtime_start !== o.date) ? o.date : undefined
         return {
           date: releaseDate, // Fecha de publicación
           value: numValue,
