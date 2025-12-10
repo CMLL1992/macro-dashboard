@@ -3,7 +3,6 @@
  * Supports global and per-chat rate limits
  */
 
-import { getDB } from '@/lib/db/schema'
 
 export type MessagePriority = 'high' | 'normal' | 'low'
 
@@ -182,17 +181,32 @@ async function processQueue(): Promise<void> {
         
         // Log success
         try {
-          const db = getDB()
-          db.prepare(`
-            INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
-            VALUES (?, ?, ?, ?, ?)
-          `).run(
-            message.type,
-            message.text.substring(0, 200),
-            'sent',
-            new Date().toISOString(),
-            new Date().toISOString()
-          )
+          const { getUnifiedDB, isUsingTurso } = await import('@/lib/db/unified-db')
+          const db = getUnifiedDB()
+          const usingTurso = isUsingTurso()
+          if (usingTurso) {
+            await db.prepare(`
+              INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
+              VALUES (?, ?, ?, ?, ?)
+            `).run(
+              message.type,
+              message.text.substring(0, 200),
+              'sent',
+              new Date().toISOString(),
+              new Date().toISOString()
+            )
+          } else {
+            db.prepare(`
+              INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
+              VALUES (?, ?, ?, ?, ?)
+            `).run(
+              message.type,
+              message.text.substring(0, 200),
+              'sent',
+              new Date().toISOString(),
+              new Date().toISOString()
+            )
+          }
         } catch (err) {
           console.warn('[queue] Could not log to notification_history:', err)
         }
@@ -211,17 +225,32 @@ async function processQueue(): Promise<void> {
           await incrementMetric('notification_sent_total', JSON.stringify({ type: message.type, status: 'failed' }))
           
           try {
-            const db = getDB()
-            db.prepare(`
-              INSERT INTO notification_history (tipo, mensaje, status, error, created_at)
-              VALUES (?, ?, ?, ?, ?)
-            `).run(
-              message.type,
+            const { getUnifiedDB, isUsingTurso } = await import('@/lib/db/unified-db')
+            const db = getUnifiedDB()
+            const usingTurso = isUsingTurso()
+            if (usingTurso) {
+              await db.prepare(`
+                INSERT INTO notification_history (tipo, mensaje, status, error, created_at)
+                VALUES (?, ?, ?, ?, ?)
+              `).run(
+                message.type,
               message.text.substring(0, 200),
               'failed',
               result.error || 'Max retries exceeded',
               new Date().toISOString()
-            )
+              )
+            } else {
+              db.prepare(`
+                INSERT INTO notification_history (tipo, mensaje, status, error, created_at)
+                VALUES (?, ?, ?, ?, ?)
+              `).run(
+                message.type,
+                message.text.substring(0, 200),
+                'failed',
+                result.error || 'Max retries exceeded',
+                new Date().toISOString()
+              )
+            }
           } catch (err) {
             console.warn('[queue] Could not log failure:', err)
           }

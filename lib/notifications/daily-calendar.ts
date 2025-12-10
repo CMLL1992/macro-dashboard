@@ -5,7 +5,6 @@
 
 import { sendTelegramMessage } from './telegram'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
-import { getDB } from '@/lib/db/schema'
 import { format } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
 import { es } from 'date-fns/locale'
@@ -97,7 +96,8 @@ function generateWhatIfScenarios(event: {
  * Enviar resumen diario de eventos con escenarios what-if
  */
 export async function sendDailyCalendarWithScenarios(): Promise<void> {
-  const db = isUsingTurso() ? getUnifiedDB() : getDB()
+  const db = getUnifiedDB()
+  const usingTurso = isUsingTurso()
   const now = new Date()
   const today = new Date(now)
   today.setHours(0, 0, 0, 0)
@@ -116,7 +116,7 @@ export async function sendDailyCalendarWithScenarios(): Promise<void> {
   `
 
   let events: any[] = []
-  if (isUsingTurso()) {
+  if (usingTurso) {
     events = await db.prepare(query).all(
       today.toISOString(),
       tomorrow.toISOString()

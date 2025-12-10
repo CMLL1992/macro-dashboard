@@ -15,7 +15,7 @@ export async function GET() {
     const queueStatus = getQueueStatus()
     
     // Export Prometheus format
-    let prometheusOutput = exportPrometheusMetrics()
+    let prometheusOutput = await exportPrometheusMetrics()
     
     // Add queue metrics
     prometheusOutput += `# HELP notification_queue_size Current size of message queue\n`

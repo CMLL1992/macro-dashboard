@@ -10,7 +10,7 @@ import { validateIngestKeyWithError } from '@/lib/security/ingest'
 
 export async function GET() {
   try {
-    const settings = getAllNotificationSettings()
+    const settings = await getAllNotificationSettings()
     const defaults = getDefaultSettings()
 
     return NextResponse.json({
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    setNotificationSetting(key, String(value), min_value, max_value, description)
+    await setNotificationSetting(key, String(value), min_value, max_value, description)
 
     return NextResponse.json({
       success: true,

@@ -6,7 +6,6 @@
 
 import { sendTelegramMessage } from './telegram'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
-import { getDB } from '@/lib/db/schema'
 import { format } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
 import { es } from 'date-fns/locale'
@@ -73,7 +72,8 @@ export async function notifyNewCalendarEvents(newEvents: Array<{
  * Generar y enviar resumen semanal de eventos (domingos)
  */
 export async function sendWeeklyCalendarSummary(): Promise<void> {
-  const db = isUsingTurso() ? getUnifiedDB() : getDB()
+  const db = getUnifiedDB()
+  const usingTurso = isUsingTurso()
   const now = new Date()
   
   // Calcular inicio y fin de la próxima semana (lunes a domingo)
@@ -97,7 +97,7 @@ export async function sendWeeklyCalendarSummary(): Promise<void> {
   `
 
   let events: any[] = []
-  if (isUsingTurso()) {
+  if (usingTurso) {
     events = await db.prepare(query).all(
       nextMonday.toISOString(),
       nextSunday.toISOString()

@@ -3,7 +3,7 @@
  * Resumen semanal de todas las narrativas de la semana pasada
  */
 
-import { getDB } from '@/lib/db/schema'
+import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 import { enqueueMessage } from './queue'
 import { sendTelegramMessage } from './telegram'
 import { format, subDays, startOfWeek, endOfWeek, addDays } from 'date-fns'
@@ -15,6 +15,7 @@ import { postureOf } from '@/domain/posture'
 import { getMacroDiagnosis } from '@/domain/diagnostic'
 import { getBiasTableFromUniverse, usdBias, macroQuadrant } from '@/domain/bias'
 import { getCalendarEvents } from './weekly'
+import { getCurrentNarrative } from './narrative'
 import type { LatestPoint } from '@/lib/fred'
 
 const TIMEZONE = process.env.TIMEZONE || 'Europe/Madrid'
@@ -30,8 +31,9 @@ interface NarrativeChange {
 /**
  * Get all narrative changes from the past week
  */
-function getWeeklyNarrativeChanges(): NarrativeChange[] {
-  const db = getDB()
+async function getWeeklyNarrativeChanges(): Promise<NarrativeChange[]> {
+  const db = getUnifiedDB()
+  const usingTurso = isUsingTurso()
   const nowUTC = new Date()
   const madridNow = toZonedTime(nowUTC, TIMEZONE)
   
@@ -40,24 +42,27 @@ function getWeeklyNarrativeChanges(): NarrativeChange[] {
   const weekStartISO = format(weekStart, 'yyyy-MM-dd')
   
   // Get all changes from this week
-  const rows = db.prepare(`
-    SELECT narrativa_anterior, narrativa_actual, cambiado_en
-    FROM narrative_state
-    WHERE DATE(cambiado_en) >= ?
-    ORDER BY cambiado_en ASC
-  `).all(weekStartISO) as NarrativeChange[]
+  let rows: NarrativeChange[]
+  if (usingTurso) {
+    rows = await db.prepare(`
+      SELECT narrativa_anterior, narrativa_actual, cambiado_en
+      FROM narrative_state
+      WHERE DATE(cambiado_en) >= ?
+      ORDER BY cambiado_en ASC
+    `).all(weekStartISO) as NarrativeChange[]
+  } else {
+    rows = db.prepare(`
+      SELECT narrativa_anterior, narrativa_actual, cambiado_en
+      FROM narrative_state
+      WHERE DATE(cambiado_en) >= ?
+      ORDER BY cambiado_en ASC
+    `).all(weekStartISO) as NarrativeChange[]
+  }
 
   return rows
 }
 
-/**
- * Get current narrative state
- */
-function getCurrentNarrative(): NarrativeState {
-  const db = getDB()
-  const row = db.prepare('SELECT narrativa_actual FROM narrative_state ORDER BY id DESC LIMIT 1').get() as { narrativa_actual: string } | undefined
-  return (row?.narrativa_actual as NarrativeState) || 'NEUTRAL'
-}
+// Use getCurrentNarrative from './narrative' instead
 
 /**
  * Format narrative state name in Spanish
@@ -487,8 +492,8 @@ function getIndicatorsUpdatedThisWeek(items: any[], weekStart: Date): any[] {
  * Build weekly narrative summary message
  */
 async function buildWeeklyNarrativeMessage(): Promise<string> {
-  const changes = getWeeklyNarrativeChanges()
-  const current = getCurrentNarrative()
+  const changes = await getWeeklyNarrativeChanges()
+  const current = await getCurrentNarrative()
   const nowUTC = new Date()
   const madridNow = toZonedTime(nowUTC, TIMEZONE)
   
@@ -755,17 +760,32 @@ export async function sendWeeklyNarrativeSummary(): Promise<{ success: boolean; 
       
       // Log to notification_history
       try {
-        const db = getDB()
-        db.prepare(`
-          INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
-          VALUES (?, ?, ?, ?, ?)
-        `).run(
-          'narrative_weekly',
-          message.substring(0, 200),
-          result.success ? 'sent' : 'failed',
-          result.success ? sentAtISO : null,
-          sentAtISO
-        )
+        const { getUnifiedDB, isUsingTurso } = await import('@/lib/db/unified-db')
+        const db = getUnifiedDB()
+        const usingTurso = isUsingTurso()
+        if (usingTurso) {
+          await db.prepare(`
+            INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
+            VALUES (?, ?, ?, ?, ?)
+          `).run(
+            'narrative_weekly',
+            message.substring(0, 200),
+            result.success ? 'sent' : 'failed',
+            result.success ? sentAtISO : null,
+            sentAtISO
+          )
+        } else {
+          db.prepare(`
+            INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
+            VALUES (?, ?, ?, ?, ?)
+          `).run(
+            'narrative_weekly',
+            message.substring(0, 200),
+            result.success ? 'sent' : 'failed',
+            result.success ? sentAtISO : null,
+            sentAtISO
+          )
+        }
       } catch (err) {
         console.warn('[narrative-weekly] Could not log to notification_history:', err)
       }

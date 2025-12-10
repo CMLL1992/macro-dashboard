@@ -5,7 +5,6 @@
 
 import { sendTelegramMessage } from './telegram'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
-import { getDB } from '@/lib/db/schema'
 
 type DataChange = {
   key: string
@@ -30,7 +29,8 @@ export async function detectDataChanges(
     date: string
   }>
 ): Promise<DataChange[]> {
-  const db = isUsingTurso() ? getUnifiedDB() : getDB()
+  const db = getUnifiedDB()
+  const usingTurso = isUsingTurso()
 
   const changes: DataChange[] = []
 
@@ -46,7 +46,7 @@ export async function detectDataChanges(
     `
 
     let previous: any = null
-    if (isUsingTurso()) {
+    if (usingTurso) {
       previous = await db.prepare(query).get(indicator.key, indicator.date) as any
     } else {
       previous = db.prepare(query).get(indicator.key, indicator.date) as any

@@ -6,7 +6,7 @@
 export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getDB } from '@/lib/db/schema'
+import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 import { toZonedTime } from 'date-fns-tz'
 import { format, subDays, startOfDay, endOfDay } from 'date-fns'
 
@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50', 10)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
 
-    const db = getDB()
+    const db = getUnifiedDB()
+    const usingTurso = isUsingTurso()
 
     // Build WHERE clause
     const conditions: string[] = []
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
     `
     params.push(limit, offset)
 
-    const rows = db.prepare(query).all(...params) as Array<{
+    let rows: Array<{
       id: number
       tipo: string
       mensaje: string
@@ -77,6 +78,28 @@ export async function GET(request: NextRequest) {
       sent_at: string | null
       created_at: string
     }>
+    
+    if (usingTurso) {
+      rows = await db.prepare(query).all(...params) as Array<{
+        id: number
+        tipo: string
+        mensaje: string
+        status: string
+        error: string | null
+        sent_at: string | null
+        created_at: string
+      }>
+    } else {
+      rows = db.prepare(query).all(...params) as Array<{
+        id: number
+        tipo: string
+        mensaje: string
+        status: string
+        error: string | null
+        sent_at: string | null
+        created_at: string
+      }>
+    }
 
     // Get total count for pagination
     const countQuery = `
@@ -85,7 +108,12 @@ export async function GET(request: NextRequest) {
       ${whereClause}
     `
     const countParams = params.slice(0, -2) // Remove limit and offset
-    const countRow = db.prepare(countQuery).all(...countParams) as Array<{ total: number }>
+    let countRow: Array<{ total: number }>
+    if (usingTurso) {
+      countRow = await db.prepare(countQuery).all(...countParams) as Array<{ total: number }>
+    } else {
+      countRow = db.prepare(countQuery).all(...countParams) as Array<{ total: number }>
+    }
     const total = countRow[0]?.total || 0
 
     // Format response with Madrid timezone

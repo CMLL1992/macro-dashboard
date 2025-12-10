@@ -43,7 +43,7 @@ export async function GET() {
     let dailyDigestSent: { fecha: string; sent_at: string } | undefined = undefined
 
     try {
-      currentNarrative = getCurrentNarrative()
+      currentNarrative = await getCurrentNarrative()
     } catch (err) {
       console.warn('[notifications/status] Error getting narrative:', err)
     }

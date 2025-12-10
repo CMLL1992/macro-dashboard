@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDB } from '@/lib/db/schema'
+import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 
 export const runtime = 'nodejs'
 
@@ -16,16 +16,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const db = getDB()
+    const db = getUnifiedDB()
+    const usingTurso = isUsingTurso()
 
     // Store user preferences
-    db.prepare(`
-      INSERT INTO user_notification_preferences (chat_id, preferences_json, updated_at)
-      VALUES (?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(chat_id) DO UPDATE SET
-        preferences_json = excluded.preferences_json,
-        updated_at = CURRENT_TIMESTAMP
-    `).run(chatId, JSON.stringify(preferences || []))
+    if (usingTurso) {
+      await db.prepare(`
+        INSERT INTO user_notification_preferences (chat_id, preferences_json, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(chat_id) DO UPDATE SET
+          preferences_json = excluded.preferences_json,
+          updated_at = CURRENT_TIMESTAMP
+      `).run(chatId, JSON.stringify(preferences || []))
+    } else {
+      db.prepare(`
+        INSERT INTO user_notification_preferences (chat_id, preferences_json, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(chat_id) DO UPDATE SET
+          preferences_json = excluded.preferences_json,
+          updated_at = CURRENT_TIMESTAMP
+      `).run(chatId, JSON.stringify(preferences || []))
+    }
 
     return NextResponse.json({
       success: true,
@@ -53,12 +64,23 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const db = getDB()
-    const row = db.prepare(`
-      SELECT preferences_json, updated_at
-      FROM user_notification_preferences
-      WHERE chat_id = ?
-    `).get(chatId) as { preferences_json: string; updated_at: string } | undefined
+    const db = getUnifiedDB()
+    const usingTurso = isUsingTurso()
+    let row: { preferences_json: string; updated_at: string } | undefined
+    
+    if (usingTurso) {
+      row = await db.prepare(`
+        SELECT preferences_json, updated_at
+        FROM user_notification_preferences
+        WHERE chat_id = ?
+      `).get(chatId) as { preferences_json: string; updated_at: string } | undefined
+    } else {
+      row = db.prepare(`
+        SELECT preferences_json, updated_at
+        FROM user_notification_preferences
+        WHERE chat_id = ?
+      `).get(chatId) as { preferences_json: string; updated_at: string } | undefined
+    }
 
     if (!row) {
       return NextResponse.json({

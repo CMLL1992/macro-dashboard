@@ -11,7 +11,7 @@ import { getCurrentNarrative } from '@/lib/notifications/narrative'
 import { getRecentNewsItems } from '@/lib/notifications/news'
 import { getCalendarEvents } from '@/lib/notifications/weekly'
 import { getAggregatedMetrics } from '@/lib/notifications/metrics'
-import { getDB } from '@/lib/db/schema'
+import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 
 export async function GET() {
   const results: Record<string, any> = {
@@ -75,7 +75,8 @@ export async function GET() {
 
   // 3. Verificar tablas de BD
   try {
-    const db = getDB()
+    const db = getUnifiedDB()
+    const usingTurso = isUsingTurso()
     const tables = [
       'news_items',
       'narrative_state',
@@ -88,7 +89,12 @@ export async function GET() {
     const tableStatus: Record<string, any> = {}
     for (const table of tables) {
       try {
-        const result = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number }
+        let result: { count: number }
+        if (usingTurso) {
+          result = await db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number }
+        } else {
+          result = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number }
+        }
         tableStatus[table] = {
           status: 'passed',
           count: result.count,
@@ -116,7 +122,7 @@ export async function GET() {
 
   // 4. Verificar narrativa
   try {
-    const narrative = getCurrentNarrative()
+    const narrative = await getCurrentNarrative()
     results.checks.narrative = {
       status: 'passed',
       current: narrative,
@@ -132,7 +138,7 @@ export async function GET() {
 
   // 5. Verificar noticias
   try {
-    const news = getRecentNewsItems(5)
+    const news = await getRecentNewsItems(5)
     results.checks.news = {
       status: 'passed',
       recent_count: news.length,
@@ -176,7 +182,7 @@ export async function GET() {
 
   // 7. Verificar métricas
   try {
-    const metrics = getAggregatedMetrics()
+    const metrics = await getAggregatedMetrics()
     results.checks.metrics = {
       status: 'passed',
       sent_total: metrics.sent_total,

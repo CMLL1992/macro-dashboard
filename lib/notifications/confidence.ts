@@ -5,7 +5,6 @@
 
 import { sendTelegramMessage } from './telegram'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
-import { getDB } from '@/lib/db/schema'
 
 type ConfidenceChange = {
   pair: string
@@ -26,7 +25,8 @@ export async function detectConfidenceChanges(
     trend: string
   }>
 ): Promise<ConfidenceChange[]> {
-  const db = isUsingTurso() ? getUnifiedDB() : getDB()
+  const db = getUnifiedDB()
+  const usingTurso = isUsingTurso()
   const today = new Date().toISOString().split('T')[0]
 
   // Obtener confianza anterior (último snapshot)
@@ -39,7 +39,7 @@ export async function detectConfidenceChanges(
   `
 
   let previousSignals: any[] = []
-  if (isUsingTurso()) {
+  if (usingTurso) {
     previousSignals = await db.prepare(previousQuery).all(today) as any[]
   } else {
     previousSignals = db.prepare(previousQuery).all(today) as any[]

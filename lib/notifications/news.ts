@@ -3,7 +3,7 @@
  * Caso A: Notificar cada vez que se inserta una noticia nueva
  */
 
-import { getDB } from '@/lib/db/schema'
+import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 import { sendTelegramMessage } from './telegram'
 import { format } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
@@ -33,23 +33,33 @@ export interface NewsItem {
 }
 
 // Get dedup window from settings (DB) or env or default
-function getDedupWindowHours(): number {
-  return getNotificationSettingNumber('NEWS_DEDUP_WINDOW_HOURS') || 2
+async function getDedupWindowHours(): Promise<number> {
+  return (await getNotificationSettingNumber('NEWS_DEDUP_WINDOW_HOURS')) || 2
 }
 
 /**
  * Insert news item and trigger notification if new
  */
 export async function insertNewsItem(item: NewsItem): Promise<{ inserted: boolean; notified: boolean; error?: string }> {
-  const db = getDB()
+  const db = getUnifiedDB()
+  const usingTurso = isUsingTurso()
 
   try {
     // Check if already exists (deduplication)
-    const existing = db.prepare(`
-      SELECT id, notificado_at, published_at 
-      FROM news_items 
-      WHERE fuente = ? AND id_fuente = ?
-    `).get(item.fuente, item.id_fuente) as { id: number; notificado_at: string | null; published_at: string } | undefined
+    let existing: { id: number; notificado_at: string | null; published_at: string } | undefined
+    if (usingTurso) {
+      existing = await db.prepare(`
+        SELECT id, notificado_at, published_at 
+        FROM news_items 
+        WHERE fuente = ? AND id_fuente = ?
+      `).get(item.fuente, item.id_fuente) as { id: number; notificado_at: string | null; published_at: string } | undefined
+    } else {
+      existing = db.prepare(`
+        SELECT id, notificado_at, published_at 
+        FROM news_items 
+        WHERE fuente = ? AND id_fuente = ?
+      `).get(item.fuente, item.id_fuente) as { id: number; notificado_at: string | null; published_at: string } | undefined
+    }
 
     if (existing) {
       // Check if within dedup window
@@ -57,45 +67,78 @@ export async function insertNewsItem(item: NewsItem): Promise<{ inserted: boolea
       const now = new Date()
       const hoursDiff = (now.getTime() - publishedAt.getTime()) / (1000 * 60 * 60)
 
-      const dedupWindowHours = getDedupWindowHours()
+      const dedupWindowHours = await getDedupWindowHours()
       if (hoursDiff < dedupWindowHours && existing.notificado_at) {
         return { inserted: false, notified: false }
       }
     }
 
     // Insert or update
-    const insertStmt = db.prepare(`
-      INSERT INTO news_items (
-        id_fuente, fuente, pais, tema, titulo, impacto, 
-        published_at, resumen, valor_publicado, valor_esperado
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(fuente, id_fuente) DO UPDATE SET
-        titulo = excluded.titulo,
-        impacto = excluded.impacto,
-        published_at = excluded.published_at,
-        resumen = excluded.resumen,
-        valor_publicado = excluded.valor_publicado,
-        valor_esperado = excluded.valor_esperado
-    `)
-
-    insertStmt.run(
-      item.id_fuente,
-      item.fuente,
-      item.pais || null,
-      item.tema || null,
-      item.titulo,
-      item.impacto,
-      item.published_at,
-      item.resumen || null,
-      item.valor_publicado ?? null,
-      item.valor_esperado ?? null
-    )
+    if (usingTurso) {
+      await db.prepare(`
+        INSERT INTO news_items (
+          id_fuente, fuente, pais, tema, titulo, impacto, 
+          published_at, resumen, valor_publicado, valor_esperado
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(fuente, id_fuente) DO UPDATE SET
+          titulo = excluded.titulo,
+          impacto = excluded.impacto,
+          published_at = excluded.published_at,
+          resumen = excluded.resumen,
+          valor_publicado = excluded.valor_publicado,
+          valor_esperado = excluded.valor_esperado
+      `).run(
+        item.id_fuente,
+        item.fuente,
+        item.pais || null,
+        item.tema || null,
+        item.titulo,
+        item.impacto,
+        item.published_at,
+        item.resumen || null,
+        item.valor_publicado ?? null,
+        item.valor_esperado ?? null
+      )
+    } else {
+      db.prepare(`
+        INSERT INTO news_items (
+          id_fuente, fuente, pais, tema, titulo, impacto, 
+          published_at, resumen, valor_publicado, valor_esperado
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(fuente, id_fuente) DO UPDATE SET
+          titulo = excluded.titulo,
+          impacto = excluded.impacto,
+          published_at = excluded.published_at,
+          resumen = excluded.resumen,
+          valor_publicado = excluded.valor_publicado,
+          valor_esperado = excluded.valor_esperado
+      `).run(
+        item.id_fuente,
+        item.fuente,
+        item.pais || null,
+        item.tema || null,
+        item.titulo,
+        item.impacto,
+        item.published_at,
+        item.resumen || null,
+        item.valor_publicado ?? null,
+        item.valor_esperado ?? null
+      )
+    }
 
     // Get the inserted/updated row
-    const row = db.prepare(`
-      SELECT id, notificado_at FROM news_items 
-      WHERE fuente = ? AND id_fuente = ?
-    `).get(item.fuente, item.id_fuente) as { id: number; notificado_at: string | null }
+    let row: { id: number; notificado_at: string | null }
+    if (usingTurso) {
+      row = await db.prepare(`
+        SELECT id, notificado_at FROM news_items 
+        WHERE fuente = ? AND id_fuente = ?
+      `).get(item.fuente, item.id_fuente) as { id: number; notificado_at: string | null }
+    } else {
+      row = db.prepare(`
+        SELECT id, notificado_at FROM news_items 
+        WHERE fuente = ? AND id_fuente = ?
+      `).get(item.fuente, item.id_fuente) as { id: number; notificado_at: string | null }
+    }
 
     // If not notified yet, send notification
     if (!row.notificado_at) {
@@ -104,23 +147,40 @@ export async function insertNewsItem(item: NewsItem): Promise<{ inserted: boolea
       
       // Log to notification_history
       try {
-        db.prepare(`
-          INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
-          VALUES (?, ?, ?, ?, ?)
-        `).run(
-          'news',
-          `[NEW] ${item.pais || 'N/A'}/${item.tema || 'N/A'} — ${item.titulo}`,
-          notified.success ? 'sent' : 'failed',
-          notified.success ? now : null,
-          now
-        )
+        if (usingTurso) {
+          await db.prepare(`
+            INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
+            VALUES (?, ?, ?, ?, ?)
+          `).run(
+            'news',
+            `[NEW] ${item.pais || 'N/A'}/${item.tema || 'N/A'} — ${item.titulo}`,
+            notified.success ? 'sent' : 'failed',
+            notified.success ? now : null,
+            now
+          )
+        } else {
+          db.prepare(`
+            INSERT INTO notification_history (tipo, mensaje, status, sent_at, created_at)
+            VALUES (?, ?, ?, ?, ?)
+          `).run(
+            'news',
+            `[NEW] ${item.pais || 'N/A'}/${item.tema || 'N/A'} — ${item.titulo}`,
+            notified.success ? 'sent' : 'failed',
+            notified.success ? now : null,
+            now
+          )
+        }
       } catch (err) {
         console.warn('[news] Could not log to notification_history:', err)
       }
 
       if (notified.success) {
         // Mark as notified
-        db.prepare('UPDATE news_items SET notificado_at = ? WHERE id = ?').run(now, row.id)
+        if (usingTurso) {
+          await db.prepare('UPDATE news_items SET notificado_at = ? WHERE id = ?').run(now, row.id)
+        } else {
+          db.prepare('UPDATE news_items SET notificado_at = ? WHERE id = ?').run(now, row.id)
+        }
         await incrementMetric('notification_sent', 'status=sent')
         console.log(`[news] sent id=${item.id_fuente} reason=success`)
         return { inserted: true, notified: true }
@@ -220,13 +280,24 @@ async function sendTelegramMessageWithRetry(
 /**
  * Get recent news items
  */
-export function getRecentNewsItems(limit: number = 20): Array<NewsItem & { id: number; created_at: string; notificado_at: string | null }> {
-  const db = getDB()
-  const rows = db.prepare(`
-    SELECT * FROM news_items 
-    ORDER BY published_at DESC 
-    LIMIT ?
-  `).all(limit) as Array<any>
+export async function getRecentNewsItems(limit: number = 20): Promise<Array<NewsItem & { id: number; created_at: string; notificado_at: string | null }>> {
+  const db = getUnifiedDB()
+  const usingTurso = isUsingTurso()
+  
+  let rows: Array<any>
+  if (usingTurso) {
+    rows = await db.prepare(`
+      SELECT * FROM news_items 
+      ORDER BY published_at DESC 
+      LIMIT ?
+    `).all(limit) as Array<any>
+  } else {
+    rows = db.prepare(`
+      SELECT * FROM news_items 
+      ORDER BY published_at DESC 
+      LIMIT ?
+    `).all(limit) as Array<any>
+  }
 
   return rows.map(row => ({
     id: row.id,

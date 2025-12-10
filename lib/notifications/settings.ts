@@ -3,7 +3,7 @@
  * Adjustable parameters with validation and persistence
  */
 
-import { getDB } from '@/lib/db/schema'
+import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 
 export interface NotificationSetting {
   key: string
@@ -43,12 +43,18 @@ const DEFAULT_SETTINGS: Record<string, { default: string; min?: number; max?: nu
 /**
  * Get notification setting value (from DB or env or default)
  */
-export function getNotificationSetting(key: string): string {
-  const db = getDB()
+export async function getNotificationSetting(key: string): Promise<string> {
+  const db = getUnifiedDB()
+  const usingTurso = isUsingTurso()
   
   // Try DB first
   try {
-    const row = db.prepare('SELECT value FROM notification_settings WHERE key = ?').get(key) as { value: string } | undefined
+    let row: { value: string } | undefined
+    if (usingTurso) {
+      row = await db.prepare('SELECT value FROM notification_settings WHERE key = ?').get(key) as { value: string } | undefined
+    } else {
+      row = db.prepare('SELECT value FROM notification_settings WHERE key = ?').get(key) as { value: string } | undefined
+    }
     if (row) {
       return row.value
     }
@@ -70,8 +76,8 @@ export function getNotificationSetting(key: string): string {
 /**
  * Get notification setting as number
  */
-export function getNotificationSettingNumber(key: string): number {
-  const value = getNotificationSetting(key)
+export async function getNotificationSettingNumber(key: string): Promise<number> {
+  const value = await getNotificationSetting(key)
   const num = parseFloat(value)
   return isNaN(num) ? parseFloat(DEFAULT_SETTINGS[key]?.default || '0') : num
 }
@@ -79,14 +85,15 @@ export function getNotificationSettingNumber(key: string): number {
 /**
  * Set notification setting
  */
-export function setNotificationSetting(
+export async function setNotificationSetting(
   key: string,
   value: string,
   min_value?: number,
   max_value?: number,
   description?: string
-): void {
-  const db = getDB()
+): Promise<void> {
+  const db = getUnifiedDB()
+  const usingTurso = isUsingTurso()
   const defaultSetting = DEFAULT_SETTINGS[key]
   
   // Validate range if provided
@@ -102,36 +109,72 @@ export function setNotificationSetting(
     }
   }
 
-  db.prepare(`
-    INSERT INTO notification_settings (key, value, min_value, max_value, description, updated_at)
-    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(key) DO UPDATE SET
-      value = excluded.value,
-      min_value = excluded.min_value,
-      max_value = excluded.max_value,
-      description = excluded.description,
-      updated_at = CURRENT_TIMESTAMP
-  `).run(key, value, min ?? null, max ?? null, description ?? defaultSetting?.description ?? null)
+  if (usingTurso) {
+    await db.prepare(`
+      INSERT INTO notification_settings (key, value, min_value, max_value, description, updated_at)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET
+        value = excluded.value,
+        min_value = excluded.min_value,
+        max_value = excluded.max_value,
+        description = excluded.description,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(key, value, min ?? null, max ?? null, description ?? defaultSetting?.description ?? null)
+  } else {
+    db.prepare(`
+      INSERT INTO notification_settings (key, value, min_value, max_value, description, updated_at)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET
+        value = excluded.value,
+        min_value = excluded.min_value,
+        max_value = excluded.max_value,
+        description = excluded.description,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(key, value, min ?? null, max ?? null, description ?? defaultSetting?.description ?? null)
+  }
 }
 
 /**
  * Get all notification settings
  */
-export function getAllNotificationSettings(): NotificationSetting[] {
-  const db = getDB()
+export async function getAllNotificationSettings(): Promise<NotificationSetting[]> {
+  const db = getUnifiedDB()
+  const usingTurso = isUsingTurso()
   
   try {
-    const rows = db.prepare(`
-      SELECT key, value, min_value, max_value, description
-      FROM notification_settings
-      ORDER BY key
-    `).all() as Array<{
+    let rows: Array<{
       key: string
       value: string
       min_value: number | null
       max_value: number | null
       description: string | null
     }>
+    
+    if (usingTurso) {
+      rows = await db.prepare(`
+        SELECT key, value, min_value, max_value, description
+        FROM notification_settings
+        ORDER BY key
+      `).all() as Array<{
+        key: string
+        value: string
+        min_value: number | null
+        max_value: number | null
+        description: string | null
+      }>
+    } else {
+      rows = db.prepare(`
+        SELECT key, value, min_value, max_value, description
+        FROM notification_settings
+        ORDER BY key
+      `).all() as Array<{
+        key: string
+        value: string
+        min_value: number | null
+        max_value: number | null
+        description: string | null
+      }>
+    }
 
     return rows.map(row => ({
       key: row.key,
