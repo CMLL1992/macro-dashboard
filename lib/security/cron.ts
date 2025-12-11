@@ -2,37 +2,45 @@
  * Verificación de autenticación para cron jobs
  * Compatible con NextRequest y Request estándar
  * Supports both Authorization header and query parameter (for Vercel Cron Jobs)
- * Also accepts INGEST_KEY for Scheduled Functions compatibility
+ * Accepts CRON_SECRET (Vercel official), INGEST_KEY, or CRON_TOKEN
  */
 
 export function assertCronAuth(req: Request | { headers: Headers; url?: string }): void {
   const headers = 'headers' in req ? req.headers : (req as any).headers
-  const expectedCronToken = process.env.CRON_TOKEN
-  const expectedIngestKey = process.env.INGEST_KEY
+  
+  const CRON_SECRET = process.env.CRON_SECRET
+  const INGEST_KEY = process.env.INGEST_KEY
+  const CRON_TOKEN = process.env.CRON_TOKEN
 
-  if (!expectedCronToken && !expectedIngestKey) {
-    throw new Error('CRON_TOKEN or INGEST_KEY must be configured')
+  // Build valid tokens list
+  const validTokens: string[] = []
+  if (CRON_SECRET) validTokens.push(`Bearer ${CRON_SECRET}`)
+  if (INGEST_KEY) validTokens.push(`Bearer ${INGEST_KEY}`)
+  if (CRON_TOKEN) validTokens.push(`Bearer ${CRON_TOKEN}`)
+
+  if (validTokens.length === 0) {
+    throw new Error('CRON_SECRET, INGEST_KEY, or CRON_TOKEN must be configured')
   }
 
-  // Try Authorization header first (Bearer token)
-  const authHeader = headers.get('authorization')
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7) // Remove "Bearer "
-    // Accept either CRON_TOKEN or INGEST_KEY
-    if ((expectedCronToken && token === expectedCronToken) || (expectedIngestKey && token === expectedIngestKey)) {
+  // Try Authorization header (Vercel crons automatically add Authorization: Bearer ${CRON_SECRET})
+  const authHeader = headers.get('authorization') || headers.get('Authorization')
+  if (authHeader) {
+    // Normalize: remove leading/trailing whitespace and ensure Bearer prefix
+    const normalized = authHeader.trim()
+    if (validTokens.includes(normalized)) {
       return // Valid token in header
     }
   }
 
-  // Try query parameter (Vercel Cron Jobs use ?token=...)
+  // Try query parameter (fallback for manual triggers)
   const url = 'url' in req ? req.url : (req as any).url
   if (url) {
     try {
       const urlObj = new URL(url)
       const queryToken = urlObj.searchParams.get('token')
       if (queryToken) {
-        // Accept either CRON_TOKEN or INGEST_KEY
-        if ((expectedCronToken && queryToken === expectedCronToken) || (expectedIngestKey && queryToken === expectedIngestKey)) {
+        const fullAuth = `Bearer ${queryToken}`
+        if (validTokens.includes(fullAuth)) {
           return // Valid token in query parameter
         }
       }
@@ -41,6 +49,6 @@ export function assertCronAuth(req: Request | { headers: Headers; url?: string }
     }
   }
 
-  throw new Error('Missing or invalid CRON_TOKEN/INGEST_KEY (check Authorization header or ?token= query parameter)')
+  throw new Error('Missing or invalid CRON_SECRET/INGEST_KEY/CRON_TOKEN (check Authorization header or ?token= query parameter)')
 }
 

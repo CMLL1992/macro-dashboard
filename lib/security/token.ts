@@ -1,17 +1,31 @@
 /**
  * Token-based security for job endpoints
+ * Supports Vercel CRON_SECRET (automatically added by Vercel crons),
+ * INGEST_KEY, and CRON_TOKEN for backward compatibility
  */
 
 import { NextRequest } from 'next/server'
 
-const CRON_TOKEN = (process.env.CRON_TOKEN || '').trim()
+const CRON_SECRET = (process.env.CRON_SECRET || '').trim()
 const INGEST_KEY = (process.env.INGEST_KEY || '').trim()
+const CRON_TOKEN = (process.env.CRON_TOKEN || '').trim()
+
+/**
+ * Get valid authorization tokens
+ */
+function getValidTokens(): string[] {
+  const tokens: string[] = []
+  if (CRON_SECRET) tokens.push(`Bearer ${CRON_SECRET}`)
+  if (INGEST_KEY) tokens.push(`Bearer ${INGEST_KEY}`)
+  if (CRON_TOKEN) tokens.push(`Bearer ${CRON_TOKEN}`)
+  return tokens
+}
 
 /**
  * Validate cron token from request
- * In development, allows requests without token if CRON_TOKEN is not set
+ * In development, allows requests without token if no tokens are configured
  * Supports both Authorization header and query parameter (for Vercel Cron Jobs)
- * Also accepts INGEST_KEY for Scheduled Functions compatibility
+ * Accepts CRON_SECRET (Vercel official), INGEST_KEY, or CRON_TOKEN
  */
 export function validateCronToken(request: NextRequest): boolean {
   // FORCE ALLOW in development (localhost) - bypass all token checks
@@ -26,27 +40,28 @@ export function validateCronToken(request: NextRequest): boolean {
 
   // In production (Vercel), require token
   if (process.env.VERCEL) {
-    if ((!CRON_TOKEN || CRON_TOKEN.length === 0) && (!INGEST_KEY || INGEST_KEY.length === 0)) {
-      console.log('[security] Rejecting: In Vercel but no CRON_TOKEN or INGEST_KEY configured')
+    const validTokens = getValidTokens()
+    if (validTokens.length === 0) {
+      console.log('[security] Rejecting: In Vercel but no CRON_SECRET, INGEST_KEY, or CRON_TOKEN configured')
       return false
     }
     
-    // Try Authorization header first (Bearer token)
-    const authHeader = request.headers.get('authorization')
+    // Try Authorization header (Vercel crons automatically add Authorization: Bearer ${CRON_SECRET})
+    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization')
     if (authHeader) {
-      const token = authHeader.replace('Bearer ', '').trim()
-      // Accept either CRON_TOKEN or INGEST_KEY
-      if ((CRON_TOKEN && token === CRON_TOKEN) || (INGEST_KEY && token === INGEST_KEY)) {
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim()
+      const fullAuth = `Bearer ${token}`
+      if (validTokens.includes(fullAuth)) {
         return true
       }
     }
     
-    // Try query parameter (Vercel Cron Jobs use ?token=...)
+    // Try query parameter (fallback for manual triggers)
     const url = new URL(request.url)
     const queryToken = url.searchParams.get('token')
     if (queryToken) {
-      // Accept either CRON_TOKEN or INGEST_KEY
-      if ((CRON_TOKEN && queryToken === CRON_TOKEN) || (INGEST_KEY && queryToken === INGEST_KEY)) {
+      const fullAuth = `Bearer ${queryToken}`
+      if (validTokens.includes(fullAuth)) {
         return true
       }
     }
