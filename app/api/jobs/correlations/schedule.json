@@ -1,0 +1,6 @@
+{
+  "schedule": "30 9 * * *",
+  "headers": {
+    "Authorization": "Bearer Trading11!"
+  }
+}
