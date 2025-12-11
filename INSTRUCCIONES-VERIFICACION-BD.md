@@ -185,3 +185,5 @@ Si `rawInput` es igual pero `value`/`previous` es distinto → problema en la tr
 
 
 
+
+

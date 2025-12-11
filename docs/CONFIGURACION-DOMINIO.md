@@ -231,3 +231,5 @@ Una vez completado, tu dashboard será accesible desde:
 
 - [Documentación de Vercel sobre Dominios](https://vercel.com/docs/concepts/projects/domains)
 - [Guía de DNS de Vercel](https://vercel.com/docs/concepts/projects/domains/add-a-domain)
+
+

@@ -128,7 +128,8 @@ export async function POST(request: NextRequest) {
             data: observations.map(obs => ({
               date: obs.date,
               value: obs.value,
-            })),
+              ...(obs.observation_period && { observation_period: obs.observation_period }), // Preserve observation_period if present
+            })) as any, // Type assertion to allow observation_period
             lastUpdated: observations.length > 0 ? observations[observations.length - 1].date : undefined,
           }
         } else {
@@ -170,7 +171,7 @@ export async function POST(request: NextRequest) {
         }
 
         const newPoints = lastDateInDb
-          ? macroSeries.data.filter((p) => p.date > lastDateInDb!)
+          ? macroSeries.data.filter((p: { date: string; value: number }) => p.date > lastDateInDb!)
           : macroSeries.data
 
         console.log(

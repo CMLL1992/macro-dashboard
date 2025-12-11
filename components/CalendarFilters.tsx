@@ -141,3 +141,5 @@ export function CalendarFilters({ onFiltersChange }: CalendarFiltersProps) {
     </Card>
   )
 }
+
+

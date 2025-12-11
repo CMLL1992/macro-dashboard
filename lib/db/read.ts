@@ -504,6 +504,7 @@ export async function getLatestMacroObservations(): Promise<LatestMacroObservati
 
 /**
  * Get indicator history (current and previous values)
+ * Sync version for better-sqlite3
  */
 export function getIndicatorHistory(indicatorKey: string): {
   value_current: number | null
@@ -514,6 +515,31 @@ export function getIndicatorHistory(indicatorKey: string): {
   const db = getDB()
 
   const row = db
+    .prepare('SELECT * FROM indicator_history WHERE indicator_key = ?')
+    .get(indicatorKey.toUpperCase()) as any
+
+  if (!row) return null
+
+  return {
+    value_current: row.value_current,
+    value_previous: row.value_previous,
+    date_current: row.date_current,
+    date_previous: row.date_previous,
+  }
+}
+
+/**
+ * Get indicator history (async version for Turso compatibility)
+ */
+export async function getIndicatorHistoryAsync(indicatorKey: string): Promise<{
+  value_current: number | null
+  value_previous: number | null
+  date_current: string | null
+  date_previous: string | null
+} | null> {
+  const db = getUnifiedDB()
+
+  const row = await db
     .prepare('SELECT * FROM indicator_history WHERE indicator_key = ?')
     .get(indicatorKey.toUpperCase()) as any
 

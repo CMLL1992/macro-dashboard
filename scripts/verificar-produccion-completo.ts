@@ -233,3 +233,5 @@ if (errorCount > 0) {
   console.log('⚠️ Recuerda: Debes configurar las variables de entorno en Vercel manualmente.\n')
   process.exit(0)
 }
+
+

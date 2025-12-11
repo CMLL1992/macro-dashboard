@@ -200,6 +200,8 @@ export async function GET() {
   })
   
   return Response.json({ 
+    ok: true,
+    data: enrichedRows,
     items, // Include items for dashboard
     regime, 
     usd, 

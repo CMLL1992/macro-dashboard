@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateCronToken, unauthorizedResponse } from '@/lib/security/token'
 import { logger } from '@/lib/obs/logger'
 import { upsertAssetPrice, upsertAssetMetadata } from '@/lib/db/upsert'
-import { fetchAssetDaily } from '@/lib/correlations/fetch'
+import { fetchAssetDaily, fetchDXYDaily } from '@/lib/correlations/fetch'
 import { fetchTopCryptocurrencies, fetchCoinMarketCapLatest } from '@/lib/datasources/coinmarketcap'
 import fs from 'fs'
 import path from 'path'
@@ -122,11 +122,57 @@ export async function POST(request: NextRequest) {
     let errors = 0
     const ingestErrors: Array<{ symbol?: string; error: string }> = []
 
+    // PRIORITY: Ingest DXY first (needed for correlations)
+    try {
+      logger.info('Ingesting DXY from FRED', { job: jobId })
+      const dxyPrices = await fetchDXYDaily()
+      
+      if (dxyPrices.length > 0) {
+        // Upsert DXY metadata
+        await upsertAssetMetadata({
+          symbol: 'DXY',
+          name: 'US Dollar Index (DXY)',
+          category: 'index',
+          source: 'FRED',
+        })
+
+        // Upsert DXY prices
+        for (const price of dxyPrices) {
+          await upsertAssetPrice({
+            symbol: 'DXY',
+            date: price.date,
+            close: price.value,
+            source: 'FRED',
+          })
+        }
+
+        ingested++
+        logger.info('Ingested DXY', {
+          job: jobId,
+          symbol: 'DXY',
+          points: dxyPrices.length,
+        })
+      } else {
+        logger.warn('No DXY data fetched from FRED', { job: jobId })
+        errors++
+      }
+    } catch (error) {
+      errors++
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      ingestErrors.push({ symbol: 'DXY', error: errorMsg })
+      logger.error('Failed to ingest DXY', {
+        job: jobId,
+        symbol: 'DXY',
+        error: errorMsg,
+      })
+    }
+
     // Process forex pairs
     for (const asset of config.forex || []) {
       try {
         const yahooSymbol = asset.yahoo_symbol || `${asset.symbol}=X`
-        const prices = await fetchYahooOHLCV(yahooSymbol, '1mo')
+        // Obtener 5 años de datos históricos para poder calcular correlaciones con más precisión
+        const prices = await fetchYahooOHLCV(yahooSymbol, '5y')
         
         if (prices.length === 0) {
           logger.warn(`No prices for ${asset.symbol}`, { job: jobId })
@@ -179,7 +225,8 @@ export async function POST(request: NextRequest) {
     for (const asset of config.indices || []) {
       try {
         const yahooSymbol = asset.yahoo_symbol || `^${asset.symbol}`
-        const prices = await fetchYahooOHLCV(yahooSymbol, '1mo')
+        // Obtener 5 años de datos históricos para poder calcular correlaciones con más precisión
+        const prices = await fetchYahooOHLCV(yahooSymbol, '5y')
         
         if (prices.length === 0) {
           logger.warn(`No prices for ${asset.symbol}`, { job: jobId })
@@ -238,7 +285,8 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        const prices = await fetchYahooOHLCV(yahooSymbol, '1mo')
+        // Obtener 5 años de datos históricos para poder calcular correlaciones con más precisión
+        const prices = await fetchYahooOHLCV(yahooSymbol, '5y')
         
         if (prices.length === 0) {
           logger.warn(`No prices for ${asset.symbol}`, { job: jobId })
@@ -309,7 +357,8 @@ export async function POST(request: NextRequest) {
             
             // Fallback to Yahoo Finance for historical data
             const yahooSymbol = `${crypto.symbol}-USD`
-            const prices = await fetchYahooOHLCV(yahooSymbol, '1mo')
+            // Obtener 5 años de datos históricos para poder calcular correlaciones con más precisión
+        const prices = await fetchYahooOHLCV(yahooSymbol, '5y')
             
             if (latest) {
               // Add latest price if not in historical data
@@ -385,7 +434,8 @@ export async function POST(request: NextRequest) {
       for (const asset of config.crypto || []) {
         try {
           const yahooSymbol = `${asset.symbol.replace('USDT', '')}-USD`
-          const prices = await fetchYahooOHLCV(yahooSymbol, '1mo')
+          // Obtener 5 años de datos históricos para poder calcular correlaciones con más precisión
+        const prices = await fetchYahooOHLCV(yahooSymbol, '5y')
           
           if (prices.length === 0) {
             logger.warn(`No prices for ${asset.symbol}`, { job: jobId })

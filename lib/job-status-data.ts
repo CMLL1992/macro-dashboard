@@ -64,10 +64,12 @@ export async function getJobStatusData(): Promise<JobStatus> {
     const releasesLastSuccess = releasesStatus?.last_success_at
       ? new Date(releasesStatus.last_success_at).getTime()
       : null
+    // Antes se exigía ejecución < 3 minutos → warning constante.
+    // Ahora consideramos warning si pasó más de 24h sin releases.
     const releasesStatusValue =
       releasesStatus?.last_error_at && (!releasesLastSuccess || new Date(releasesStatus.last_error_at).getTime() > releasesLastSuccess)
         ? 'error'
-        : releasesLastSuccess && releasesLastSuccess < threeMinutesAgo
+        : releasesLastSuccess && releasesLastSuccess < oneDayAgo
         ? 'warning'
         : 'ok'
 

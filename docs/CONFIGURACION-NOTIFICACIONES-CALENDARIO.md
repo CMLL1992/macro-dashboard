@@ -167,3 +167,5 @@ Una vez que funcione la versión básica, puedes:
 2. **Ventanas diferentes por tipo de evento** (60 min para FOMC, 30 min para CPI)
 3. **Configuración por archivo JSON** (`config/notifications.json`)
 4. **Notificaciones para eventos Medium** (opcional)
+
+

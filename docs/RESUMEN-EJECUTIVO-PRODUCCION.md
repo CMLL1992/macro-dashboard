@@ -295,3 +295,5 @@ Una vez completado este checklist, tu dashboard **CM11 Trading** funcionará 100
 - ✅ Envía notificaciones de eventos importantes
 - ✅ Está disponible 24/7 desde tu dominio
 - ✅ Funciona completamente sin tu ordenador
+
+

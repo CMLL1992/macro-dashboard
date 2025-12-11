@@ -77,7 +77,7 @@ export async function fetchAlphaVantagePMI(
 
 function parseAlphaVantageResponse(data: any[]): Observation[] {
   return data
-    .map((item: any) => {
+    .map((item: any): Observation | null => {
       const value = parseFloat(item.value || item.PMI || item['Manufacturing PMI']);
       const dateStr = item.date || item.Date || item.timestamp;
       
@@ -96,6 +96,8 @@ function parseAlphaVantageResponse(data: any[]): Observation[] {
     .filter((obs): obs is Observation => obs !== null)
     .sort((a, b) => a.date.localeCompare(b.date));
 }
+
+
 
 
 

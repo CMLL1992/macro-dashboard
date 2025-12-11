@@ -218,94 +218,95 @@ export default function TacticalTablesClient({ rows }: Props) {
                       : null
 
                     elements.push(
-                      <>
-                        <tr 
-                          key={row.pair} 
-                          className={cn(
-                            'border-t',
-                            // Verde: Confianza Alta con acción clara
-                            isHighConfidence && hasClearAction && 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800',
-                            // Azul: Confianza Media con acción clara
-                            isMediumConfidence && hasClearAction && !isHighConfidence && 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
-                          )}
-                        >
-                          <td className={cn(
-                            'px-4 py-2',
-                            isHighConfidence && hasClearAction && 'font-semibold',
-                            isMediumConfidence && hasClearAction && !isHighConfidence && 'font-medium'
-                          )}>
-                            {row.pair}
-                          </td>
-                          <td className="px-4 py-2">{row.trend}</td>
-                          <td className="px-4 py-2">
-                            <span
-                              className={
-                                (row.action || '').toLowerCase().includes('compr')
-                                  ? 'text-green-600 dark:text-green-400'
-                                  : (row.action || '').toLowerCase().includes('venta')
-                                    ? 'text-red-600 dark:text-red-400'
-                                    : ''
-                              }
-                            >
-                              {row.action}
-                            </span>
-                          </td>
-                          <td className={cn(
-                            'px-4 py-2',
-                            isHighConfidence && hasClearAction && 'font-semibold text-emerald-700 dark:text-emerald-400',
-                            isMediumConfidence && hasClearAction && !isHighConfidence && 'font-medium text-blue-700 dark:text-blue-400'
-                          )}>
-                            {row.confidence}
-                          </td>
-                          <td className="px-4 py-2 text-right">
-                            {formatCorr(row.corr12m as any)}
-                          </td>
-                          <td className="px-4 py-2 text-right">
-                            {formatCorr(row.corr3m as any)}
+                      <tr 
+                        key={row.pair} 
+                        className={cn(
+                          'border-t',
+                          // Verde: Confianza Alta con acción clara
+                          isHighConfidence && hasClearAction && 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800',
+                          // Azul: Confianza Media con acción clara
+                          isMediumConfidence && hasClearAction && !isHighConfidence && 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
+                        )}
+                      >
+                        <td className={cn(
+                          'px-4 py-2',
+                          isHighConfidence && hasClearAction && 'font-semibold',
+                          isMediumConfidence && hasClearAction && !isHighConfidence && 'font-medium'
+                        )}>
+                          {row.pair}
+                        </td>
+                        <td className="px-4 py-2">{row.trend}</td>
+                        <td className="px-4 py-2">
+                          <span
+                            className={
+                              (row.action || '').toLowerCase().includes('compr')
+                                ? 'text-green-600 dark:text-green-400'
+                                : (row.action || '').toLowerCase().includes('venta')
+                                  ? 'text-red-600 dark:text-red-400'
+                                  : ''
+                            }
+                          >
+                            {row.action}
+                          </span>
+                        </td>
+                        <td className={cn(
+                          'px-4 py-2',
+                          isHighConfidence && hasClearAction && 'font-semibold text-emerald-700 dark:text-emerald-400',
+                          isMediumConfidence && hasClearAction && !isHighConfidence && 'font-medium text-blue-700 dark:text-blue-400'
+                        )}>
+                          {row.confidence}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {formatCorr(row.corr12m as any)}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {formatCorr(row.corr3m as any)}
+                        </td>
+                      </tr>
+                    )
+                    
+                    if (lastEvent) {
+                      elements.push(
+                        <tr key={`${row.pair}-event`} className="border-t bg-muted/50">
+                          <td colSpan={6} className="px-4 py-2 text-xs text-foreground">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium">Último evento relevante:</span>
+                              <span className="font-mono text-foreground">
+                                [{lastEvent.currency}] {lastEvent.name}
+                              </span>
+                              <span
+                                className={cn(
+                                  'px-1.5 py-0.5 rounded text-xs font-medium',
+                                  lastEvent.surprise_direction === 'positive'
+                                    ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
+                                    : lastEvent.surprise_direction === 'negative'
+                                    ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+                                    : 'bg-muted text-muted-foreground'
+                                )}
+                              >
+                                Sorpresa{' '}
+                                {lastEvent.surprise_direction === 'positive'
+                                  ? 'POSITIVA'
+                                  : lastEvent.surprise_direction === 'negative'
+                                  ? 'NEGATIVA'
+                                  : 'NEUTRAL'}{' '}
+                                (score: {lastEvent.surprise_score.toFixed(2)})
+                              </span>
+                              {timeAgo && <span className="text-muted-foreground">· {timeAgo}</span>}
+                              {isUpdated ? (
+                                <span className="text-green-600 font-medium">
+                                  · Sesgo actualizado ✓
+                                </span>
+                              ) : (
+                                <span className="text-amber-600 font-medium">
+                                  · Sesgo SIN actualizar ⚠
+                                </span>
+                              )}
+                            </div>
                           </td>
                         </tr>
-                        {lastEvent && (
-                          <tr key={`${row.pair}-event`} className="border-t bg-muted/50">
-                            <td colSpan={6} className="px-4 py-2 text-xs text-foreground">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-medium">Último evento relevante:</span>
-                                <span className="font-mono text-foreground">
-                                  [{lastEvent.currency}] {lastEvent.name}
-                                </span>
-                                <span
-                                  className={cn(
-                                    'px-1.5 py-0.5 rounded text-xs font-medium',
-                                    lastEvent.surprise_direction === 'positive'
-                                      ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
-                                      : lastEvent.surprise_direction === 'negative'
-                                      ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
-                                      : 'bg-muted text-muted-foreground'
-                                  )}
-                                >
-                                  Sorpresa{' '}
-                                  {lastEvent.surprise_direction === 'positive'
-                                    ? 'POSITIVA'
-                                    : lastEvent.surprise_direction === 'negative'
-                                    ? 'NEGATIVA'
-                                    : 'NEUTRAL'}{' '}
-                                  (score: {lastEvent.surprise_score.toFixed(2)})
-                                </span>
-                                {timeAgo && <span className="text-muted-foreground">· {timeAgo}</span>}
-                                {isUpdated ? (
-                                  <span className="text-green-600 font-medium">
-                                    · Sesgo actualizado ✓
-                                  </span>
-                                ) : (
-                                  <span className="text-amber-600 font-medium">
-                                    · Sesgo SIN actualizar ⚠
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </>
-                    )
+                      )
+                    }
                     
                     return elements
                   })}

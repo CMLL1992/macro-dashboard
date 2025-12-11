@@ -197,3 +197,5 @@ Una vez completado todo:
 - Todos los menús funcionando
 - Sin mensaje "Inicializando datos…"
 - Misma apariencia que en localhost:3000
+
+

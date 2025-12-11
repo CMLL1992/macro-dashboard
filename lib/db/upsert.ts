@@ -133,7 +133,7 @@ export async function upsertMacroSeries(series: MacroSeries): Promise<void> {
             series.id, 
             point.date, // realtime_start (fecha de publicación)
             point.value,
-            (point as any).observation_period || null // observation_date (periodo del dato)
+            (point as any).observation_period || point.date || null // observation_date (periodo del dato), fallback to date if not available
           )
           inserted++
         }

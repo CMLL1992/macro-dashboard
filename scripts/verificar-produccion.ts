@@ -153,3 +153,5 @@ if (errorCount > 0) {
   console.log('✅ Todo está configurado correctamente para producción!\n')
   process.exit(0)
 }
+
+

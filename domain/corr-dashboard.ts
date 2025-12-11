@@ -17,7 +17,7 @@ export const YAHOO_MAP: Record<string, string | string[]> = {
   NDX: '^NDX',
 }
 
-function signalOf(r: number | null): 'Positiva' | 'Negativa' | 'Mixta' {
+export function signalOf(r: number | null): 'Positiva' | 'Negativa' | 'Mixta' {
   if (r == null) return 'Mixta'
   if (r >= 0.3) return 'Positiva'
   if (r <= -0.3) return 'Negativa'

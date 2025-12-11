@@ -723,7 +723,7 @@ async function buildWeeklyNarrativeMessage(): Promise<string> {
  */
 export async function sendWeeklyNarrativeSummary(): Promise<{ success: boolean; error?: string; changeCount?: number }> {
   try {
-    const changes = getWeeklyNarrativeChanges()
+    const changes = await getWeeklyNarrativeChanges()
     const message = await buildWeeklyNarrativeMessage()
     
     // Use queue for advanced rate limiting

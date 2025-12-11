@@ -366,3 +366,5 @@ Tu dashboard estará funcionando 24/7 de forma completamente autónoma:
 - ✅ Accesible desde cualquier dispositivo con internet
 
 **¡Ya no necesitas tener tu ordenador encendido para que el dashboard funcione!** 🎉
+
+

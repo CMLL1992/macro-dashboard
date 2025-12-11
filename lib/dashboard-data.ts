@@ -191,14 +191,24 @@ function buildIndicatorRows(table: any[]): IndicatorRow[] {
     const finalKey = row.originalKey ?? row.key
     const weightKey = MAP_KEY_TO_WEIGHT_KEY[finalKey] ?? finalKey
     
-    // If weight is explicitly set in the row, use it
-    if (row.weight != null) {
-      return row.weight > 0
+    // Priority 1: If weight is explicitly set in the row, use it
+    if (row.weight != null && row.weight > 0) {
+      return true
     }
     
-    // Otherwise check WEIGHTS config
+    // Priority 2: Check WEIGHTS config
     const weight = WEIGHTS[weightKey]
-    return weight != null && weight > 0
+    if (weight != null && weight > 0) {
+      return true
+    }
+    
+    // Priority 3: If no weight found but indicator has a value, include it (less restrictive)
+    // This ensures indicators with data but missing weight config are still shown
+    if (row.value != null) {
+      return true
+    }
+    
+    return false
   }) as IndicatorRow[]
   
   return filteredRows

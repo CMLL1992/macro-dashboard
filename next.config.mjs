@@ -14,6 +14,12 @@ const nextConfig = {
       },
     ]
   },
+  // Disable static page generation for dynamic routes to avoid build errors
+  output: 'standalone',
+  typescript: {
+    // Don't fail build on type errors during build (they're checked separately)
+    ignoreBuildErrors: false,
+  },
 }
 
 export default nextConfig

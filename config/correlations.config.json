@@ -1,8 +1,9 @@
 {
   "base": "DXY",
   "windows": {
-    "w12m": { "label": "Corr. 12m (ref)", "trading_days": 252, "min_obs": 150 },
-    "w3m":  { "label": "Corr. 3m",        "trading_days": 63,  "min_obs": 40 }
+    "w12m": { "label": "Corr. 12m (ref)", "trading_days": 252, "min_obs": 100 },
+    "w3m":  { "label": "Corr. 3m",        "trading_days": 63,  "min_obs": 30 },
+    "w6m":  { "label": "Corr. 6m",        "trading_days": 126, "min_obs": 60 }
   },
   "method": {
     "return_type": "log",

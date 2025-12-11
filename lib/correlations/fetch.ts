@@ -10,7 +10,7 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 /**
  * Yahoo Finance daily data
  */
-async function fetchYahooDaily(symbol: string, period: string = '2y'): Promise<PricePoint[]> {
+async function fetchYahooDaily(symbol: string, period: string = '5y'): Promise<PricePoint[]> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${encodeURIComponent(period)}&includePrePost=false`
   // Forzar fetch fresco para obtener datos actualizados
   const r = await fetch(url, { 
@@ -59,18 +59,55 @@ const YAHOO_MAP: Record<string, string | string[]> = {
  */
 export async function fetchDXYDaily(): Promise<PricePoint[]> {
   try {
-    // Obtener datos diarios de DXY hasta hoy, sin caché
-    const series = await fetchFredSeries('DTWEXBGS', {
-      frequency: 'd',
-      observation_start: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      observation_end: new Date().toISOString().slice(0, 10), // Hasta hoy
-    })
-    // Ordenar por fecha descendente y filtrar solo datos válidos
-    const sorted = series
-      .map(p => ({ date: p.date, value: p.value }))
-      .filter(p => p.value != null && Number.isFinite(p.value))
-      .sort((a, b) => b.date.localeCompare(a.date)) // Más reciente primero
-    return sorted.reverse() // Volver a ordenar ascendente para cálculos
+    // Obtener datos diarios de DXY (5 años de histórico para correlaciones)
+    // Usar fetchFredSeries directamente con parámetros específicos para obtener datos históricos completos
+    const { fetchFredSeries } = await import('@/lib/fred')
+    const apiKey = process.env.FRED_API_KEY
+    if (!apiKey) {
+      throw new Error('FRED_API_KEY not configured')
+    }
+    
+    // Construir URL directamente para evitar realtime_start que limita resultados
+    const observationStart = new Date(Date.now() - 5 * 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const observationEnd = new Date().toISOString().slice(0, 10)
+    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=DTWEXBGS&api_key=${apiKey}&file_type=json&frequency=d&observation_start=${observationStart}&observation_end=${observationEnd}`
+    
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) {
+      throw new Error(`FRED API error for DXY: ${res.status}`)
+    }
+    
+    const json = await res.json()
+    if (!json || !Array.isArray(json.observations)) {
+      throw new Error('Invalid FRED response for DXY')
+    }
+    
+    const series = json.observations
+      .map((obs: any) => ({
+        date: obs.date,
+        value: obs.value === '.' ? null : parseFloat(obs.value),
+      }))
+      .filter((obs: any) => obs.value != null && Number.isFinite(obs.value))
+      .map((obs: any) => ({ date: obs.date, value: obs.value }))
+    // Filtrar solo datos válidos
+    const valid = series
+      .map((p: { date: string; value: number | null }) => ({ date: p.date, value: p.value }))
+      .filter((p: { date: string; value: number | null }) => p.value != null && Number.isFinite(p.value))
+    
+    // Deduplicar por fecha: si hay múltiples valores para la misma fecha, tomar el primero (más reciente)
+    const byDate = new Map<string, number>()
+    for (const p of valid) {
+      if (!byDate.has(p.date)) {
+        byDate.set(p.date, p.value)
+      }
+    }
+    
+    // Convertir a array y ordenar ascendente por fecha
+    const result = Array.from(byDate.entries())
+      .map(([date, value]) => ({ date, value }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+    
+    return result
   } catch (error) {
     console.error('Error fetching DXY:', error)
     return []
@@ -130,10 +167,39 @@ async function getYahooSymbol(symbol: string): Promise<string | string[] | null>
 
 /**
  * Fetch daily asset price data
- * Now reads Yahoo symbol from database or config
+ * PRIORITY 1: Read from database (fast, cached)
+ * PRIORITY 2: Fallback to Yahoo Finance API (slower, can fail)
  */
 export async function fetchAssetDaily(symbol: string): Promise<PricePoint[]> {
   const normalized = symbol.toUpperCase()
+  
+  // PRIORITY 1: Try to read from database first
+  try {
+    const { getUnifiedDB, isUsingTurso } = await import('@/lib/db/unified-db')
+    const { getDB } = await import('@/lib/db/schema')
+    
+    let rows: Array<{ date: string; close: number }>
+    if (isUsingTurso()) {
+      const db = getUnifiedDB()
+      rows = await db.prepare(
+        'SELECT date, close FROM asset_prices WHERE symbol = ? ORDER BY date ASC'
+      ).all(normalized) as Array<{ date: string; close: number }>
+    } else {
+      const db = getDB()
+      rows = db.prepare(
+        'SELECT date, close FROM asset_prices WHERE symbol = ? ORDER BY date ASC'
+      ).all(normalized) as Array<{ date: string; close: number }>
+    }
+    
+    if (rows.length >= 30) {
+      // We have enough data from DB, use it
+      return rows.map(r => ({ date: r.date, value: r.close }))
+    }
+  } catch (dbError) {
+    console.warn(`[fetchAssetDaily] Could not read ${symbol} from DB, falling back to Yahoo:`, dbError)
+  }
+  
+  // PRIORITY 2: Fallback to Yahoo Finance API
   const yahooSymbol = await getYahooSymbol(normalized)
 
   if (!yahooSymbol) {
@@ -142,7 +208,7 @@ export async function fetchAssetDaily(symbol: string): Promise<PricePoint[]> {
     if (normalized.length === 6 && /^[A-Z]{6}$/.test(normalized)) {
       const trySymbol = `${normalized}=X`
       try {
-        const data = await fetchYahooDaily(trySymbol, '2y')
+        const data = await fetchYahooDaily(trySymbol, '5y')
         if (data.length >= 30) return data
       } catch {}
     }
@@ -151,7 +217,7 @@ export async function fetchAssetDaily(symbol: string): Promise<PricePoint[]> {
       const base = normalized.replace('USDT', '')
       const trySymbol = `${base}-USD`
       try {
-        const data = await fetchYahooDaily(trySymbol, '2y')
+        const data = await fetchYahooDaily(trySymbol, '5y')
         if (data.length >= 30) return data
       } catch {}
     }
@@ -171,7 +237,7 @@ export async function fetchAssetDaily(symbol: string): Promise<PricePoint[]> {
       }
       return []
     } else {
-      return await fetchYahooDaily(yahooSymbol, '2y')
+      return await fetchYahooDaily(yahooSymbol, '5y')
     }
   } catch (error) {
     console.error(`Error fetching ${symbol}:`, error)

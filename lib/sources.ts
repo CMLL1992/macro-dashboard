@@ -262,7 +262,7 @@ export const INDICATOR_SOURCES: Record<string, IndicatorSource> = {
     seriesId: 'EU_ECB_RATE',
     source: 'ECB',
     sourceUrl: 'https://data.ecb.europa.eu/data/datasets/FM/B.U2.EUR.4F.KR.MRR_FR.LEV',
-    frequency: 'B',
+    frequency: 'D', // Business days -> Daily (closest approximation)
     unit: '%',
     description: 'ECB Main Refinancing Operations Rate (business frequency, fechas de cambio)',
   },
@@ -383,7 +383,7 @@ export const INDICATOR_SOURCES: Record<string, IndicatorSource> = {
     seriesId: 'UK_BOE_RATE',
     source: 'Trading Economics / Bank of England',
     sourceUrl: 'https://tradingeconomics.com/united-kingdom/interest-rate',
-    frequency: 'B',
+    frequency: 'D', // Business days -> Daily (closest approximation)
     unit: '%',
     description: 'Bank of England (BoE) Bank Rate - Official interest rate',
   },
@@ -480,7 +480,7 @@ export const INDICATOR_SOURCES: Record<string, IndicatorSource> = {
     seriesId: 'JP_BOJ_RATE',
     source: 'Trading Economics / Bank of Japan',
     sourceUrl: 'https://tradingeconomics.com/japan/interest-rate',
-    frequency: 'B',
+    frequency: 'D', // Business days -> Daily (closest approximation)
     unit: '%',
     description: 'Bank of Japan (BoJ) Policy Rate - Official interest rate (clave para JPY)',
   },

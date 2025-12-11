@@ -7,15 +7,15 @@
  */
 
 const CRON_TOKEN = process.env.CRON_TOKEN || 'cbc3d1139031a75f4721ddb45bf8cca4a79b115d4c15ba83e1a1713898cdbc82'
-const APP_URL = process.env.APP_URL || 'http://localhost:3000'
+const APP_URL_VAR = process.env.APP_URL || 'http://localhost:3000'
 
 async function testCalendarJob() {
   console.log('🚀 Probando job de actualización del calendario...\n')
-  console.log(`📌 APP_URL: ${APP_URL}`)
+  console.log(`📌 APP_URL: ${APP_URL_VAR}`)
   console.log(`📌 CRON_TOKEN: ${CRON_TOKEN.substring(0, 8)}...\n`)
 
   try {
-    const url = `${APP_URL}/api/jobs/calendar/update`
+    const url = `${APP_URL_VAR}/api/jobs/calendar/update`
     console.log(`📡 Llamando a: ${url}\n`)
 
     const response = await fetch(url, {
@@ -60,4 +60,3 @@ async function testCalendarJob() {
 }
 
 testCalendarJob()
-

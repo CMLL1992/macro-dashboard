@@ -1,9 +1,75 @@
 /**
  * Utility functions for formatting indicator values
  * Formats values according to unit type (percent, millions, thousands, index, level)
+ * Detects placeholder values (0, null) and shows "Dato pendiente" instead
  */
 
 import { getIndicatorConfig, formatIndicatorValue as formatValueFromConfig } from '@/config/macro-indicators'
+import { readFileSync } from 'fs'
+import { join } from 'path'
+
+// Cargar mapping de indicadores
+let indicatorsMap: any = null
+try {
+  const mapPath = join(process.cwd(), 'config', 'indicators-map.json')
+  indicatorsMap = JSON.parse(readFileSync(mapPath, 'utf-8'))
+} catch (error) {
+  // Si no existe el archivo, usar valores por defecto
+  indicatorsMap = { indicators: [] }
+}
+
+/**
+ * Check if a value is a placeholder (suspicious 0 or null)
+ */
+function isPlaceholderValue(value: number | null | undefined, indicatorKey?: string): boolean {
+  if (value === null || value === undefined) return true
+  
+  // Si el valor es 0, puede ser placeholder para ciertos indicadores
+  if (value === 0) {
+    // Indicadores críticos donde 0 es sospechoso
+    const criticalIndicators = [
+      'payems_delta', 'payems', 'PAYEMS',
+      'gdp_qoq', 'gdp_qoq_annualized', 'GDPC1',
+      'unrate', 'UNRATE',
+      'nfp_change', 'nfp'
+    ]
+    
+    if (indicatorKey) {
+      // Verificar si el key coincide con indicadores críticos
+      const keyLower = indicatorKey.toLowerCase()
+      if (criticalIndicators.some(crit => keyLower.includes(crit.toLowerCase()))) {
+        return true
+      }
+      
+      // Buscar en el mapping si este indicador tiene valores placeholder definidos
+      try {
+        if (indicatorsMap && indicatorsMap.indicators) {
+          const indicator = indicatorsMap.indicators.find(
+            (ind: any) => 
+              ind.id_interno === indicatorKey || 
+              ind.id_interno === keyLower ||
+              ind.series_id === indicatorKey ||
+              ind.series_id === keyLower
+          )
+          
+          if (indicator && indicator.valores_placeholder && indicator.valores_placeholder.length > 0) {
+            // Verificar si el valor está en la lista de placeholders
+            return indicator.valores_placeholder.includes(value)
+          }
+        }
+      } catch (error) {
+        // Si hay error cargando el mapping, usar heurística
+        console.warn('[format-indicator-value] Error loading indicators map:', error)
+      }
+    }
+    
+    // Por defecto, si es 0 y no tenemos información, no asumir placeholder
+    // (algunos indicadores pueden tener 0 como valor real)
+    return false
+  }
+  
+  return false
+}
 
 /**
  * Format indicator value with unit
@@ -18,7 +84,12 @@ export function formatIndicatorValue(
   indicatorKey?: string,
   unit?: string
 ): string {
-  if (value === null || value === undefined) return '—'
+  if (value === null || value === undefined) return 'Dato pendiente'
+  
+  // Detectar placeholders
+  if (isPlaceholderValue(value, indicatorKey)) {
+    return 'Dato pendiente'
+  }
   
   // Try to get config for the indicator
   if (indicatorKey) {
@@ -62,7 +133,12 @@ export function formatIndicatorValueSimple(
   indicatorKey?: string,
   unit?: string
 ): string {
-  if (value === null || value === undefined) return '—'
+  if (value === null || value === undefined) return 'Dato pendiente'
+  
+  // Detectar placeholders
+  if (isPlaceholderValue(value, indicatorKey)) {
+    return 'Dato pendiente'
+  }
   
   // Try to get config for the indicator
   if (indicatorKey) {

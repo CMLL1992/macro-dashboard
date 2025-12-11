@@ -428,6 +428,33 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
       continue
     }
     
+    // PRIORITY: For gdp_qoq and payems_delta, try to read from indicator_history first
+    // This ensures we use pre-calculated values instead of calculating on-the-fly
+    if (key === 'gdp_qoq' || key === 'payems_delta') {
+      try {
+        const { getIndicatorHistoryAsync } = await import('@/lib/db/read')
+        const history = await getIndicatorHistoryAsync(key)
+        
+        if (history && history.value_current !== null && history.date_current) {
+          // Use pre-calculated value from indicator_history
+          results.push({
+            key,
+            label: KEY_LABELS[key] ?? labelOf(seriesId),
+            value: history.value_current,
+            date: history.date_current,
+            unit: key === 'gdp_qoq' ? '%' : 'K',
+            value_previous: history.value_previous,
+            date_previous: history.date_previous ?? null,
+            isStale: false,
+          })
+          continue // Skip calculation, use pre-calculated value
+        }
+      } catch (error) {
+        // If indicator_history read fails, fall through to calculation
+        console.warn(`[getAllLatestFromDBWithPrev] Failed to read indicator_history for ${key}, falling back to calculation:`, error)
+      }
+    }
+    
     const series = await getSeriesObservations(seriesId)
     const frequency = await getSeriesFrequency(seriesId)
     

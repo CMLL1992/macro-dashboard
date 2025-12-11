@@ -121,7 +121,7 @@ async function example() {
       total_score_after: usdScoreAfter,
       regime_before: usdRegimeBefore || null,
       regime_after: usdRegimeAfter,
-      usd_direction_before: diagnosisBefore.regime?.usd_direction ?? null,
+      usd_direction_before: (diagnosisBefore as any).currencyRegimes?.USD?.usd_direction ?? null,
       usd_direction_after: usdScoreAfter > 0.25 ? 'Bullish' : 'Neutral',
     })
 

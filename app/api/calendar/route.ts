@@ -160,7 +160,9 @@ export async function GET(request: NextRequest) {
       })
     
     return NextResponse.json({
-      events,
+      ok: true,
+      data: events,
+      events, // Mantener para compatibilidad
       count: events.length,
       filters: {
         from: fromStr,
@@ -181,3 +183,5 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+

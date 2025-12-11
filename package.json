@@ -27,9 +27,14 @@
     "job:correlations": "curl -XPOST -H 'Authorization: Bearer ${CRON_TOKEN}' ${APP_URL:-http://localhost:3000}/api/jobs/correlations",
     "job:bias": "curl -XPOST -H 'Authorization: Bearer ${CRON_TOKEN}' ${APP_URL:-http://localhost:3000}/api/jobs/compute/bias",
     "job:bootstrap": "pnpm job:ingest:fred && pnpm job:correlations && pnpm job:bias",
+    "job:calendar": "curl -XPOST -H 'Authorization: Bearer ${CRON_TOKEN}' ${APP_URL:-http://localhost:3000}/api/jobs/ingest/calendar",
+    "job:releases": "curl -XPOST -H 'Authorization: Bearer ${CRON_TOKEN}' ${APP_URL:-http://localhost:3000}/api/jobs/ingest/releases",
     "job:maintenance": "curl -XPOST -H 'Authorization: Bearer ${CRON_TOKEN}' ${APP_URL:-http://localhost:3000}/api/jobs/maintenance",
     "refresh": "tsx scripts/refresh-dashboard.ts",
-    "test:notifs": "bash scripts/test_notifications.sh"
+    "test:notifs": "bash scripts/test_notifications.sh",
+    "test:db": "NODE_OPTIONS=\"--conditions=react-server\" tsx scripts/test-db.ts",
+    "verify:data": "NODE_OPTIONS=\"--conditions=react-server\" tsx scripts/verify-data.ts",
+    "verify:local": "NODE_OPTIONS=\"--conditions=react-server\" tsx scripts/verificar-local-completo.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",
@@ -44,6 +49,7 @@
     "next": "14.2.5",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "server-only": "^0.0.1",
     "slugify": "^1.6.6",
     "tailwind-merge": "^2.5.2",
     "zod": "^3.23.8"

@@ -75,7 +75,8 @@ export async function getWeeklyExtensiveNarrative(): Promise<string> {
   const highImpactEvents = nextWeekEvents.filter((e: any) => e.importancia === 'high')
 
   // Get recent news (only real news from database, not generated)
-  const recentNews = getRecentNewsItems(10).filter(news => {
+  const recentNewsRaw = await getRecentNewsItems(10)
+  const recentNews = recentNewsRaw.filter(news => {
     // Only include news that has been actually published (not placeholder)
     return news.titulo && news.titulo.trim().length > 0 && news.published_at
   })

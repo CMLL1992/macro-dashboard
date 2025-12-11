@@ -180,13 +180,14 @@ export function calculateCorrelation(
   // Get last windowDays observations (más recientes)
   const window = aligned.slice(-windowDays)
   
-  // Verificar que la última fecha sea reciente (dentro de los últimos 5 días hábiles)
+  // Verificar que la última fecha sea reciente (dentro de los últimos 20 días hábiles)
+  // Aumentado a 20 días para ser más permisivo con datos de fin de semana/vacaciones y activos menos líquidos
   const lastDate = window[window.length - 1]?.date
   if (lastDate) {
     const lastDateObj = new Date(lastDate)
     const today = new Date()
     const daysDiff = Math.floor((today.getTime() - lastDateObj.getTime()) / (1000 * 60 * 60 * 24))
-    if (daysDiff > 5) {
+    if (daysDiff > 20) {
       // Datos demasiado antiguos, no calcular correlación
       return {
         correlation: null,
