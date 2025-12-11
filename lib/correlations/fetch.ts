@@ -38,16 +38,30 @@ async function fetchYahooDaily(symbol: string, period: string = '5y'): Promise<P
 
 /**
  * Map of symbols to Yahoo Finance symbols
+ * Updated to prioritize Yahoo Finance for all correlations
  */
 const YAHOO_MAP: Record<string, string | string[]> = {
+  // FX Majors
   EURUSD: 'EURUSD=X',
   GBPUSD: 'GBPUSD=X',
   AUDUSD: 'AUDUSD=X',
   USDJPY: 'USDJPY=X',
   USDCAD: 'USDCAD=X',
-  XAUUSD: ['XAUUSD=X', 'GC=F'],
+  USDCHF: 'USDCHF=X',
+  NZDUSD: 'NZDUSD=X',
+  // Commodities
+  XAUUSD: ['XAUUSD=X', 'GC=F'], // Gold
+  XAGUSD: 'SI=F', // Silver
+  // Oil (CL=F = Crude Oil, BZ=F = Brent)
+  CL: 'CL=F',
+  BZ: 'BZ=F',
+  // Indices
   SPX: '^GSPC',
   NDX: '^NDX',
+  DAX: '^GDAXI',
+  CAC: '^FCHI',
+  FTSE: '^FTSE',
+  // Crypto
   BTCUSDT: 'BTC-USD',
   BTCUSD: 'BTC-USD',
   ETHUSDT: 'ETH-USD',

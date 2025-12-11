@@ -19,7 +19,6 @@ import { logger } from '@/lib/obs/logger'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 import { upsertMacroSeries } from '@/lib/db/upsert'
 import type { MacroSeries } from '@/lib/types/macro'
-import { fetchTradingEconomics } from '@/packages/ingestors/tradingeconomics'
 
 /**
  * Extrae el valor numérico del PMI desde el texto del evento
@@ -196,47 +195,44 @@ export async function POST(request: NextRequest) {
           pmiValue = extractPMIValue(event.consenso)
         }
 
-        // Si aún no tenemos valor, intentar obtenerlo de Trading Economics
-        if (pmiValue === null) {
+        // Si aún no tenemos valor, intentar obtenerlo de Alpha Vantage (si está disponible)
+        // TradingEconomics eliminado para USA - usar solo Alpha Vantage o manual entry
+        if (pmiValue === null && process.env.ALPHA_VANTAGE_API_KEY) {
           try {
-            const teApiKey = process.env.TRADING_ECONOMICS_API_KEY || '3EE47420-8691-4DE1-AF46-32283925D96C'
-            if (teApiKey !== 'guest:guest') {
-              logger.info(`Attempting to fetch ${seriesId} from Trading Economics for published date`, {
-                job: jobId,
-                date: event.fecha,
-                endpoint: teEndpoint,
-              })
-              
-              // Intentar obtener el último valor disponible (puede ser el publicado hoy)
-              const pmiObservations = await fetchTradingEconomics(teEndpoint, teApiKey)
-              
-              if (pmiObservations.length > 0) {
-                // Buscar el valor más reciente que coincida con la fecha del evento
-                const matchingObs = pmiObservations.find(obs => obs.date === event.fecha)
-                if (matchingObs) {
-                  pmiValue = matchingObs.value
-                  logger.info('Found PMI value from Trading Economics', {
+            logger.info(`Attempting to fetch ${seriesId} from Alpha Vantage for published date`, {
+              job: jobId,
+              date: event.fecha,
+            })
+            
+            const { fetchAlphaVantagePMI } = await import('@/packages/ingestors/alphavantage')
+            const pmiObservations = await fetchAlphaVantagePMI(process.env.ALPHA_VANTAGE_API_KEY)
+            
+            if (pmiObservations.length > 0) {
+              // Buscar el valor más reciente que coincida con la fecha del evento
+              const matchingObs = pmiObservations.find(obs => obs.date === event.fecha)
+              if (matchingObs) {
+                pmiValue = matchingObs.value
+                logger.info('Found PMI value from Alpha Vantage', {
+                  job: jobId,
+                  date: event.fecha,
+                  value: pmiValue,
+                })
+              } else {
+                // Si no hay coincidencia exacta, usar el más reciente
+                const latest = pmiObservations[pmiObservations.length - 1] // Ordenado ascendente
+                if (latest && latest.date >= event.fecha) {
+                  pmiValue = latest.value
+                  logger.info('Using latest PMI value from Alpha Vantage', {
                     job: jobId,
-                    date: event.fecha,
+                    eventDate: event.fecha,
+                    obsDate: latest.date,
                     value: pmiValue,
                   })
-                } else {
-                  // Si no hay coincidencia exacta, usar el más reciente
-                  const latest = pmiObservations[0] // Ya está ordenado descendente
-                  if (latest && latest.date >= event.fecha) {
-                    pmiValue = latest.value
-                    logger.info('Using latest PMI value from Trading Economics', {
-                      job: jobId,
-                      eventDate: event.fecha,
-                      obsDate: latest.date,
-                      value: pmiValue,
-                    })
-                  }
                 }
               }
             }
           } catch (error) {
-            logger.warn('Failed to fetch PMI from Trading Economics', {
+            logger.warn('Failed to fetch PMI from Alpha Vantage', {
               job: jobId,
               error: error instanceof Error ? error.message : String(error),
             })

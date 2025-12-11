@@ -56,6 +56,11 @@
     { "symbol": "XPDUSD", "name": "Palladium / US Dollar", "yahoo_symbol": "PA=F" },
     { "symbol": "XPTUSD", "name": "Platinum / US Dollar", "yahoo_symbol": "PL=F" }
   ],
+  "commodities": [
+    { "symbol": "CL", "name": "Crude Oil WTI", "yahoo_symbol": "CL=F" },
+    { "symbol": "BZ", "name": "Brent Crude", "yahoo_symbol": "BZ=F" },
+    { "symbol": "NG", "name": "Natural Gas", "yahoo_symbol": "NG=F" }
+  ],
   "crypto": [
     { "symbol": "BTCUSDT", "name": "Bitcoin", "coinmarketcap_id": "1" },
     { "symbol": "ETHUSDT", "name": "Ethereum", "coinmarketcap_id": "1027" },

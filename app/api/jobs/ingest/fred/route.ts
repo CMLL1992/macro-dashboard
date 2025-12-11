@@ -21,7 +21,6 @@ import { checkMacroReleases } from '@/lib/alerts/triggers'
 import { getAllIndicatorHistories } from '@/lib/db/read'
 import { getMacroDiagnosis } from '@/domain/diagnostic'
 import { KEY_TO_SERIES_ID } from '@/lib/db/read-macro'
-import { fetchTradingEconomics } from '@/packages/ingestors/tradingeconomics'
 import { fetchWithFallback, createFredFallbackSources } from '@/lib/datasources/fallback'
 
 // FRED series IDs used by the dashboard
@@ -211,58 +210,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Ingest PMI Manufacturing from alternative sources (not available in FRED)
-    // Try multiple sources in order: Trading Economics -> Alpha Vantage -> Manual entry
+    // Try Alpha Vantage -> Manual entry (TradingEconomics removed for USA)
     let pmiIngested = false
     let pmiError: string | null = null
     
-    // Source 1: Trading Economics
-    if (!pmiIngested) {
-      try {
-        const teApiKey = process.env.TRADING_ECONOMICS_API_KEY || '3EE47420-8691-4DE1-AF46-32283925D96C'
-        
-        if (teApiKey !== 'guest:guest') {
-          logger.info('Attempting PMI ingestion from Trading Economics', { job: jobId })
-          
-          const pmiObservations = await fetchTradingEconomics('united-states/manufacturing-pmi', teApiKey)
-        
-          if (pmiObservations.length > 0) {
-            const reversedObservations = [...pmiObservations].reverse()
-            
-            const pmiSeries: MacroSeries = {
-              id: 'USPMI',
-              source: 'TRADING_ECONOMICS',
-              indicator: 'USPMI',
-              nativeId: 'united-states/manufacturing-pmi',
-              name: 'ISM Manufacturing: PMI',
-              frequency: 'M', // Monthly
-              data: reversedObservations.map(obs => ({
-                date: obs.date,
-                value: obs.value,
-              })),
-              lastUpdated: reversedObservations[reversedObservations.length - 1]?.date || undefined,
-            }
-
-            await upsertMacroSeries(pmiSeries)
-            ingested++
-            pmiIngested = true
-            
-            logger.info('Ingested USPMI from Trading Economics', {
-              job: jobId,
-              series_id: 'USPMI',
-              points: pmiObservations.length,
-            })
-          }
-        }
-      } catch (error) {
-        pmiError = error instanceof Error ? error.message : String(error)
-        logger.warn('Trading Economics PMI ingestion failed, will try alternatives', {
-          job: jobId,
-          error: pmiError,
-        })
-      }
-    }
-    
-    // Source 2: Alpha Vantage (if available)
+    // Source: Alpha Vantage (if available)
     if (!pmiIngested && process.env.ALPHA_VANTAGE_API_KEY) {
       try {
         logger.info('Attempting PMI ingestion from Alpha Vantage', { job: jobId })

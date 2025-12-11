@@ -16,7 +16,7 @@ import { upsertMacroSeries } from '@/lib/db/upsert'
 import type { MacroSeries } from '@/lib/types/macro'
 import { fetchECBSeries, fetchECBSimpleSeries } from '@/lib/datasources/ecb'
 import { fetchDBnomicsSeries } from '@/lib/datasources/dbnomics'
-import { fetchTradingEconomics } from '@/packages/ingestors/tradingeconomics'
+import { fetchEurostatSeries } from '@/lib/datasources/eurostat'
 import { fetchFredSeries } from '@/lib/fred'
 import { fetchEcondifySeries } from '@/lib/datasources/econdify'
 import fs from 'node:fs'
@@ -62,9 +62,7 @@ export async function POST(request: NextRequest) {
 
     const indicators = EUROPEAN_INDICATORS.indicators || []
     
-    // Rate limiting for Trading Economics (max 1 request per second, but be more conservative)
-    let lastTradingEconomicsRequest = 0
-    const TRADING_ECONOMICS_MIN_DELAY_MS = 2000 // 2 seconds between requests to avoid 409 conflicts
+    // Note: TradingEconomics removed for Eurozone - now using Eurostat/ECB/FRED only
 
     for (const indicator of indicators) {
       try {
@@ -135,6 +133,28 @@ export async function POST(request: NextRequest) {
               series_id: seriesId,
             },
           }
+        } else if (indicator.source === 'eurostat') {
+          const dataset = (indicator as any).dataset
+          const filters = (indicator as any).filters || {}
+          const geo = (indicator as any).geo || 'EA19'
+          
+          if (!dataset) {
+            throw new Error(`Eurostat dataset is required for ${indicator.id}`)
+          }
+          
+          macroSeries = await fetchEurostatSeries({
+            dataset,
+            filters,
+            geo,
+            frequency: indicator.frequency as any,
+          })
+          
+          // Override ID and name to match indicator configuration
+          if (macroSeries) {
+            macroSeries.id = indicator.id
+            macroSeries.name = indicator.name
+            macroSeries.frequency = indicator.frequency as any
+          }
         } else if (indicator.source === 'econdify') {
           const country = (indicator as any).country
           const indicatorName = (indicator as any).indicator
@@ -158,101 +178,6 @@ export async function POST(request: NextRequest) {
             dataset: indicator.dataset,
             series: indicator.series,
           })
-        } else if (indicator.source === 'trading_economics') {
-          const apiKey = process.env.TRADING_ECONOMICS_API_KEY
-          if (!apiKey) {
-            logger.warn(`TRADING_ECONOMICS_API_KEY not configured, skipping ${indicator.id}`, { job: jobId })
-            errors++
-            ingestErrors.push({ indicatorId: indicator.id, error: 'TRADING_ECONOMICS_API_KEY not configured' })
-            continue
-          }
-          
-          // Rate limiting: wait if last request was less than 1.2 seconds ago
-          const now = Date.now()
-          const timeSinceLastRequest = now - lastTradingEconomicsRequest
-          if (timeSinceLastRequest < TRADING_ECONOMICS_MIN_DELAY_MS) {
-            const waitTime = TRADING_ECONOMICS_MIN_DELAY_MS - timeSinceLastRequest
-            logger.info(`Rate limiting Trading Economics: waiting ${waitTime}ms`, { job: jobId, indicatorId: indicator.id })
-            await new Promise(resolve => setTimeout(resolve, waitTime))
-          }
-          
-          try {
-            // Trading Economics returns observations, need to convert to MacroSeries
-            // Para indicadores europeos, usar "euro area" como país
-            // Detectar si es indicador de Eurozona por el ID o el nombre
-            const isEurozoneIndicator = indicator.id.startsWith('EU_') || 
-                                       indicator.series.includes('eurozone') || 
-                                       indicator.series.includes('euro-area') ||
-                                       indicator.name.toLowerCase().includes('eurozona') ||
-                                       indicator.name.toLowerCase().includes('euro area')
-            const country = isEurozoneIndicator ? 'euro area' : undefined
-            lastTradingEconomicsRequest = Date.now()
-            const observations = await fetchTradingEconomics(indicator.series, apiKey, country)
-            
-            if (observations.length === 0) {
-              throw new Error('No observations returned from Trading Economics')
-            }
-
-            // Convert observations to MacroSeries format
-            macroSeries = {
-              id: indicator.id,
-              source: 'TRADING_ECONOMICS',
-              indicator: indicator.series,
-              nativeId: indicator.series,
-              name: indicator.name,
-              frequency: indicator.frequency as any,
-              data: observations.map(obs => ({
-                date: obs.date,
-                value: obs.value,
-              })),
-              lastUpdated: observations[observations.length - 1]?.date,
-            }
-          } catch (teError: any) {
-            // Manejar error 403 (plan gratuito sin acceso a Euro Area) como advertencia, no error crítico
-            const statusCode = teError?.statusCode || (teError?.message?.includes('403') ? 403 : null)
-            if (statusCode === 403 || teError?.message?.includes('403') || teError?.message?.includes('No Access to this country')) {
-              logger.warn(`Trading Economics 403: Euro Area data requires paid plan for ${indicator.id}`, { 
-                job: jobId, 
-                indicatorId: indicator.id,
-                message: 'Source not available (requires Trading Economics paid plan for Euro Area access)'
-              })
-              // No incrementar errors, solo registrar como advertencia
-              ingestErrors.push({ 
-                indicatorId: indicator.id, 
-                error: 'Source not available (Trading Economics paid plan required for Euro Area data)' 
-              })
-              continue // Continuar con el siguiente indicador sin marcar como error crítico
-            }
-            
-            // Para otros errores, mantener el comportamiento original
-            let errorMessage = `Trading Economics error: ${teError instanceof Error ? teError.message : String(teError)}`
-            
-            // Si es un TradingEconomicsError tipado, incluir más detalles
-            if (teError && typeof teError === 'object' && 'type' in teError) {
-              const teTypedError = teError as any
-              errorMessage = 
-                `Trading Economics ${teTypedError.type || 'UNKNOWN'} error: ` +
-                `HTTP ${teTypedError.statusCode || 'N/A'} - ${teTypedError.message || 'Unknown error'}. ` +
-                `Endpoint: ${teTypedError.endpoint || indicator.series}, ` +
-                `Symbol: ${teTypedError.symbol || 'N/A'}, ` +
-                `Date range: ${teTypedError.dateRange || 'N/A'}. ` +
-                `Response: ${teTypedError.responseBody?.substring(0, 200) || 'N/A'}`
-              
-              // Log detallado para debugging
-              logger.error(`Trading Economics error for ${indicator.id}`, {
-                job: jobId,
-                indicatorId: indicator.id,
-                errorType: teTypedError.type,
-                statusCode: teTypedError.statusCode,
-                endpoint: teTypedError.endpoint,
-                symbol: teTypedError.symbol,
-                dateRange: teTypedError.dateRange,
-                responseBody: teTypedError.responseBody?.substring(0, 500),
-              })
-            }
-            
-            throw new Error(errorMessage)
-          }
         } else {
           throw new Error(`Unknown source: ${indicator.source}`)
         }

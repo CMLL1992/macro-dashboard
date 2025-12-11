@@ -3,24 +3,32 @@
     {
       "id": "EU_GDP_QOQ",
       "name": "PIB Eurozona (QoQ)",
-      "source": "ecb",
-      "flow": "MNA",
-      "key": "Q.Y.I8.W2.S1.S1.B.B1GQ._Z._Z._Z.EUR.LR.N",
+      "source": "eurostat",
+      "dataset": "nama_10_gdp",
+      "filters": {
+        "unit": "CP_MEUR",
+        "s_adj": "SA"
+      },
+      "geo": "EA19",
       "frequency": "Q",
       "category": "Crecimiento / Actividad",
       "importance": 3,
-      "description": "Gross Domestic Product - Quarter-on-Quarter growth rate for Eurozone"
+      "description": "Gross Domestic Product - Quarter-on-Quarter growth rate for Eurozone (from Eurostat)"
     },
     {
       "id": "EU_GDP_YOY",
       "name": "PIB Eurozona (YoY)",
-      "source": "ecb",
-      "flow": "MNA",
-      "key": "Q.Y.I8.W2.S1.S1.B.B1GQ._Z._Z._Z.EUR.LR.N",
+      "source": "eurostat",
+      "dataset": "nama_10_gdp",
+      "filters": {
+        "unit": "CP_MEUR",
+        "s_adj": "SA"
+      },
+      "geo": "EA19",
       "frequency": "Q",
       "category": "Crecimiento / Actividad",
       "importance": 3,
-      "description": "Gross Domestic Product - Year-on-Year growth rate for Eurozone (calculated from quarterly data)"
+      "description": "Gross Domestic Product - Year-on-Year growth rate for Eurozone (calculated from quarterly data, from Eurostat)"
     },
     {
       "id": "EU_CPI_YOY",
@@ -31,7 +39,7 @@
       "frequency": "M",
       "category": "Precios / Inflación",
       "importance": 3,
-      "description": "Harmonised Index of Consumer Prices (HICP) - Year-on-Year for Eurozone"
+      "description": "Harmonised Index of Consumer Prices (HICP) - Year-on-Year for Eurozone (from ECB SDW)"
     },
     {
       "id": "EU_CPI_CORE_YOY",
@@ -42,7 +50,7 @@
       "frequency": "M",
       "category": "Precios / Inflación",
       "importance": 3,
-      "description": "HICP excluding Energy and Food - Year-on-Year for Eurozone"
+      "description": "HICP excluding Energy and Food - Year-on-Year for Eurozone (from ECB SDW)"
     },
     {
       "id": "EU_UNEMPLOYMENT",
@@ -53,11 +61,11 @@
       "frequency": "M",
       "category": "Mercado laboral",
       "importance": 3,
-      "description": "Unemployment Rate for Eurozone (Labour Force Survey, 15-74 years, total)"
+      "description": "Unemployment Rate for Eurozone (Labour Force Survey, 15-74 years, total, from ECB SDW)"
     },
     {
       "id": "EU_PMI_MANUFACTURING",
-      "name": "Confianza Empresarial Manufacturera Eurozona",
+      "name": "PMI Manufacturero Eurozona",
       "source": "fred",
       "series_id": "BSCICP02EZM460S",
       "frequency": "M",
@@ -67,7 +75,7 @@
     },
     {
       "id": "EU_PMI_SERVICES",
-      "name": "Confianza Empresarial Servicios Eurozona",
+      "name": "PMI Servicios Eurozona",
       "source": "fred",
       "series_id": "BVCICP02EZM460S",
       "frequency": "M",
@@ -78,12 +86,12 @@
     {
       "id": "EU_PMI_COMPOSITE",
       "name": "PMI Compuesto Eurozona",
-      "source": "trading_economics",
-      "series": "pmi composite",
+      "source": "fred",
+      "series_id": "BSCICP02EZM460S",
       "frequency": "M",
       "category": "Crecimiento / Actividad",
       "importance": 3,
-      "description": "PMI Composite Index for Euro Area - From Trading Economics / S&P Global (requires paid plan for Euro Area access)"
+      "description": "PMI Composite Index for Euro Area - Using FRED Business Confidence Indicator as proxy (BSCICP02EZM460S)"
     },
     {
       "id": "EU_ECB_RATE",
@@ -91,30 +99,42 @@
       "source": "ecb",
       "flow": "FM",
       "key": "B.U2.EUR.4F.KR.MRR_FR.LEV",
-      "frequency": "B",
+      "frequency": "D",
       "category": "Otros",
       "importance": 3,
-      "description": "ECB Main Refinancing Operations Rate (business frequency, fechas de cambio)"
+      "description": "ECB Main Refinancing Operations Rate (from ECB SDW)"
     },
     {
       "id": "EU_RETAIL_SALES_YOY",
       "name": "Ventas Minoristas Eurozona (YoY)",
-      "source": "ecb_sdw",
-      "code": "STS/M.I9.Y.TOVV.2G4700.4.000",
+      "source": "eurostat",
+      "dataset": "sts_trtu_m",
+      "filters": {
+        "unit": "I15",
+        "s_adj": "SA",
+        "nace_r2": "G47"
+      },
+      "geo": "EA19",
       "frequency": "M",
       "category": "Crecimiento / Actividad",
       "importance": 2,
-      "description": "Retail Trade Turnover Index (2021=100) for Euro Area - YoY calculated from index values. From ECB SDW (updated monthly)"
+      "description": "Retail Trade Turnover Index (2015=100) for Euro Area - YoY calculated from index values (from Eurostat)"
     },
     {
       "id": "EU_INDUSTRIAL_PRODUCTION_YOY",
       "name": "Producción Industrial Eurozona (YoY)",
-      "source": "ecb_sdw",
-      "code": "STS/M.I9.Y.PROD.NS0020.4.000",
+      "source": "eurostat",
+      "dataset": "sts_inpr_m",
+      "filters": {
+        "unit": "I15",
+        "s_adj": "SA",
+        "nace_r2": "B-D"
+      },
+      "geo": "EA19",
       "frequency": "M",
       "category": "Crecimiento / Actividad",
       "importance": 2,
-      "description": "Industrial Production Index (2021=100) for Euro Area - YoY calculated from index values. From ECB SDW (updated monthly)"
+      "description": "Industrial Production Index (2015=100) for Euro Area - YoY calculated from index values (from Eurostat)"
     },
     {
       "id": "EU_CONSUMER_CONFIDENCE",
