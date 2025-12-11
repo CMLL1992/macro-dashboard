@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     // Save original state if not persisting
     let originalState = null
     if (!persist) {
-      originalState = loadAlertState()
+      originalState = await loadAlertState()
     }
 
     let result: any = {}
