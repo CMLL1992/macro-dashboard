@@ -197,4 +197,9 @@ export async function POST(req: Request) {
   }
 }
 
+// Permitir GET además de POST para compatibilidad con cron jobs de Vercel
+export async function GET(req: Request) {
+  return POST(req)
+}
+
 
