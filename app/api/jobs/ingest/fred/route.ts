@@ -1,8 +1,10 @@
 /**
  * Job: Ingest FRED data into SQLite
  * POST /api/jobs/ingest/fred
- * Protected by CRON_TOKEN
+ * GET /api/jobs/ingest/fred (for Vercel Scheduled Functions)
+ * Protected by CRON_TOKEN or INGEST_KEY
  * 
+ * Scheduled via: app/api/jobs/ingest/fred/schedule.json
  * Ingests all FRED indicators used by the dashboard into macro_observations
  */
 
