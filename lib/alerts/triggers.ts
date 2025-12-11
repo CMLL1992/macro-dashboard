@@ -47,7 +47,7 @@ export async function checkUSDChange(
     return
   }
 
-  const state = loadAlertState()
+  const state = await loadAlertState()
   const prevUSD = state.usdBias
 
   if (prevUSD !== null && prevUSD !== currentUSD) {
@@ -62,13 +62,13 @@ export async function checkUSDChange(
     }
 
     // Update state
-    saveAlertState({
+    await saveAlertState({
       usdBias: currentUSD,
       usdBiasUpdatedAt: new Date().toISOString(),
     })
   } else if (prevUSD === null) {
     // First run: just save state, don't send notification
-    saveAlertState({
+    await saveAlertState({
       usdBias: currentUSD,
       usdBiasUpdatedAt: new Date().toISOString(),
     })
@@ -89,7 +89,7 @@ export async function checkCorrelationChanges(
     return
   }
 
-  const state = loadAlertState()
+  const state = await loadAlertState()
   const alerts: string[] = []
   const newLevels: Record<string, { '3m'?: CorrelationLevel; '12m'?: CorrelationLevel }> = {}
 
@@ -151,10 +151,10 @@ export async function checkCorrelationChanges(
     }
 
     // Update state
-    saveAlertState({ correlationLevels: { ...state.correlationLevels, ...newLevels } })
+    await saveAlertState({ correlationLevels: { ...state.correlationLevels, ...newLevels } })
   } else {
     // No alerts, but update state anyway
-    saveAlertState({ correlationLevels: { ...state.correlationLevels, ...newLevels } })
+    await saveAlertState({ correlationLevels: { ...state.correlationLevels, ...newLevels } })
   }
 }
 
@@ -177,7 +177,7 @@ export async function checkMacroReleases(
     return
   }
 
-  const state = loadAlertState()
+  const state = await loadAlertState()
   const alerts: string[] = []
   const newDates: Record<string, string> = {}
 
@@ -236,10 +236,10 @@ export async function checkMacroReleases(
     }
 
     // Update state
-    saveAlertState({ lastMacroDates: { ...state.lastMacroDates, ...newDates } })
+    await saveAlertState({ lastMacroDates: { ...state.lastMacroDates, ...newDates } })
   } else {
     // No alerts, but update state anyway
-    saveAlertState({ lastMacroDates: { ...state.lastMacroDates, ...newDates } })
+    await saveAlertState({ lastMacroDates: { ...state.lastMacroDates, ...newDates } })
   }
 }
 

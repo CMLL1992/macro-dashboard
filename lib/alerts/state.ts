@@ -1,8 +1,9 @@
 /**
  * Alert state management
- * Stores previous states in memory and optionally in SQLite
+ * Stores previous states in memory and optionally in SQLite/Turso
  */
 
+import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 import { getDB } from '@/lib/db/schema'
 
 export type USDState = 'Fuerte' | 'Débil' | 'Neutral'
@@ -40,108 +41,194 @@ export const CRITICAL_MACRO_SERIES = [
 ] as const
 
 /**
- * Load state from SQLite (if table exists) or return in-memory state
+ * Load state from SQLite/Turso (if table exists) or return in-memory state
  */
-export function loadAlertState(): AlertState {
+export async function loadAlertState(): Promise<AlertState> {
   try {
-    const db = getDB()
-    
-    // Ensure table exists
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS alerts_state (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-      )
-    `)
-    
-    // Try to load from SQLite
-    const usdBiasRow = db.prepare('SELECT value FROM alerts_state WHERE key = ?').get('usdBias') as { value: string } | undefined
-    const usdBiasUpdatedAtRow = db.prepare('SELECT value FROM alerts_state WHERE key = ?').get('usdBiasUpdatedAt') as { value: string } | undefined
-    
-    if (usdBiasRow) {
-      state.usdBias = usdBiasRow.value as USDState
-    }
-    if (usdBiasUpdatedAtRow) {
-      state.usdBiasUpdatedAt = usdBiasUpdatedAtRow.value
-    }
-    
-    // Load correlation levels
-    const corrRows = db.prepare('SELECT key, value FROM alerts_state WHERE key LIKE ?').all('corr:%') as Array<{ key: string; value: string }>
-    for (const row of corrRows) {
-      const [symbol, window] = row.key.replace('corr:', '').split(':')
-      if (!state.correlationLevels[symbol]) {
-        state.correlationLevels[symbol] = {}
+    if (isUsingTurso()) {
+      const db = getUnifiedDB()
+      
+      // Ensure table exists
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS alerts_state (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `)
+      
+      // Try to load from Turso
+      const usdBiasRow = await db.prepare('SELECT value FROM alerts_state WHERE key = ?').get('usdBias') as { value: string } | undefined
+      const usdBiasUpdatedAtRow = await db.prepare('SELECT value FROM alerts_state WHERE key = ?').get('usdBiasUpdatedAt') as { value: string } | undefined
+      
+      if (usdBiasRow) {
+        state.usdBias = usdBiasRow.value as USDState
       }
-      state.correlationLevels[symbol][window as '3m' | '12m'] = row.value as CorrelationLevel
-    }
-    
-    // Load last macro dates
-    const dateRows = db.prepare('SELECT key, value FROM alerts_state WHERE key LIKE ?').all('macro_date:%') as Array<{ key: string; value: string }>
-    for (const row of dateRows) {
-      const seriesId = row.key.replace('macro_date:', '')
-      state.lastMacroDates[seriesId] = row.value
+      if (usdBiasUpdatedAtRow) {
+        state.usdBiasUpdatedAt = usdBiasUpdatedAtRow.value
+      }
+      
+      // Load correlation levels
+      const corrRows = await db.prepare('SELECT key, value FROM alerts_state WHERE key LIKE ?').all('corr:%') as Array<{ key: string; value: string }>
+      for (const row of corrRows) {
+        const [symbol, window] = row.key.replace('corr:', '').split(':')
+        if (!state.correlationLevels[symbol]) {
+          state.correlationLevels[symbol] = {}
+        }
+        state.correlationLevels[symbol][window as '3m' | '12m'] = row.value as CorrelationLevel
+      }
+      
+      // Load last macro dates
+      const dateRows = await db.prepare('SELECT key, value FROM alerts_state WHERE key LIKE ?').all('macro_date:%') as Array<{ key: string; value: string }>
+      for (const row of dateRows) {
+        const seriesId = row.key.replace('macro_date:', '')
+        state.lastMacroDates[seriesId] = row.value
+      }
+    } else {
+      const db = getDB()
+      
+      // Ensure table exists
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS alerts_state (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `)
+      
+      // Try to load from SQLite
+      const usdBiasRow = db.prepare('SELECT value FROM alerts_state WHERE key = ?').get('usdBias') as { value: string } | undefined
+      const usdBiasUpdatedAtRow = db.prepare('SELECT value FROM alerts_state WHERE key = ?').get('usdBiasUpdatedAt') as { value: string } | undefined
+      
+      if (usdBiasRow) {
+        state.usdBias = usdBiasRow.value as USDState
+      }
+      if (usdBiasUpdatedAtRow) {
+        state.usdBiasUpdatedAt = usdBiasUpdatedAtRow.value
+      }
+      
+      // Load correlation levels
+      const corrRows = db.prepare('SELECT key, value FROM alerts_state WHERE key LIKE ?').all('corr:%') as Array<{ key: string; value: string }>
+      for (const row of corrRows) {
+        const [symbol, window] = row.key.replace('corr:', '').split(':')
+        if (!state.correlationLevels[symbol]) {
+          state.correlationLevels[symbol] = {}
+        }
+        state.correlationLevels[symbol][window as '3m' | '12m'] = row.value as CorrelationLevel
+      }
+      
+      // Load last macro dates
+      const dateRows = db.prepare('SELECT key, value FROM alerts_state WHERE key LIKE ?').all('macro_date:%') as Array<{ key: string; value: string }>
+      for (const row of dateRows) {
+        const seriesId = row.key.replace('macro_date:', '')
+        state.lastMacroDates[seriesId] = row.value
+      }
     }
   } catch (error) {
     // Table might not exist yet, use in-memory state
-    console.warn('[alerts/state] Could not load from SQLite, using in-memory state:', error)
+    console.warn('[alerts/state] Could not load from database, using in-memory state:', error)
   }
   
   return state
 }
 
 /**
- * Save state to SQLite (if table exists)
+ * Save state to SQLite/Turso (if table exists)
  */
-export function saveAlertState(newState: Partial<AlertState>): void {
+export async function saveAlertState(newState: Partial<AlertState>): Promise<void> {
   // Update in-memory state
   state = { ...state, ...newState }
   
   try {
-    const db = getDB()
-    
-    // Ensure table exists
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS alerts_state (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-      )
-    `)
-    
-    // Save USD bias
-    if (newState.usdBias !== undefined) {
-      db.prepare('INSERT OR REPLACE INTO alerts_state (key, value) VALUES (?, ?)').run('usdBias', newState.usdBias)
-    }
-    if (newState.usdBiasUpdatedAt !== undefined) {
-      db.prepare('INSERT OR REPLACE INTO alerts_state (key, value) VALUES (?, ?)').run('usdBiasUpdatedAt', newState.usdBiasUpdatedAt)
-    }
-    
-    // Save correlation levels
-    if (newState.correlationLevels) {
-      for (const [symbol, levels] of Object.entries(newState.correlationLevels)) {
-        for (const [window, level] of Object.entries(levels)) {
-          if (level) {
-            db.prepare('INSERT OR REPLACE INTO alerts_state (key, value) VALUES (?, ?)').run(
-              `corr:${symbol}:${window}`,
-              level
-            )
+    if (isUsingTurso()) {
+      const db = getUnifiedDB()
+      
+      // Ensure table exists
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS alerts_state (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `)
+      
+      // Save USD bias
+      if (newState.usdBias !== undefined) {
+        await db.prepare('INSERT OR REPLACE INTO alerts_state (key, value) VALUES (?, ?)').run('usdBias', newState.usdBias)
+      }
+      if (newState.usdBiasUpdatedAt !== undefined) {
+        await db.prepare('INSERT OR REPLACE INTO alerts_state (key, value) VALUES (?, ?)').run('usdBiasUpdatedAt', newState.usdBiasUpdatedAt)
+      }
+      
+      // Save correlation levels
+      if (newState.correlationLevels) {
+        for (const [symbol, levels] of Object.entries(newState.correlationLevels)) {
+          for (const [window, level] of Object.entries(levels)) {
+            if (level) {
+              await db.prepare('INSERT OR REPLACE INTO alerts_state (key, value) VALUES (?, ?)').run(
+                `corr:${symbol}:${window}`,
+                level
+              )
+            }
           }
         }
       }
-    }
-    
-    // Save last macro dates
-    if (newState.lastMacroDates) {
-      for (const [seriesId, date] of Object.entries(newState.lastMacroDates)) {
-        db.prepare('INSERT OR REPLACE INTO alerts_state (key, value) VALUES (?, ?)').run(
-          `macro_date:${seriesId}`,
-          date
+      
+      // Save last macro dates
+      if (newState.lastMacroDates) {
+        for (const [seriesId, date] of Object.entries(newState.lastMacroDates)) {
+          await db.prepare('INSERT OR REPLACE INTO alerts_state (key, value) VALUES (?, ?)').run(
+            `macro_date:${seriesId}`,
+            date
+          )
+        }
+      }
+    } else {
+      const db = getDB()
+      
+      // Ensure table exists
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS alerts_state (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
+      `)
+      
+      // Save USD bias
+      if (newState.usdBias !== undefined) {
+        db.prepare('INSERT OR REPLACE INTO alerts_state (key, value) VALUES (?, ?)').run('usdBias', newState.usdBias)
+      }
+      if (newState.usdBiasUpdatedAt !== undefined) {
+        db.prepare('INSERT OR REPLACE INTO alerts_state (key, value) VALUES (?, ?)').run('usdBiasUpdatedAt', newState.usdBiasUpdatedAt)
+      }
+      
+      // Save correlation levels
+      if (newState.correlationLevels) {
+        for (const [symbol, levels] of Object.entries(newState.correlationLevels)) {
+          for (const [window, level] of Object.entries(levels)) {
+            if (level) {
+              db.prepare('INSERT OR REPLACE INTO alerts_state (key, value) VALUES (?, ?)').run(
+                `corr:${symbol}:${window}`,
+                level
+              )
+            }
+          }
+        }
+      }
+      
+      // Save last macro dates
+      if (newState.lastMacroDates) {
+        for (const [seriesId, date] of Object.entries(newState.lastMacroDates)) {
+          db.prepare('INSERT OR REPLACE INTO alerts_state (key, value) VALUES (?, ?)').run(
+            `macro_date:${seriesId}`,
+            date
+          )
+        }
       }
     }
   } catch (error) {
-    console.warn('[alerts/state] Could not save to SQLite:', error)
+    console.warn('[alerts/state] Could not save to database:', error)
   }
 }
 
