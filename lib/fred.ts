@@ -80,9 +80,9 @@ const isServer = typeof window === 'undefined'
 
 // Rate limiting: FRED allows 120 requests per minute
 let lastRequestTime = 0
-const MIN_REQUEST_INTERVAL_MS = 500 // ~120 requests per minute
+const MIN_REQUEST_INTERVAL_MS = 300 // ~200 requests per minute (más agresivo pero seguro)
 
-async function rateLimitedFetch(url: string, retries: number = 2): Promise<Response> {
+async function rateLimitedFetch(url: string, retries: number = 1): Promise<Response> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     // Rate limiting: ensure minimum interval between requests
     const now = Date.now()

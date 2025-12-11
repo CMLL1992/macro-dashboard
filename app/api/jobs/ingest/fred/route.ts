@@ -13,8 +13,8 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { validateCronToken, unauthorizedResponse } from '@/lib/security/token'
 import { logger } from '@/lib/obs/logger'
+import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 import { fetchFredSeries } from '@/lib/fred'
-import { getUnifiedDB } from '@/lib/db/unified-db'
 import { upsertMacroSeries, saveIngestHistory } from '@/lib/db/upsert'
 import type { MacroSeries } from '@/lib/types/macro'
 import { checkMacroReleases } from '@/lib/alerts/triggers'
@@ -78,32 +78,41 @@ export async function POST(request: NextRequest) {
     let ingested = 0
     let errors = 0
     const ingestErrors: Array<{ seriesId?: string; error: string }> = []
+    const seriesTimings: Array<{ seriesId: string; durationMs: number; success: boolean }> = []
+
+    // Pre-fetch all last dates from DB in a single query to optimize
+    const db = getUnifiedDB()
+    let lastDatesMap = new Map<string, string | null>()
+    try {
+      const seriesIds = FRED_SERIES.map(s => s.id)
+      // Query all last dates at once using IN clause
+      const placeholders = seriesIds.map(() => '?').join(',')
+      const result = await db.prepare(
+        `SELECT series_id, MAX(date) as max_date FROM macro_observations WHERE series_id IN (${placeholders}) GROUP BY series_id`
+      ).all(...seriesIds) as Array<{ series_id: string; max_date: string | null }>
+      
+      for (const row of result) {
+        lastDatesMap.set(row.series_id, row.max_date)
+      }
+      logger.info('Pre-fetched last dates from DB', { job: jobId, count: lastDatesMap.size })
+    } catch (err) {
+      logger.warn('Could not pre-fetch last dates, will query individually', { job: jobId, error: String(err) })
+    }
 
     for (const series of FRED_SERIES) {
+      const seriesStartTime = Date.now()
       try {
-        // Check if this series has a fredTransform configured
-        // Find the indicator config that uses this series ID
-        let indicatorConfig: any = null
-        try {
-          const m = await import('@/config/macro-indicators')
-          const configs = m.MACRO_INDICATORS_CONFIG as any
-          indicatorConfig = Object.values(configs).find((cfg: any) => cfg.fredSeriesId === series.id)
-        } catch {
-          // Ignore
-        }
-        
-        // Get indicator config synchronously (if available)
+        // Get indicator config synchronously (if available) - cache import to avoid repeated imports
         let fredTransform: string | undefined = undefined
         try {
+          // Cache the config import to avoid repeated dynamic imports
           const { MACRO_INDICATORS_CONFIG } = await import('@/config/macro-indicators')
           const config = Object.values(MACRO_INDICATORS_CONFIG).find((cfg: any) => cfg.fredSeriesId === series.id) as any
           if (config?.fredTransform) {
             fredTransform = config.fredTransform
-            logger.info(`[fred/route] Found fredTransform for ${series.id}: ${fredTransform}`, { job: jobId, seriesId: series.id })
           }
         } catch (e) {
           // Ignore if config not available
-          logger.warn(`[fred/route] Failed to load config for ${series.id}`, { job: jobId, seriesId: series.id, error: e })
         }
 
         // Try FRED first, then fallback to other sources
@@ -157,23 +166,31 @@ export async function POST(request: NextRequest) {
         macroSeries.name = series.name
         macroSeries.frequency = series.frequency as any
 
-        // Check what points are "new" before upserting
-        // Get last date in DB for this series
-        let lastDateInDb: string | null = null
-        try {
-          // All methods are async now, so always use await
-          const db = getUnifiedDB()
-          const result = await db.prepare(
-            `SELECT MAX(date) as max_date FROM macro_observations WHERE series_id = ?`
-          ).get(series.id) as { max_date: string | null } | undefined
-          lastDateInDb = result?.max_date || null
-        } catch (err) {
-          logger.warn(`Could not get last date for ${series.id}`, { error: String(err) })
-        }
+        // Get last date in DB for this series (from pre-fetched map)
+        const lastDateInDb = lastDatesMap.get(series.id) || null
 
         const newPoints = lastDateInDb
-          ? macroSeries.data.filter((p: { date: string; value: number }) => p.date > lastDateInDb!)
+          ? macroSeries.data.filter((p: { date: string; value: number }) => p.date > lastDateInDb)
           : macroSeries.data
+
+        const seriesDurationMs = Date.now() - seriesStartTime
+        logger.info(`[${series.id}] Fetch completed`, {
+          job: jobId,
+          series_id: series.id,
+          durationMs: seriesDurationMs,
+          totalPoints: macroSeries.data.length,
+          newPoints: newPoints.length,
+        })
+
+        if (newPoints.length === 0) {
+          logger.info(`[${series.id}] No new points, skipping upsert`, {
+            job: jobId,
+            series_id: series.id,
+            lastDateInDb,
+          })
+          seriesTimings.push({ seriesId: series.id, durationMs: seriesDurationMs, success: true })
+          continue
+        }
 
         console.log(
           JSON.stringify({
@@ -189,22 +206,34 @@ export async function POST(request: NextRequest) {
         )
 
         // Upsert to database (idempotent - no duplicates)
+        const upsertStartTime = Date.now()
         await upsertMacroSeries(macroSeries)
+        const upsertDurationMs = Date.now() - upsertStartTime
+        
         ingested++
+        const totalDurationMs = Date.now() - seriesStartTime
+        seriesTimings.push({ seriesId: series.id, durationMs: totalDurationMs, success: true })
 
         logger.info(`Ingested ${series.id}`, {
           job: jobId,
           series_id: series.id,
           points: macroSeries.data.length,
+          newPoints: newPoints.length,
+          fetchDurationMs: seriesDurationMs,
+          upsertDurationMs,
+          totalDurationMs,
         })
       } catch (error) {
         errors++
         const errorMsg = error instanceof Error ? error.message : String(error)
+        const seriesDurationMs = Date.now() - seriesStartTime
+        seriesTimings.push({ seriesId: series.id, durationMs: seriesDurationMs, success: false })
         ingestErrors.push({ seriesId: series.id, error: errorMsg })
         logger.error(`Failed to ingest ${series.id}`, {
           job: jobId,
           series_id: series.id,
           error: errorMsg,
+          durationMs: seriesDurationMs,
         })
       }
     }
@@ -272,11 +301,20 @@ export async function POST(request: NextRequest) {
     const finishedAt = new Date().toISOString()
     const durationMs = new Date(finishedAt).getTime() - new Date(startedAt).getTime()
 
+    // Log timing summary
+    const totalSeriesTime = seriesTimings.reduce((sum, t) => sum + t.durationMs, 0)
+    const avgSeriesTime = seriesTimings.length > 0 ? totalSeriesTime / seriesTimings.length : 0
+    const slowestSeries = seriesTimings.sort((a, b) => b.durationMs - a.durationMs)[0]
+    
     logger.info('FRED ingestion completed', {
       job: jobId,
       ingested,
       errors,
       durationMs,
+      totalSeriesTime,
+      avgSeriesTime: Math.round(avgSeriesTime),
+      slowestSeries: slowestSeries ? { id: slowestSeries.seriesId, durationMs: slowestSeries.durationMs } : null,
+      seriesTimings: seriesTimings.slice(0, 5), // Log top 5 slowest
     })
 
     // Save ingest history
@@ -293,39 +331,57 @@ export async function POST(request: NextRequest) {
       logger.error('Failed to save ingest history', { job: jobId, error })
     }
 
-    // Check macro release alerts (Trigger C)
-    try {
-      const diagnosis = await getMacroDiagnosis()
-      const histories = await getAllIndicatorHistories()
-      const CRITICAL_SERIES_IDS = ['CPIAUCSL', 'CPILFESL', 'PCEPI', 'PCEPILFE', 'PPIACO', 'PAYEMS', 'UNRATE', 'ICSA', 'GDPC1', 'T10Y2Y', 'VIXCLS']
+    // Check macro release alerts (Trigger C) - Only if we have time (< 250s elapsed)
+    // Skip if we're running out of time to avoid timeout
+    const timeElapsed = Date.now() - new Date(startedAt).getTime()
+    const TIME_LIMIT_MS = 250 * 1000 // 250 seconds (leave 50s buffer)
+    
+    if (timeElapsed < TIME_LIMIT_MS) {
+      try {
+        const alertsStartTime = Date.now()
+        const diagnosis = await getMacroDiagnosis()
+        const histories = await getAllIndicatorHistories()
+        const CRITICAL_SERIES_IDS = ['CPIAUCSL', 'CPILFESL', 'PCEPI', 'PCEPILFE', 'PPIACO', 'PAYEMS', 'UNRATE', 'ICSA', 'GDPC1', 'T10Y2Y', 'VIXCLS']
 
-      const observationsForAlerts = diagnosis.items
-        .filter(item => {
-          const seriesId = KEY_TO_SERIES_ID[item.key]
-          return seriesId && CRITICAL_SERIES_IDS.includes(seriesId)
-        })
-        .map(item => {
-          const seriesId = KEY_TO_SERIES_ID[item.key]
-          const history = histories.get(item.key.toUpperCase())
-          
-          return {
-            seriesId: seriesId!,
-            label: item.label,
-            value: item.value ?? 0,
-            valuePrevious: history?.value_previous ?? null,
-            date: item.date || '',
-            datePrevious: history?.date_previous ?? null,
-            trend: (item.trend || 'Estable') as 'Mejora' | 'Empeora' | 'Estable',
-            posture: (item.posture || 'Neutral') as 'Hawkish' | 'Dovish' | 'Neutral',
-          }
-        })
+        const observationsForAlerts = diagnosis.items
+          .filter(item => {
+            const seriesId = KEY_TO_SERIES_ID[item.key]
+            return seriesId && CRITICAL_SERIES_IDS.includes(seriesId)
+          })
+          .map(item => {
+            const seriesId = KEY_TO_SERIES_ID[item.key]
+            const history = histories.get(item.key.toUpperCase())
+            
+            return {
+              seriesId: seriesId!,
+              label: item.label,
+              value: item.value ?? 0,
+              valuePrevious: history?.value_previous ?? null,
+              date: item.date || '',
+              datePrevious: history?.date_previous ?? null,
+              trend: (item.trend || 'Estable') as 'Mejora' | 'Empeora' | 'Estable',
+              posture: (item.posture || 'Neutral') as 'Hawkish' | 'Dovish' | 'Neutral',
+            }
+          })
 
-      await checkMacroReleases(observationsForAlerts)
-      logger.info('Macro release check completed', { job: jobId, count: observationsForAlerts.length })
-    } catch (error) {
-      logger.error('Failed to check macro release alerts', {
+        await checkMacroReleases(observationsForAlerts)
+        const alertsDurationMs = Date.now() - alertsStartTime
+        logger.info('Macro release check completed', { 
+          job: jobId, 
+          count: observationsForAlerts.length,
+          durationMs: alertsDurationMs,
+        })
+      } catch (error) {
+        logger.error('Failed to check macro release alerts', {
+          job: jobId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    } else {
+      logger.warn('Skipping macro release alerts check due to time limit', {
         job: jobId,
-        error: error instanceof Error ? error.message : String(error),
+        timeElapsed,
+        timeLimit: TIME_LIMIT_MS,
       })
     }
 
