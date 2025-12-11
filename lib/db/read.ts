@@ -555,27 +555,48 @@ export async function getIndicatorHistoryAsync(indicatorKey: string): Promise<{
 
 /**
  * Get all indicator histories
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
-export function getAllIndicatorHistories(): Map<string, {
+export async function getAllIndicatorHistories(): Promise<Map<string, {
   value_current: number | null
   value_previous: number | null
   date_current: string | null
   date_previous: string | null
-}> {
-  const db = getDB()
-  const rows = db.prepare('SELECT * FROM indicator_history').all() as any[]
-  const map = new Map()
+}>> {
+  const { getUnifiedDB, isUsingTurso } = await import('./unified-db')
+  const { getDB } = await import('./schema')
 
-  for (const row of rows) {
-    map.set(row.indicator_key, {
-      value_current: row.value_current,
-      value_previous: row.value_previous,
-      date_current: row.date_current,
-      date_previous: row.date_previous,
-    })
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
+    const rows = await db.prepare('SELECT * FROM indicator_history').all() as any[]
+    const map = new Map()
+
+    for (const row of rows) {
+      map.set(row.indicator_key, {
+        value_current: row.value_current,
+        value_previous: row.value_previous,
+        date_current: row.date_current,
+        date_previous: row.date_previous,
+      })
+    }
+
+    return map
+  } else {
+    const db = getDB()
+    const rows = db.prepare('SELECT * FROM indicator_history').all() as any[]
+    const map = new Map()
+
+    for (const row of rows) {
+      map.set(row.indicator_key, {
+        value_current: row.value_current,
+        value_previous: row.value_previous,
+        date_current: row.date_current,
+        date_previous: row.date_previous,
+      })
+    }
+
+    return map
   }
-
-  return map
 }
 
 

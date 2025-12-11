@@ -12,8 +12,8 @@ export async function GET() {
     const g = await fetchFredSeries('GDPC1', { frequency: 'q' })
 
     // Get last ingest timestamp and warmup result
-    const lastIngestAt = getLastIngestAt('warmup')
-    const lastWarmupResult = getLastWarmupResult()
+    const lastIngestAt = await getLastIngestAt('warmup')
+    const lastWarmupResult = await getLastWarmupResult()
 
     // Database configuration info
     const usingTurso = isUsingTurso()

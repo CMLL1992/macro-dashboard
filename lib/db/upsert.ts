@@ -311,132 +311,225 @@ export async function upsertCorrelation(params: {
 /**
  * Upsert indicator history (current vs previous)
  * When a new value arrives, the current becomes previous
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
-export function upsertIndicatorHistory(params: {
+export async function upsertIndicatorHistory(params: {
   indicatorKey: string
   value: number | null
   date: string
-}): void {
-  const db = getDB()
+}): Promise<void> {
+  const normalizedKey = params.indicatorKey.toUpperCase()
 
-  // Get current value if exists
-  const existing = db
-    .prepare('SELECT * FROM indicator_history WHERE indicator_key = ?')
-    .get(params.indicatorKey.toUpperCase()) as any
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
 
-  let valueCurrent = params.value
-  let valuePrevious = existing?.value_current ?? null
-  let dateCurrent = params.date
-  let datePrevious = existing?.date_current ?? null
+    // Get current value if exists
+    const existing = await db
+      .prepare('SELECT * FROM indicator_history WHERE indicator_key = ?')
+      .get(normalizedKey) as any
 
-  // If new value is different from current, move current to previous
-  if (existing && existing.value_current != null && params.value != null) {
-    if (existing.value_current !== params.value || existing.date_current !== params.date) {
-      valuePrevious = existing.value_current
-      datePrevious = existing.date_current
-      valueCurrent = params.value
-      dateCurrent = params.date
+    let valueCurrent = params.value
+    let valuePrevious = existing?.value_current ?? null
+    let dateCurrent = params.date
+    let datePrevious = existing?.date_current ?? null
+
+    // If new value is different from current, move current to previous
+    if (existing && existing.value_current != null && params.value != null) {
+      if (existing.value_current !== params.value || existing.date_current !== params.date) {
+        valuePrevious = existing.value_current
+        datePrevious = existing.date_current
+        valueCurrent = params.value
+        dateCurrent = params.date
+      }
     }
+
+    await db.prepare(`
+      INSERT INTO indicator_history (indicator_key, value_current, value_previous, date_current, date_previous)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(indicator_key) DO UPDATE SET
+        value_current = excluded.value_current,
+        value_previous = excluded.value_previous,
+        date_current = excluded.date_current,
+        date_previous = excluded.date_previous,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(
+      normalizedKey,
+      valueCurrent,
+      valuePrevious,
+      dateCurrent,
+      datePrevious
+    )
+  } else {
+    const db = getDB()
+
+    // Get current value if exists
+    const existing = db
+      .prepare('SELECT * FROM indicator_history WHERE indicator_key = ?')
+      .get(normalizedKey) as any
+
+    let valueCurrent = params.value
+    let valuePrevious = existing?.value_current ?? null
+    let dateCurrent = params.date
+    let datePrevious = existing?.date_current ?? null
+
+    // If new value is different from current, move current to previous
+    if (existing && existing.value_current != null && params.value != null) {
+      if (existing.value_current !== params.value || existing.date_current !== params.date) {
+        valuePrevious = existing.value_current
+        datePrevious = existing.date_current
+        valueCurrent = params.value
+        dateCurrent = params.date
+      }
+    }
+
+    const stmt = db.prepare(`
+      INSERT INTO indicator_history (indicator_key, value_current, value_previous, date_current, date_previous)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(indicator_key) DO UPDATE SET
+        value_current = excluded.value_current,
+        value_previous = excluded.value_previous,
+        date_current = excluded.date_current,
+        date_previous = excluded.date_previous,
+        updated_at = CURRENT_TIMESTAMP
+    `)
+
+    stmt.run(
+      normalizedKey,
+      valueCurrent,
+      valuePrevious,
+      dateCurrent,
+      datePrevious
+    )
   }
-
-  const stmt = db.prepare(`
-    INSERT INTO indicator_history (indicator_key, value_current, value_previous, date_current, date_previous)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(indicator_key) DO UPDATE SET
-      value_current = excluded.value_current,
-      value_previous = excluded.value_previous,
-      date_current = excluded.date_current,
-      date_previous = excluded.date_previous,
-      updated_at = CURRENT_TIMESTAMP
-  `)
-
-  stmt.run(
-    params.indicatorKey.toUpperCase(),
-    valueCurrent,
-    valuePrevious,
-    dateCurrent,
-    datePrevious
-  )
 }
 
 /**
  * Save ingest history for tracking and auditing
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
-export function saveIngestHistory(params: {
+export async function saveIngestHistory(params: {
   jobType: string
   updatedSeriesCount: number
   errorsCount: number
   durationMs: number
   errors?: Array<{ seriesId?: string; error: string }>
   finishedAt: string
-}): void {
-  const db = getDB()
-
-  const stmt = db.prepare(`
-    INSERT INTO ingest_history (job_type, updated_series_count, errors_count, duration_ms, errors_json, finished_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `)
-
-  stmt.run(
-    params.jobType,
-    params.updatedSeriesCount,
-    params.errorsCount,
-    params.durationMs,
-    params.errors ? JSON.stringify(params.errors) : null,
-    params.finishedAt
-  )
+}): Promise<void> {
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
+    await db.prepare(`
+      INSERT INTO ingest_history (job_type, updated_series_count, errors_count, duration_ms, errors_json, finished_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      params.jobType,
+      params.updatedSeriesCount,
+      params.errorsCount,
+      params.durationMs,
+      params.errors ? JSON.stringify(params.errors) : null,
+      params.finishedAt
+    )
+  } else {
+    const db = getDB()
+    const stmt = db.prepare(`
+      INSERT INTO ingest_history (job_type, updated_series_count, errors_count, duration_ms, errors_json, finished_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `)
+    stmt.run(
+      params.jobType,
+      params.updatedSeriesCount,
+      params.errorsCount,
+      params.durationMs,
+      params.errors ? JSON.stringify(params.errors) : null,
+      params.finishedAt
+    )
+  }
 }
 
 /**
  * Get last ingest timestamp
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
-export function getLastIngestAt(jobType: string = 'warmup'): string | null {
-  const db = getDB()
-
-  const stmt = db.prepare(`
-    SELECT finished_at FROM ingest_history
-    WHERE job_type = ?
-    ORDER BY finished_at DESC
-    LIMIT 1
-  `)
-
-  const result = stmt.get(jobType) as { finished_at: string } | undefined
-  return result?.finished_at || null
+export async function getLastIngestAt(jobType: string = 'warmup'): Promise<string | null> {
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
+    const result = await db.prepare(`
+      SELECT finished_at FROM ingest_history
+      WHERE job_type = ?
+      ORDER BY finished_at DESC
+      LIMIT 1
+    `).get(jobType) as { finished_at: string } | undefined
+    return result?.finished_at || null
+  } else {
+    const db = getDB()
+    const stmt = db.prepare(`
+      SELECT finished_at FROM ingest_history
+      WHERE job_type = ?
+      ORDER BY finished_at DESC
+      LIMIT 1
+    `)
+    const result = stmt.get(jobType) as { finished_at: string } | undefined
+    return result?.finished_at || null
+  }
 }
 
 /**
  * Get last warmup result summary
+ * Works with both Turso (async) and better-sqlite3 (sync)
  */
-export function getLastWarmupResult(): {
+export async function getLastWarmupResult(): Promise<{
   updatedSeriesCount: number
   errorsCount: number
   durationMs: number
   finishedAt: string | null
-} | null {
-  const db = getDB()
+} | null> {
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
+    const result = await db.prepare(`
+      SELECT updated_series_count, errors_count, duration_ms, finished_at
+      FROM ingest_history
+      WHERE job_type = 'warmup'
+      ORDER BY finished_at DESC
+      LIMIT 1
+    `).get() as {
+      updated_series_count: number
+      errors_count: number
+      duration_ms: number
+      finished_at: string
+    } | undefined
 
-  const stmt = db.prepare(`
-    SELECT updated_series_count, errors_count, duration_ms, finished_at
-    FROM ingest_history
-    WHERE job_type = 'warmup'
-    ORDER BY finished_at DESC
-    LIMIT 1
-  `)
+    if (!result) return null
 
-  const result = stmt.get() as {
-    updated_series_count: number
-    errors_count: number
-    duration_ms: number
-    finished_at: string
-  } | undefined
+    return {
+      updatedSeriesCount: result.updated_series_count,
+      errorsCount: result.errors_count,
+      durationMs: result.duration_ms,
+      finishedAt: result.finished_at,
+    }
+  } else {
+    const db = getDB()
+    const stmt = db.prepare(`
+      SELECT updated_series_count, errors_count, duration_ms, finished_at
+      FROM ingest_history
+      WHERE job_type = 'warmup'
+      ORDER BY finished_at DESC
+      LIMIT 1
+    `)
 
-  if (!result) return null
+    const result = stmt.get() as {
+      updated_series_count: number
+      errors_count: number
+      duration_ms: number
+      finished_at: string
+    } | undefined
 
-  return {
-    updatedSeriesCount: result.updated_series_count,
-    errorsCount: result.errors_count,
-    durationMs: result.duration_ms,
-    finishedAt: result.finished_at,
+    if (!result) return null
+
+    return {
+      updatedSeriesCount: result.updated_series_count,
+      errorsCount: result.errors_count,
+      durationMs: result.duration_ms,
+      finishedAt: result.finished_at,
+    }
   }
 }
 

@@ -115,7 +115,7 @@ export async function GET() {
 
   // Save ingest history
   try {
-    saveIngestHistory({
+    await saveIngestHistory({
       jobType: 'warmup',
       updatedSeriesCount,
       errorsCount,

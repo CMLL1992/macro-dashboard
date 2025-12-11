@@ -329,7 +329,7 @@ export async function POST(request: NextRequest) {
 
     // Save ingest history
     try {
-      saveIngestHistory({
+      await saveIngestHistory({
         jobType: 'ingest_fred',
         updatedSeriesCount: ingested,
         errorsCount: errors,
@@ -344,7 +344,7 @@ export async function POST(request: NextRequest) {
     // Check macro release alerts (Trigger C)
     try {
       const diagnosis = await getMacroDiagnosis()
-      const histories = getAllIndicatorHistories()
+      const histories = await getAllIndicatorHistories()
       const CRITICAL_SERIES_IDS = ['CPIAUCSL', 'CPILFESL', 'PCEPI', 'PCEPILFE', 'PPIACO', 'PAYEMS', 'UNRATE', 'ICSA', 'GDPC1', 'T10Y2Y', 'VIXCLS']
 
       const observationsForAlerts = diagnosis.items
