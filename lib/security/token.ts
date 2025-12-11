@@ -6,21 +6,6 @@
 
 import { NextRequest } from 'next/server'
 
-const CRON_SECRET = (process.env.CRON_SECRET || '').trim()
-const INGEST_KEY = (process.env.INGEST_KEY || '').trim()
-const CRON_TOKEN = (process.env.CRON_TOKEN || '').trim()
-
-/**
- * Get valid authorization tokens
- */
-function getValidTokens(): string[] {
-  const tokens: string[] = []
-  if (CRON_SECRET) tokens.push(`Bearer ${CRON_SECRET}`)
-  if (INGEST_KEY) tokens.push(`Bearer ${INGEST_KEY}`)
-  if (CRON_TOKEN) tokens.push(`Bearer ${CRON_TOKEN}`)
-  return tokens
-}
-
 /**
  * Validate cron token from request
  * In development, allows requests without token if no tokens are configured
@@ -40,18 +25,26 @@ export function validateCronToken(request: NextRequest): boolean {
 
   // In production (Vercel), require token
   if (process.env.VERCEL) {
-    const validTokens = getValidTokens()
+    // Get authorization header (case-insensitive)
+    const auth = request.headers.get('authorization') ?? request.headers.get('Authorization')
+    
+    // Build valid tokens list
+    const validTokens = [
+      process.env.CRON_SECRET && `Bearer ${process.env.CRON_SECRET}`,
+      process.env.INGEST_KEY && `Bearer ${process.env.INGEST_KEY}`,
+      process.env.CRON_TOKEN && `Bearer ${process.env.CRON_TOKEN}`,
+    ].filter(Boolean) as string[]
+
     if (validTokens.length === 0) {
       console.log('[security] Rejecting: In Vercel but no CRON_SECRET, INGEST_KEY, or CRON_TOKEN configured')
       return false
     }
-    
-    // Try Authorization header (Vercel crons automatically add Authorization: Bearer ${CRON_SECRET})
-    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization')
-    if (authHeader) {
-      const token = authHeader.replace(/^Bearer\s+/i, '').trim()
-      const fullAuth = `Bearer ${token}`
-      if (validTokens.includes(fullAuth)) {
+
+    // Check Authorization header (Vercel crons automatically add Authorization: Bearer ${CRON_SECRET})
+    if (auth) {
+      // Normalize: ensure Bearer prefix and trim
+      const normalized = auth.trim()
+      if (validTokens.includes(normalized)) {
         return true
       }
     }

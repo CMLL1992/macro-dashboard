@@ -8,25 +8,24 @@
 export function assertCronAuth(req: Request | { headers: Headers; url?: string }): void {
   const headers = 'headers' in req ? req.headers : (req as any).headers
   
-  const CRON_SECRET = process.env.CRON_SECRET
-  const INGEST_KEY = process.env.INGEST_KEY
-  const CRON_TOKEN = process.env.CRON_TOKEN
-
+  // Get authorization header (case-insensitive)
+  const auth = headers.get('authorization') ?? headers.get('Authorization')
+  
   // Build valid tokens list
-  const validTokens: string[] = []
-  if (CRON_SECRET) validTokens.push(`Bearer ${CRON_SECRET}`)
-  if (INGEST_KEY) validTokens.push(`Bearer ${INGEST_KEY}`)
-  if (CRON_TOKEN) validTokens.push(`Bearer ${CRON_TOKEN}`)
+  const validTokens = [
+    process.env.CRON_SECRET && `Bearer ${process.env.CRON_SECRET}`,
+    process.env.INGEST_KEY && `Bearer ${process.env.INGEST_KEY}`,
+    process.env.CRON_TOKEN && `Bearer ${process.env.CRON_TOKEN}`,
+  ].filter(Boolean) as string[]
 
   if (validTokens.length === 0) {
     throw new Error('CRON_SECRET, INGEST_KEY, or CRON_TOKEN must be configured')
   }
 
-  // Try Authorization header (Vercel crons automatically add Authorization: Bearer ${CRON_SECRET})
-  const authHeader = headers.get('authorization') || headers.get('Authorization')
-  if (authHeader) {
-    // Normalize: remove leading/trailing whitespace and ensure Bearer prefix
-    const normalized = authHeader.trim()
+  // Check Authorization header (Vercel crons automatically add Authorization: Bearer ${CRON_SECRET})
+  if (auth) {
+    // Normalize: ensure Bearer prefix and trim
+    const normalized = auth.trim()
     if (validTokens.includes(normalized)) {
       return // Valid token in header
     }
