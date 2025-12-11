@@ -63,6 +63,17 @@ export async function POST(request: NextRequest) {
     const indicators = EUROPEAN_INDICATORS.indicators || []
     
     // Note: TradingEconomics removed for Eurozone - now using Eurostat/ECB/FRED only
+    // Validate that no indicators use trading_economics source
+    const invalidIndicators = indicators.filter((ind: any) => 
+      ind.source === 'trading_economics' || ind.source === 'TRADING_ECONOMICS'
+    )
+    if (invalidIndicators.length > 0) {
+      logger.error('Found indicators with trading_economics source - these should be removed', {
+        job: jobId,
+        invalidIndicators: invalidIndicators.map((ind: any) => ind.id),
+      })
+      throw new Error(`Invalid source 'trading_economics' found for indicators: ${invalidIndicators.map((ind: any) => ind.id).join(', ')}. TradingEconomics is not allowed for Eurozone indicators.`)
+    }
 
     for (const indicator of indicators) {
       try {
