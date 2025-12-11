@@ -9,7 +9,7 @@ import { getDB } from '@/lib/db/schema'
 export type USDState = 'Fuerte' | 'Débil' | 'Neutral'
 export type CorrelationLevel = 'Alta' | 'Media' | 'Baja'
 
-interface AlertState {
+export interface AlertState {
   usdBias: USDState | null
   usdBiasUpdatedAt: string | null
   correlationLevels: Record<string, { '3m'?: CorrelationLevel; '12m'?: CorrelationLevel }>

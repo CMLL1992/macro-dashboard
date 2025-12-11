@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkUSDChange } from '@/lib/alerts/triggers'
 import { checkCorrelationChanges } from '@/lib/alerts/triggers'
 import { checkMacroReleases } from '@/lib/alerts/triggers'
-import { loadAlertState, saveAlertState } from '@/lib/alerts/state'
+import { loadAlertState, saveAlertState, type AlertState } from '@/lib/alerts/state'
 
 const isProduction = process.env.NODE_ENV === 'production'
 
@@ -96,8 +96,8 @@ export async function POST(request: NextRequest) {
 
           // Temporarily set state for simulation
           if (!persist) {
-            const tempState = loadAlertState()
-            saveAlertState({ usdBias: prevUSD || null })
+            const tempState = await loadAlertState()
+            await saveAlertState({ usdBias: prevUSD || null })
           }
 
           await checkUSDChange(
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
 
       // Restore original state if not persisting
       if (!persist && originalState) {
-        saveAlertState(originalState)
+        await saveAlertState(originalState as Partial<AlertState>)
       }
 
       return NextResponse.json({
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
     } catch (triggerError) {
       // Restore state on error
       if (!persist && originalState) {
-        saveAlertState(originalState)
+        await saveAlertState(originalState as Partial<AlertState>)
       }
       throw triggerError
     }
