@@ -5,17 +5,59 @@ import { pearson } from './correlation'
 
 export type CorrRow = { activo: string; corr12: number | null; corr24: number | null; corr6?: number | null; corr3?: number | null; señal: 'Positiva' | 'Negativa' | 'Mixta'; comentario: string }
 
-export const YAHOO_MAP: Record<string, string | string[]> = {
-  EURUSD: 'EURUSD=X',
-  GBPUSD: 'GBPUSD=X',
-  AUDUSD: 'AUDUSD=X',
-  USDJPY: 'USDJPY=X',
-  USDCAD: 'USDCAD=X',
-  XAUUSD: ['XAUUSD=X', 'GC=F'],
-  SPX: '^GSPC',
-  NDX: '^NDX',
-  BTCUSD: 'BTC-USD', // Use Yahoo Finance instead of Binance
-  ETHUSD: 'ETH-USD', // Use Yahoo Finance instead of Binance
+/**
+ * Get Yahoo Finance symbol from tactical-pairs.json or fallback map
+ * Uses the same logic as lib/correlations/fetch.ts for consistency
+ */
+async function getYahooSymbol(symbol: string): Promise<string | string[] | null> {
+  const normalized = symbol.toUpperCase()
+  
+  // Priority 1: Read from tactical-pairs.json (reduced list)
+  try {
+    const fs = await import('node:fs/promises')
+    const path = await import('node:path')
+    const tacticalPath = path.join(process.cwd(), 'config', 'tactical-pairs.json')
+    const tacticalRaw = await fs.readFile(tacticalPath, 'utf8')
+    const tacticalPairs = JSON.parse(tacticalRaw) as Array<{ symbol: string; yahoo_symbol?: string }>
+    const pair = tacticalPairs.find(p => p.symbol.toUpperCase() === normalized)
+    if (pair?.yahoo_symbol) {
+      return pair.yahoo_symbol
+    }
+  } catch (error) {
+    // Fall through to hardcoded map
+  }
+
+  // Fallback to hardcoded map (same as lib/correlations/fetch.ts)
+  const YAHOO_MAP: Record<string, string | string[]> = {
+    // FX Majors (G10)
+    EURUSD: 'EURUSD=X',
+    GBPUSD: 'GBPUSD=X',
+    AUDUSD: 'AUDUSD=X',
+    USDJPY: 'USDJPY=X',
+    USDCAD: 'USDCAD=X',
+    USDCHF: 'USDCHF=X',
+    NZDUSD: 'NZDUSD=X',
+    // FX EM
+    USDCNH: 'CNH=X',
+    USDBRL: 'BRL=X',
+    USDMXN: 'MXN=X',
+    // Commodities
+    XAUUSD: ['XAUUSD=X', 'GC=F'], // Gold
+    WTI: 'CL=F', // Crude Oil WTI
+    COPPER: 'HG=F', // Copper
+    // Indices
+    SPX: '^GSPC',
+    NDX: '^NDX',
+    SX5E: '^STOXX50E', // Euro Stoxx 50
+    NIKKEI: '^N225', // Nikkei 225
+    // Crypto
+    BTCUSDT: 'BTC-USD',
+    BTCUSD: 'BTC-USD',
+    ETHUSDT: 'ETH-USD',
+    ETHUSD: 'ETH-USD',
+  }
+  
+  return YAHOO_MAP[normalized] || null
 }
 
 export function signalOf(r: number | null): 'Positiva' | 'Negativa' | 'Mixta' {
@@ -29,18 +71,18 @@ async function fetchAssetSeries(name: string): Promise<{ date: string; value: nu
   try {
     // All assets now use Yahoo Finance (including BTCUSD and ETHUSD)
     // This avoids Binance 451 errors in Vercel production
-    const m = YAHOO_MAP[name]
-    if (!m) {
+    const yahooSymbol = await getYahooSymbol(name)
+    if (!yahooSymbol) {
       console.warn(`[corr-dashboard] No Yahoo symbol mapping for ${name}`)
       return null
     }
     
-    if (Array.isArray(m)) {
-      const { rows } = await yahooSeriesMonthlyAny(m, '20y')
+    if (Array.isArray(yahooSymbol)) {
+      const { rows } = await yahooSeriesMonthlyAny(yahooSymbol, '20y')
       return rows.map(p => ({ date: p.date, value: p.close }))
     }
     
-    const s = await yahooSeriesMonthly(m, '20y')
+    const s = await yahooSeriesMonthly(yahooSymbol, '20y')
     return s.map(p => ({ date: p.date, value: p.close }))
   } catch (e) {
     // Log error but don't throw - return null to mark as INSUFFICIENT_DATA
@@ -68,8 +110,8 @@ export async function getCorrelations(): Promise<CorrRow[]> {
   const usdMonthly = resampleToMonthly(usd)
 
   const rows: CorrRow[] = []
-  // Use internal symbols (BTCUSD, ETHUSD) - will be converted to Binance format in fetchAssetSeries
-  const activos = ['EURUSD','GBPUSD','AUDUSD','USDJPY','USDCAD','XAUUSD','SPX','NDX','BTCUSD','ETHUSD'] as const
+  // Use internal symbols from tactical-pairs.json - will be converted to Yahoo symbols in fetchAssetSeries
+  const activos = ['EURUSD','GBPUSD','AUDUSD','USDJPY','USDCAD','XAUUSD','SPX','NDX','SX5E','NIKKEI','WTI','COPPER','BTCUSD','ETHUSD'] as const
   for (const name of activos) {
     const series = await fetchAssetSeries(name)
     if (!series || series.length === 0) {
