@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { logger } from '@/lib/obs/logger'
 
 export const LABELS: Record<string, string> = {
   // Financieros / Curva
@@ -125,15 +126,18 @@ export async function fetchFredSeries(
   seriesId: string,
   params?: { observation_start?: string; observation_end?: string; frequency?: 'd' | 'm' | 'q'; units?: string }
 ): Promise<SeriesPoint[]> {
+  const observationStart = params?.observation_start ?? '2010-01-01'
+  const today = new Date().toISOString().split('T')[0]
+  
+  // Build full query with all parameters
   const qs = new URLSearchParams({
-    observation_start: params?.observation_start ?? '2010-01-01',
+    observation_start: observationStart,
   })
   if (params?.observation_end) qs.set('observation_end', params.observation_end)
   if (params?.frequency) qs.set('frequency', params.frequency)
   if (params?.units) qs.set('units', params.units)
   // Añadir realtime_start y realtime_end para obtener fecha de publicación
   // FRED API requiere que si units != 'lin', entonces realtime_start debe igualar realtime_end
-  const today = new Date().toISOString().split('T')[0]
   qs.set('realtime_start', today) // Obtener versión más reciente del dato
   // Si se usa units (transformación), realtime_end debe ser igual a realtime_start
   if (params?.units && params.units !== 'lin') {
@@ -149,18 +153,108 @@ export async function fetchFredSeries(
   }
 
   // Fetch with rate limiting and retries
-  const res = await rateLimitedFetch(url)
+  let res: Response
+  try {
+    res = await rateLimitedFetch(url)
+  } catch (error) {
+    // If rateLimitedFetch throws, it means the request failed
+    // We need to handle 400 errors specifically with fallback
+    throw error
+  }
   
-  // Log response status para debugging (especialmente útil para FEDFUNDS)
+  // Check if response is OK
   if (!res.ok) {
-    const errorText = await res.text().catch(() => 'Unable to read error response')
-    throw new Error(`FRED API error for ${seriesId}: ${res.status} ${res.statusText} - ${errorText.substring(0, 200)}`)
+    const body = await res.text().catch(() => 'Unable to read error response')
+    
+    // Log error with full details
+    logger.error('FRED request failed', {
+      job: 'ingest_european',
+      seriesId,
+      url: url.replace(/api_key=[^&]+/, 'api_key=***'), // Mask API key in logs
+      status: res.status,
+      statusText: res.statusText,
+      body: body.substring(0, 500), // Limit body length
+    })
+
+    // Fallback específico para 400: reintentar con query mínima
+    if (res.status === 400) {
+      logger.info('FRED 400 error detected, trying fallback with minimal query', {
+        job: 'ingest_european',
+        seriesId,
+      })
+
+      // Build minimal query (only series_id, api_key, file_type, observation_start)
+      const fallbackQs = new URLSearchParams({
+        observation_start: observationStart,
+      })
+
+      let fallbackUrl: string
+      if (isServer) {
+        const key = process.env.FRED_API_KEY!
+        fallbackUrl = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${key}&file_type=json&${fallbackQs.toString()}`
+      } else {
+        fallbackUrl = `/api/fred/${seriesId}?${fallbackQs.toString()}`
+      }
+
+      try {
+        const fallbackRes = await rateLimitedFetch(fallbackUrl)
+        
+        if (!fallbackRes.ok) {
+          const fallbackBody = await fallbackRes.text().catch(() => 'Unable to read error response')
+          logger.error('FRED fallback failed', {
+            job: 'ingest_european',
+            seriesId,
+            url: fallbackUrl.replace(/api_key=[^&]+/, 'api_key=***'),
+            status: fallbackRes.status,
+            statusText: fallbackRes.statusText,
+            body: fallbackBody.substring(0, 500),
+          })
+          throw new Error(`FRED ${seriesId} failed with 400 and fallback status ${fallbackRes.status}: ${fallbackBody.substring(0, 200)}`)
+        }
+
+        logger.info('FRED fallback succeeded', {
+          job: 'ingest_european',
+          seriesId,
+        })
+
+        // Parse fallback response
+        const fallbackJson = await fallbackRes.json().catch((error) => {
+          throw new Error(`Failed to parse FRED fallback JSON response for ${seriesId}: ${error instanceof Error ? error.message : String(error)}`)
+        })
+
+        // Validate and parse fallback response
+        if (!fallbackJson || typeof fallbackJson !== 'object' || !Array.isArray(fallbackJson.observations)) {
+          throw new Error(`Invalid FRED fallback response structure for ${seriesId}: expected {observations: []}, got ${JSON.stringify(fallbackJson).substring(0, 200)}`)
+        }
+
+        // Use fallback response for parsing
+        res = fallbackRes
+        const json = fallbackJson
+        return parseFredResponse(json, seriesId, params)
+      } catch (fallbackError) {
+        throw new Error(`FRED ${seriesId} failed with 400 and fallback also failed: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`)
+      }
+    }
+
+    // For non-400 errors, throw with body
+    throw new Error(`FRED API error for ${seriesId}: ${res.status} ${res.statusText} - ${body.substring(0, 200)}`)
   }
   
   const json = await res.json().catch((error) => {
     throw new Error(`Failed to parse FRED JSON response for ${seriesId}: ${error instanceof Error ? error.message : String(error)}`)
   })
-  
+
+  return parseFredResponse(json, seriesId, params)
+}
+
+/**
+ * Parse FRED JSON response into SeriesPoint array
+ */
+function parseFredResponse(
+  json: any,
+  seriesId: string,
+  params?: { observation_start?: string; observation_end?: string; frequency?: 'd' | 'm' | 'q'; units?: string }
+): SeriesPoint[] {
   // Validar estructura de respuesta antes de parsear
   if (!json || typeof json !== 'object' || !Array.isArray(json.observations)) {
     throw new Error(`Invalid FRED response structure for ${seriesId}: expected {observations: []}, got ${JSON.stringify(json).substring(0, 200)}`)
@@ -201,8 +295,8 @@ export async function fetchFredSeries(
       byObservationDate.set(obs.date, obs)
     } else {
       // Si hay realtime_start, preferir la versión más reciente
-      const existingRealtime = existing.realtime_start && typeof existing.realtime_start === 'string' ? new Date(existing.realtime_start).getTime() : 0
-      const currentRealtime = obs.realtime_start && typeof obs.realtime_start === 'string' ? new Date(obs.realtime_start).getTime() : 0
+      const existingRealtime: number = existing.realtime_start && typeof existing.realtime_start === 'string' ? new Date(existing.realtime_start).getTime() : 0
+      const currentRealtime: number = obs.realtime_start && typeof obs.realtime_start === 'string' ? new Date(obs.realtime_start).getTime() : 0
       if (currentRealtime > existingRealtime) {
         byObservationDate.set(obs.date, obs)
       }
