@@ -72,13 +72,16 @@ export async function POST(request: NextRequest) {
 
     for (const symbol of activeSymbols) {
       try {
-        const assetPrices = await fetchAssetDaily(symbol)
+        // Normalize symbol to uppercase (consistent with DB storage)
+        const normalizedSymbol = symbol.toUpperCase()
+        
+        const assetPrices = await fetchAssetDaily(normalizedSymbol)
         if (assetPrices.length === 0) {
-          logger.warn(`No asset data for ${symbol}, skipping correlation calculation`, { job: jobId, symbol })
+          logger.warn(`No asset data for ${normalizedSymbol}, skipping correlation calculation`, { job: jobId, symbol: normalizedSymbol })
           errors++
           // Store null correlations if no data
           await upsertCorrelation({
-            symbol,
+            symbol: normalizedSymbol,
             base: 'DXY',
             window: '12m',
             value: null,
@@ -88,7 +91,7 @@ export async function POST(request: NextRequest) {
             last_base_date: dxyPrices.length > 0 ? dxyPrices[dxyPrices.length - 1].date : null,
           })
           await upsertCorrelation({
-            symbol,
+            symbol: normalizedSymbol,
             base: 'DXY',
             window: '3m',
             value: null,
@@ -104,7 +107,7 @@ export async function POST(request: NextRequest) {
         const w12m = CORR_CONFIG.windows.w12m
         const corr12m = calculateCorrelation(assetPrices, dxyPrices, w12m.trading_days, w12m.min_obs)
         await upsertCorrelation({
-          symbol,
+          symbol: normalizedSymbol,
           base: 'DXY',
           window: '12m',
           value: corr12m.correlation,
@@ -118,7 +121,7 @@ export async function POST(request: NextRequest) {
         const w3m = CORR_CONFIG.windows.w3m
         const corr3m = calculateCorrelation(assetPrices, dxyPrices, w3m.trading_days, w3m.min_obs)
         await upsertCorrelation({
-          symbol,
+          symbol: normalizedSymbol,
           base: 'DXY',
           window: '3m',
           value: corr3m.correlation,
@@ -132,14 +135,14 @@ export async function POST(request: NextRequest) {
         
         // Collect for alerts
         correlationsForAlerts.push({
-          symbol,
+          symbol: normalizedSymbol,
           corr12m: corr12m.correlation,
           corr3m: corr3m.correlation,
         })
         
-        logger.info(`Correlations calculated for ${symbol}`, {
+        logger.info(`Correlations calculated for ${normalizedSymbol}`, {
           job: jobId,
-          symbol,
+          symbol: normalizedSymbol,
           corr12m: corr12m.correlation,
           n_obs12m: corr12m.n_obs,
           corr3m: corr3m.correlation,

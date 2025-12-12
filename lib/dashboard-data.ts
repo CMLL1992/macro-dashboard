@@ -16,6 +16,7 @@ import { MAP_KEY_TO_WEIGHT_KEY } from '@/domain/diagnostic'
 import type { BiasRow } from '@/domain/bias'
 import { getRecentEventsWithImpact } from '@/lib/db/recent-events'
 import type { RecentEventWithImpact } from '@/lib/db/recent-events'
+import { getEuropeanIndicatorsForDashboard } from '@/domain/eurozone-indicators'
 
 export type IndicatorRow = {
   key: string
@@ -182,10 +183,16 @@ function buildIndicatorRows(table: any[]): IndicatorRow[] {
     })
   
   // Filter: Only show indicators that have weight > 0 in the macro engine
-  // This ensures VIX, PCEPI (headline), and other excluded indicators don't appear
+  // EXCEPTION: Always include European indicators (eu_*) even if weight is 0
+  // This ensures European indicators appear in the dashboard even if they don't have weight configured
   const filteredRows: IndicatorRow[] = rows.filter((row) => {
     // Must have key and label
     if (!row.key || !row.label) return false
+    
+    // EXCEPTION: Always include European indicators
+    if (row.key.startsWith('eu_')) {
+      return true
+    }
     
     // Check if indicator has weight configured
     const finalKey = row.originalKey ?? row.key
@@ -378,21 +385,64 @@ function buildUsdMarketInsights(rows: TacticalRowSafe[]): UsdMarketInsights {
  */
 export async function getDashboardData(): Promise<DashboardData> {
   // Fetch data in parallel from database
-  let biasState, correlationState
+  let biasState, correlationState, europeanIndicators
   try {
-    [biasState, correlationState] = await Promise.all([
+    [biasState, correlationState, europeanIndicators] = await Promise.all([
       getBiasState(),
       getCorrelationState(),
+      getEuropeanIndicatorsForDashboard(), // Get European indicators directly from getAllLatestFromDBWithPrev
     ])
   } catch (error) {
-    console.error('[dashboard-data] Error fetching bias or correlation state:', error)
+    console.error('[dashboard-data] Error fetching bias, correlation, or european indicators:', error)
     // Propagate the original error without wrapping it
     throw error instanceof Error ? error : new Error(String(error))
   }
 
-  // Build indicator rows
+  // Build indicator rows from biasState.table
   const biasTable = Array.isArray(biasState.table) ? biasState.table : []
   const indicatorRows = buildIndicatorRows(biasTable)
+  
+  // Merge European indicators directly (ensures they appear even if filtered out by buildIndicatorRows)
+  // Create a map of existing indicators by key for quick lookup
+  const indicatorMap = new Map<string, IndicatorRow>()
+  indicatorRows.forEach(row => {
+    indicatorMap.set(row.key, row)
+  })
+  
+  // Add/update European indicators from the centralized helper
+  europeanIndicators.forEach(euRow => {
+    const existing = indicatorMap.get(euRow.key)
+    if (existing) {
+      // Update existing row with European data (may have better values)
+      existing.value = euRow.value ?? existing.value
+      existing.previous = euRow.valuePrevious ?? existing.previous
+      existing.date = euRow.date ?? existing.date
+      existing.unit = euRow.unit ?? existing.unit
+      existing.isStale = euRow.isStale ?? existing.isStale
+      existing.section = 'EUROZONA'
+    } else {
+      // Add new European indicator row
+      indicatorMap.set(euRow.key, {
+        key: euRow.key,
+        label: euRow.label,
+        category: 'Eurozona',
+        previous: euRow.valuePrevious,
+        value: euRow.value,
+        trend: null,
+        posture: null,
+        weight: null,
+        date: euRow.date,
+        observation_period: null,
+        originalKey: euRow.key,
+        unit: euRow.unit,
+        isStale: euRow.isStale ?? false,
+        section: 'EUROZONA',
+      })
+    }
+  })
+  
+  // Convert map back to array
+  const finalIndicatorRows = Array.from(indicatorMap.values())
   
   // Build scenario items
   const scenarioItems = buildScenarioItems(
@@ -485,8 +535,8 @@ export async function getDashboardData(): Promise<DashboardData> {
   const corrInsight = buildCorrInsight(tacticalRows)
   const usdMarketInsights = buildUsdMarketInsights(tacticalRowsSafe)
 
-  // Get latest data date
-  const latestDataDate = deriveLatestDataDate(indicatorRows)
+  // Get latest data date (from all indicators including European)
+  const latestDataDate = deriveLatestDataDate(finalIndicatorRows)
   
   // Format updated at - ensure it's a valid ISO string or null
   let updatedAtIso: string | null = null
@@ -541,7 +591,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       creditScore: biasState.metrics.creditScore,
       riskScore: biasState.metrics.riskScore,
     },
-    indicators: indicatorRows,
+    indicators: finalIndicatorRows,
     tacticalRows: tacticalRowsSafe,
     scenarios,
     scenariosActive,
