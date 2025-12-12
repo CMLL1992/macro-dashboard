@@ -230,8 +230,12 @@ export function calculateCorrelation(
   // Calculate Pearson correlation
   const corr = pearson(xWinsorized, yWinsorized)
 
+  // Sanitize correlation value: ensure it's a valid number
+  // Return null if NaN, Infinity, or not a finite number
+  const safeCorr = Number.isFinite(corr) ? corr : null
+
   return {
-    correlation: corr,
+    correlation: safeCorr,
     n_obs: commonDates.length,
     last_asset_date: assetPrices.length > 0 ? assetPrices[assetPrices.length - 1].date : null,
     last_base_date: basePrices.length > 0 ? basePrices[basePrices.length - 1].date : null,
