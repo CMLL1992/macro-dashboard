@@ -204,9 +204,34 @@ export async function POST(request: NextRequest) {
         }
         
         // Guardar señales por par y detectar cambios de confianza
+        // FILTER: Only save signals for pairs in tactical-pairs.json
         if (biasState && biasState.tableTactical && biasState.tableTactical.length > 0) {
+          // Load allowed symbols from tactical-pairs.json
+          let allowedSymbols = new Set<string>()
+          try {
+            const tacticalPath = path.join(process.cwd(), 'config', 'tactical-pairs.json')
+            const tacticalRaw = await fs.readFile(tacticalPath, 'utf8')
+            const tacticalPairs = JSON.parse(tacticalRaw) as Array<{ symbol: string; type?: string }>
+            allowedSymbols = new Set(
+              tacticalPairs.map(p => p.symbol.toUpperCase().replace('/', ''))
+            )
+          } catch (error) {
+            logger.warn('Failed to load tactical-pairs.json for filtering pair_signals', {
+              job: jobId,
+              error: error instanceof Error ? error.message : String(error),
+            })
+            // If we can't load config, don't save any signals (fail-safe)
+            allowedSymbols = new Set()
+          }
+          
           const pairSignals = biasState.tableTactical
             .filter((row: any) => {
+              // First filter: only allowed symbols
+              const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
+              if (!allowedSymbols.has(symbol)) {
+                return false
+              }
+              // Second filter: only actionable signals
               const action = (row.action ?? row.accion ?? '').toLowerCase()
               return action.includes('compr') || action.includes('venta') || action.includes('buy') || action.includes('sell')
             })
