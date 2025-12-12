@@ -27,6 +27,7 @@ import { detectScenarioChanges, notifyScenarioChanges } from '@/lib/notification
 import { getInstitutionalScenarios } from '@/domain/scenarios'
 import getCorrelationState from '@/domain/macro-engine/correlations'
 import { recordJobSuccess } from '@/lib/db/job-status'
+import { isAllowedPair } from '@/config/tactical-pairs'
 
 export async function POST(request: NextRequest) {
   // In development on localhost, allow without token if CRON_TOKEN is not set
@@ -95,10 +96,30 @@ export async function POST(request: NextRequest) {
     let computed = 0
     let errors = 0
 
-    for (const asset of assets) {
+    // FILTER: Only process assets that are in tactical-pairs.json
+    const filteredAssets = assets.filter(asset => isAllowedPair(asset.symbol))
+    
+    const uniquePairsToProcess = Array.from(new Set(filteredAssets.map(a => a.symbol))).sort()
+    logger.info('Filtered assets for bias computation', {
+      job: jobId,
+      originalCount: assets.length,
+      filteredCount: filteredAssets.length,
+      pairs: uniquePairsToProcess,
+    })
+
+    for (const asset of filteredAssets) {
       try {
         const bias = await computeMacroBias(asset)
         const narrative = buildBiasNarrative(bias, asset)
+
+        // Double-check before inserting (defensive programming)
+        if (!isAllowedPair(asset.symbol)) {
+          logger.warn('Skipping bias insertion for non-allowed pair', {
+            job: jobId,
+            symbol: asset.symbol,
+          })
+          continue
+        }
 
         await upsertMacroBias(bias, narrative)
         computed++

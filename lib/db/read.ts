@@ -395,6 +395,9 @@ export type MacroBiasRecord = {
 
 export async function getMacroTacticalBias(): Promise<MacroBiasRecord[]> {
   try {
+    // Import here to avoid circular dependencies
+    const { isAllowedPair } = await import('@/config/tactical-pairs')
+    
     let rows: Array<{
       symbol: string
       score: number
@@ -428,7 +431,15 @@ export async function getMacroTacticalBias(): Promise<MacroBiasRecord[]> {
         }>
     }
 
-    return rows.map((row) => ({
+    // FILTER: Only return pairs that are in tactical-pairs.json
+    const filtered = rows.filter(row => isAllowedPair(row.symbol))
+    
+    const uniquePairs = Array.from(new Set(filtered.map(r => r.symbol))).sort()
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_TACTICAL_PAIRS === 'true') {
+      console.log('[MACRO_BIAS_DB] returning pairs:', uniquePairs)
+    }
+
+    return filtered.map((row) => ({
       symbol: row.symbol,
       score: row.score,
       direction: row.direction as BiasDirection,

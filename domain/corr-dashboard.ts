@@ -26,8 +26,9 @@ export function signalOf(r: number | null): 'Positiva' | 'Negativa' | 'Mixta' {
 
 async function fetchAssetSeries(name: string): Promise<{ date: string; value: number }[] | null> {
   try {
-    if (name === 'BTCUSDT' || name === 'ETHUSDT') {
-      const s = await binanceKlinesMonthly(name as 'BTCUSDT' | 'ETHUSDT')
+    // Handle crypto pairs - convert internal symbols (BTCUSD, ETHUSD) to Binance format
+    if (name === 'BTCUSD' || name === 'BTCUSDT' || name === 'ETHUSD' || name === 'ETHUSDT') {
+      const s = await binanceKlinesMonthly(name)
       return s.map(p => ({ date: p.date.slice(0, 7) + '-01', value: p.close }))
     }
     const m = YAHOO_MAP[name]
@@ -71,7 +72,8 @@ export async function getCorrelations(): Promise<CorrRow[]> {
   const usdMonthly = resampleToMonthly(usd)
 
   const rows: CorrRow[] = []
-  const activos = ['EURUSD','GBPUSD','AUDUSD','USDJPY','USDCAD','XAUUSD','SPX','NDX','BTCUSDT','ETHUSDT'] as const
+  // Use internal symbols (BTCUSD, ETHUSD) - will be converted to Binance format in fetchAssetSeries
+  const activos = ['EURUSD','GBPUSD','AUDUSD','USDJPY','USDCAD','XAUUSD','SPX','NDX','BTCUSD','ETHUSD'] as const
   for (const name of activos) {
     const series = await fetchAssetSeries(name)
     if (!series || series.length === 0) {

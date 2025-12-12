@@ -15,6 +15,7 @@ import {
   type LatestMacroObservations,
 } from '@/lib/db/read'
 import { logger } from '@/lib/obs/logger'
+import { isAllowedPair, TACTICAL_PAIR_SET } from '@/config/tactical-pairs'
 
 type USDBiasRaw = {
   score: number
@@ -208,33 +209,14 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
   let tacticalRows = getBiasTableTactical(legacyRows)
   
   // FILTER: Only keep pairs from tactical-pairs.json (before enriching with correlations)
-  try {
-    const fs = await import('node:fs/promises')
-    const path = await import('node:path')
-    const tacticalPath = path.join(process.cwd(), 'config', 'tactical-pairs.json')
-    const tacticalRaw = await fs.readFile(tacticalPath, 'utf8')
-    const tacticalPairs = JSON.parse(tacticalRaw) as Array<{ symbol: string; type?: string }>
-    const allowedSymbols = new Set(
-      tacticalPairs.map(p => p.symbol.toUpperCase().replace('/', ''))
-    )
-    
-    tacticalRows = tacticalRows.filter((row: any) => {
-      const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
-      return allowedSymbols.has(symbol)
-    })
-    
-    if (process.env.NODE_ENV === 'development') {
-      logger.info('[getBiasRaw] Filtered tactical rows from getBiasTableTactical', {
-        originalCount: legacyRows.length,
-        filteredCount: tacticalRows.length,
-      })
-    }
-  } catch (error) {
-    logger.warn('[getBiasRaw] Failed to load tactical-pairs.json for filtering, keeping all rows', {
-      error: error instanceof Error ? error.message : String(error),
-    })
-    // If we can't load config, keep all rows (fallback)
-  }
+  logTacticalPairsDebug('getBiasRaw.tableTactical.beforeFilter', tacticalRows)
+  
+  tacticalRows = tacticalRows.filter((row: any) => {
+    const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
+    return isAllowedPair(symbol)
+  })
+  
+  logTacticalPairsDebug('getBiasRaw.tableTactical.afterFilter', tacticalRows)
   
   // Enrich tactical rows with correlations from DB (batch query to avoid N+1)
   // This ensures correlations are populated even if corrFromDB didn't work
@@ -293,30 +275,9 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
   if (!tacticalRows.length) {
     const cached = await getMacroTacticalBias()
     if (cached.length) {
-      // FILTER: Only use pairs from tactical-pairs.json
-      let allowedSymbols = new Set<string>()
-      try {
-        const fs = await import('node:fs/promises')
-        const path = await import('node:path')
-        const tacticalPath = path.join(process.cwd(), 'config', 'tactical-pairs.json')
-        const tacticalRaw = await fs.readFile(tacticalPath, 'utf8')
-        const tacticalPairs = JSON.parse(tacticalRaw) as Array<{ symbol: string; type?: string }>
-        allowedSymbols = new Set(
-          tacticalPairs.map(p => p.symbol.toUpperCase().replace('/', ''))
-        )
-      } catch (error) {
-        logger.warn('[getBiasRaw] Failed to load tactical-pairs.json for filtering cached bias, using all cached', {
-          error: error instanceof Error ? error.message : String(error),
-        })
-        // If we can't load config, use all cached (fallback)
-        allowedSymbols = new Set(cached.map(r => r.symbol.toUpperCase().replace('/', '')))
-      }
-      
+      // FILTER: Only use pairs from tactical-pairs.json (getMacroTacticalBias already filters, but double-check)
       tacticalRows = cached
-        .filter((row) => {
-          const symbol = row.symbol.toUpperCase().replace('/', '')
-          return allowedSymbols.has(symbol)
-        })
+        .filter((row) => isAllowedPair(row.symbol))
         .map((row) => {
           const direction = row.direction ?? 'neutral'
           return {
@@ -482,10 +443,20 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
     } : undefined,
   } : undefined
 
+  // FINAL FILTER: Ensure only allowed pairs are returned
+  logTacticalPairsDebug('getBiasRaw.tableTactical.beforeFilter', tacticalRows)
+  
+  const filteredTactical = tacticalRows.filter((row: any) => {
+    const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
+    return isAllowedPair(symbol)
+  })
+  
+  logTacticalPairsDebug('getBiasRaw.tableTactical.afterFilter', filteredTactical)
+
   return {
     latestPoints,
     table,
-    tableTactical: tacticalRows,
+    tableTactical: filteredTactical,
     latestObservations: observations,
     updatedAt,
     currencyRegimes: regimes,
