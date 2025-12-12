@@ -75,6 +75,9 @@ export async function POST(request: NextRequest) {
       throw new Error(`Invalid source 'trading_economics' found for indicators: ${invalidIndicators.map((ind: any) => ind.id).join(', ')}. TradingEconomics is not allowed for Eurozone indicators.`)
     }
 
+    // Forzar reingesta completa temporalmente para rellenar histórico y "dato anterior"
+    const FORCE_FULL_REINGEST = true
+
     for (const indicator of indicators) {
       try {
         let macroSeries: MacroSeries | null = null
@@ -189,8 +192,11 @@ export async function POST(request: NextRequest) {
             dataset: indicator.dataset,
             series: indicator.series,
           })
+        } else if (indicator.source === 'trading_economics' || indicator.source === 'TRADING_ECONOMICS') {
+          // TradingEconomics is explicitly not allowed for Eurozone indicators
+          throw new Error(`TradingEconomics is not allowed for Eurozone indicators. Use 'eurostat', 'ecb', 'fred', 'econdify', or 'dbnomics' instead. Indicator: ${indicator.id}`)
         } else {
-          throw new Error(`Unknown source: ${indicator.source}`)
+          throw new Error(`Unknown source: ${indicator.source} for indicator ${indicator.id}`)
         }
 
         if (!macroSeries || macroSeries.data.length === 0) {
@@ -230,7 +236,7 @@ export async function POST(request: NextRequest) {
         // después de cambiar de TradingEconomics a FRED
         const forceReingest = indicator.id === 'EU_RETAIL_SALES_YOY' || indicator.id === 'EU_INDUSTRIAL_PRODUCTION_YOY'
         
-        const newPoints = (forceReingest || !lastDateInDb)
+        const newPoints = (forceReingest || FORCE_FULL_REINGEST || !lastDateInDb)
           ? macroSeries.data  // Forzar re-ingesta completa para estos indicadores
           : macroSeries.data.filter((p) => p.date > lastDateInDb!)
 

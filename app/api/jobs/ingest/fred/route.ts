@@ -81,12 +81,14 @@ export async function POST(request: NextRequest) {
     const ingestErrors: Array<{ seriesId?: string; error: string }> = []
     const seriesTimings: Array<{ seriesId: string; durationMs: number; success: boolean }> = []
 
-    // Pre-fetch all last dates from DB in a single query to optimize
+    // Forzar reingesta completa temporalmente para rellenar histórico y "dato anterior"
+    const FORCE_FULL_REINGEST = true
+
+    // Pre-fetch all last dates from DB in a single query to optimize (still useful for logging)
     const db = getUnifiedDB()
     let lastDatesMap = new Map<string, string | null>()
     try {
       const seriesIds = FRED_SERIES.map(s => s.id)
-      // Query all last dates at once using IN clause
       const placeholders = seriesIds.map(() => '?').join(',')
       const result = await db.prepare(
         `SELECT series_id, MAX(date) as max_date FROM macro_observations WHERE series_id IN (${placeholders}) GROUP BY series_id`
@@ -170,9 +172,9 @@ export async function POST(request: NextRequest) {
         // Get last date in DB for this series (from pre-fetched map)
         const lastDateInDb = lastDatesMap.get(series.id) || null
 
-        const newPoints = lastDateInDb
-          ? macroSeries.data.filter((p: { date: string; value: number }) => p.date > lastDateInDb)
-          : macroSeries.data
+        const newPoints = (FORCE_FULL_REINGEST || !lastDateInDb)
+          ? macroSeries.data
+          : macroSeries.data.filter((p: { date: string; value: number }) => p.date > lastDateInDb)
 
         const seriesDurationMs = Date.now() - seriesStartTime
         logger.info(`[${series.id}] Fetch completed`, {
