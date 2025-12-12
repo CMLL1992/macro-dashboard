@@ -41,7 +41,7 @@ async function fetchYahooDaily(symbol: string, period: string = '5y'): Promise<P
  * Updated to prioritize Yahoo Finance for all correlations
  */
 const YAHOO_MAP: Record<string, string | string[]> = {
-  // FX Majors
+  // FX Majors (G10)
   EURUSD: 'EURUSD=X',
   GBPUSD: 'GBPUSD=X',
   AUDUSD: 'AUDUSD=X',
@@ -49,18 +49,19 @@ const YAHOO_MAP: Record<string, string | string[]> = {
   USDCAD: 'USDCAD=X',
   USDCHF: 'USDCHF=X',
   NZDUSD: 'NZDUSD=X',
+  // FX EM
+  USDCNH: 'CNH=X',
+  USDBRL: 'BRL=X',
+  USDMXN: 'MXN=X',
   // Commodities
   XAUUSD: ['XAUUSD=X', 'GC=F'], // Gold
-  XAGUSD: 'SI=F', // Silver
-  // Oil (CL=F = Crude Oil, BZ=F = Brent)
-  CL: 'CL=F',
-  BZ: 'BZ=F',
+  WTI: 'CL=F', // Crude Oil WTI
+  COPPER: 'HG=F', // Copper
   // Indices
   SPX: '^GSPC',
   NDX: '^NDX',
-  DAX: '^GDAXI',
-  CAC: '^FCHI',
-  FTSE: '^FTSE',
+  SX5E: '^STOXX50E', // Euro Stoxx 50
+  NIKKEI: '^N225', // Nikkei 225
   // Crypto
   BTCUSDT: 'BTC-USD',
   BTCUSD: 'BTC-USD',
@@ -155,7 +156,22 @@ async function getYahooSymbol(symbol: string): Promise<string | string[] | null>
     // Fall through to config file
   }
   
-  // Fallback to config file
+  // Fallback to tactical-pairs.json (reduced list)
+  try {
+    const fs = await import('node:fs/promises')
+    const path = await import('node:path')
+    const tacticalPath = path.join(process.cwd(), 'config', 'tactical-pairs.json')
+    const tacticalRaw = await fs.readFile(tacticalPath, 'utf8')
+    const tacticalPairs = JSON.parse(tacticalRaw) as Array<{ symbol: string; yahoo_symbol?: string }>
+    const pair = tacticalPairs.find(p => p.symbol.toUpperCase() === normalized)
+    if (pair?.yahoo_symbol) {
+      return pair.yahoo_symbol
+    }
+  } catch (error) {
+    // Fall through to assets.config.json
+  }
+
+  // Fallback to assets.config.json
   try {
     const fs = await import('node:fs/promises')
     const path = await import('node:path')
@@ -164,7 +180,7 @@ async function getYahooSymbol(symbol: string): Promise<string | string[] | null>
     const config = JSON.parse(raw)
     
     // Search in all categories
-    for (const category of ['forex', 'indices', 'metals', 'crypto']) {
+    for (const category of ['forex', 'indices', 'metals', 'commodities', 'crypto']) {
       const assets = config[category] || []
       const asset = assets.find((a: any) => a.symbol === normalized)
       if (asset?.yahoo_symbol) {
@@ -260,44 +276,31 @@ export async function fetchAssetDaily(symbol: string): Promise<PricePoint[]> {
 }
 
 /**
- * Get list of active symbols from universe
- * Now reads from asset_metadata table in database
+ * Get list of active symbols from tactical pairs config
+ * Reduced list to optimize system performance
  */
 export async function getActiveSymbols(): Promise<string[]> {
-  try {
-    // Try to get from database first (most up-to-date)
-    const { getUnifiedDB, isUsingTurso } = await import('@/lib/db/unified-db')
-    const { getDB } = await import('@/lib/db/schema')
-    
-    if (isUsingTurso()) {
-      const db = getUnifiedDB()
-      const result = await db.prepare('SELECT symbol FROM asset_metadata ORDER BY symbol').all()
-      const symbols = (result as Array<{ symbol: string }>).map(r => r.symbol)
-      if (symbols.length > 0) {
-        return symbols
-      }
-    } else {
-      const db = getDB()
-      const rows = db.prepare('SELECT symbol FROM asset_metadata ORDER BY symbol').all() as Array<{ symbol: string }>
-      if (rows.length > 0) {
-        return rows.map(r => r.symbol)
-      }
-    }
-  } catch (error) {
-    console.warn('Could not get symbols from database, falling back to config file:', error)
-  }
-
-  // Fallback to config file
+  // Priority 1: Read from tactical-pairs.json (reduced list)
   try {
     const fs = await import('node:fs/promises')
     const path = await import('node:path')
-    const configPath = path.join(process.cwd(), 'config', 'universe.assets.json')
+    const configPath = path.join(process.cwd(), 'config', 'tactical-pairs.json')
     const raw = await fs.readFile(configPath, 'utf8')
-    const assets = JSON.parse(raw) as Array<{ symbol: string }>
-    return assets.map(a => a.symbol)
-  } catch {
-    // Final fallback to hardcoded list
-    return ['EURUSD', 'GBPUSD', 'AUDUSD', 'USDJPY', 'USDCAD', 'XAUUSD', 'SPX', 'NDX', 'BTCUSDT', 'ETHUSDT']
+    const tacticalPairs = JSON.parse(raw) as Array<{ symbol: string; type?: string; yahoo_symbol?: string }>
+    if (tacticalPairs.length > 0) {
+      return tacticalPairs.map(p => p.symbol.toUpperCase())
+    }
+  } catch (error) {
+    console.warn('Could not read tactical-pairs.json, falling back to hardcoded list:', error)
   }
+
+  // Fallback to hardcoded reduced list
+  return [
+    'BTCUSD', 'ETHUSD',
+    'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD',
+    'USDCNH', 'USDBRL', 'USDMXN',
+    'SPX', 'NDX', 'SX5E', 'NIKKEI',
+    'XAUUSD', 'WTI', 'COPPER'
+  ]
 }
 

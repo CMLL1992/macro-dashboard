@@ -1,0 +1,21 @@
+[
+  { "symbol": "BTCUSD", "type": "crypto", "yahoo_symbol": "BTC-USD" },
+  { "symbol": "ETHUSD", "type": "crypto", "yahoo_symbol": "ETH-USD" },
+  { "symbol": "EURUSD", "type": "fx", "yahoo_symbol": "EURUSD=X" },
+  { "symbol": "GBPUSD", "type": "fx", "yahoo_symbol": "GBPUSD=X" },
+  { "symbol": "USDJPY", "type": "fx", "yahoo_symbol": "USDJPY=X" },
+  { "symbol": "USDCHF", "type": "fx", "yahoo_symbol": "USDCHF=X" },
+  { "symbol": "AUDUSD", "type": "fx", "yahoo_symbol": "AUDUSD=X" },
+  { "symbol": "NZDUSD", "type": "fx", "yahoo_symbol": "NZDUSD=X" },
+  { "symbol": "USDCAD", "type": "fx", "yahoo_symbol": "USDCAD=X" },
+  { "symbol": "USDCNH", "type": "fx", "yahoo_symbol": "CNH=X" },
+  { "symbol": "USDBRL", "type": "fx", "yahoo_symbol": "BRL=X" },
+  { "symbol": "USDMXN", "type": "fx", "yahoo_symbol": "MXN=X" },
+  { "symbol": "SPX", "type": "index", "yahoo_symbol": "^GSPC" },
+  { "symbol": "NDX", "type": "index", "yahoo_symbol": "^NDX" },
+  { "symbol": "SX5E", "type": "index", "yahoo_symbol": "^STOXX50E" },
+  { "symbol": "NIKKEI", "type": "index", "yahoo_symbol": "^N225" },
+  { "symbol": "XAUUSD", "type": "commodity", "yahoo_symbol": "GC=F" },
+  { "symbol": "WTI", "type": "commodity", "yahoo_symbol": "CL=F" },
+  { "symbol": "COPPER", "type": "commodity", "yahoo_symbol": "HG=F" }
+]
