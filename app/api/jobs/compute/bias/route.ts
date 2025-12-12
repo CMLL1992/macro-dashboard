@@ -10,8 +10,9 @@ import { upsertMacroBias } from '@/lib/db/upsert'
 import { logger } from '@/lib/obs/logger'
 import { computeMacroBias } from '@/lib/bias/score'
 import { buildBiasNarrative } from '@/lib/bias/explain'
-import universeAssets from '@/config/universe.assets.json'
 import type { AssetMeta } from '@/lib/bias/types'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { revalidatePath } from 'next/cache'
 import { setLastBiasUpdateTimestamp } from '@/lib/runtime/state'
 import { getMacroDiagnosis } from '@/domain/diagnostic'
@@ -48,7 +49,49 @@ export async function POST(request: NextRequest) {
   try {
     logger.info('Starting bias computation', { job: jobId })
 
-    const assets = universeAssets as AssetMeta[]
+    // Load tactical pairs (reduced list) - Priority 1
+    let assets: AssetMeta[] = []
+    try {
+      const tacticalPath = path.join(process.cwd(), 'config', 'tactical-pairs.json')
+      const tacticalRaw = await fs.readFile(tacticalPath, 'utf8')
+      const tacticalPairs = JSON.parse(tacticalRaw) as Array<{ symbol: string; type?: string }>
+      
+      // Convert tactical-pairs to AssetMeta format
+      assets = tacticalPairs.map(pair => ({
+        symbol: pair.symbol.toUpperCase(),
+        class: pair.type === 'crypto' ? 'crypto' : 
+               pair.type === 'index' ? 'index' : 
+               pair.type === 'commodity' ? (pair.symbol.startsWith('XAU') || pair.symbol.startsWith('XAG') ? 'metal' : 'commodity') :
+               'fx',
+        base: pair.symbol.includes('/') ? pair.symbol.split('/')[0] : 
+              pair.symbol.length === 6 && pair.type === 'fx' ? pair.symbol.substring(0, 3) :
+              pair.symbol.endsWith('USDT') || pair.symbol.endsWith('USD') ? pair.symbol.replace(/USDT?$/, '') : null,
+        quote: pair.symbol.includes('/') ? pair.symbol.split('/')[1] :
+               pair.symbol.length === 6 && pair.type === 'fx' ? pair.symbol.substring(3, 6) :
+               pair.symbol.endsWith('USDT') || pair.symbol.endsWith('USD') ? 'USD' : null,
+        risk_sensitivity: pair.type === 'crypto' ? 'risk_on' : undefined,
+      })) as AssetMeta[]
+      
+      logger.info('Loaded tactical pairs for bias computation', { job: jobId, count: assets.length })
+    } catch (error) {
+      logger.warn('Failed to load tactical-pairs.json, falling back to universe.assets.json', { 
+        job: jobId, 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+      
+      // Fallback to universe.assets.json
+      try {
+        const universeAssets = await import('@/config/universe.assets.json')
+        assets = universeAssets.default as AssetMeta[]
+      } catch (fallbackError) {
+        logger.error('Failed to load universe.assets.json, using empty list', {
+          job: jobId,
+          error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+        })
+        assets = []
+      }
+    }
+
     let computed = 0
     let errors = 0
 
