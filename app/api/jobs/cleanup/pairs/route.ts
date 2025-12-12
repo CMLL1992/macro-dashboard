@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
           DELETE FROM pair_signals
           WHERE symbol NOT IN (${placeholders})
         `)
-        const result = stmt.run(...allowedSymbolsArray)
+        const result = stmt.run(...allowedSymbolsArray) as { changes: number; lastInsertRowid: number | bigint }
         deletedPairSignals = result.changes || 0
       }
       logger.info('Cleaned up pair_signals', {
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
           DELETE FROM correlations
           WHERE symbol NOT IN (${placeholders})
         `)
-        const result = stmt.run(...allowedSymbolsArray)
+        const result = stmt.run(...allowedSymbolsArray) as { changes: number; lastInsertRowid: number | bigint }
         deletedCorrelations = result.changes || 0
       }
       logger.info('Cleaned up correlations', {
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
           DELETE FROM correlations_history
           WHERE symbol NOT IN (${placeholders})
         `)
-        const result = stmt.run(...allowedSymbolsArray)
+        const result = stmt.run(...allowedSymbolsArray) as { changes: number; lastInsertRowid: number | bigint }
         deletedCorrelationsHistory = result.changes || 0
       }
       logger.info('Cleaned up correlations_history', {
