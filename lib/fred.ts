@@ -97,7 +97,7 @@ async function rateLimitedFetch(url: string, retries: number = 1): Promise<Respo
       next: { revalidate: 0 },
     })
 
-    // Handle rate limit (429)
+    // Handle rate limit (429) - this must throw immediately
     if (res.status === 429) {
       if (attempt < retries) {
         const retryAfter = parseInt(res.headers.get('Retry-After') || '60', 10)
@@ -107,16 +107,20 @@ async function rateLimitedFetch(url: string, retries: number = 1): Promise<Respo
       throw new Error(`FRED rate limit exceeded for ${url}`)
     }
 
-    if (!res.ok) {
-      if (attempt < retries && res.status >= 500) {
+    // For server errors (500+), retry if we have attempts left
+    if (!res.ok && res.status >= 500) {
+      if (attempt < retries) {
         // Retry on server errors with exponential backoff
         const delay = Math.min(300 * Math.pow(2, attempt), 2000)
         await new Promise(resolve => setTimeout(resolve, delay))
         continue
       }
-      throw new Error(`FRED ${url} ${res.status}`)
+      // After all retries, return the error response so caller can handle it
+      return res
     }
 
+    // For all other status codes (including 400), return the response
+    // Let the caller (fetchFredSeries) handle the error appropriately
     return res
   }
   throw new Error(`FRED fetch failed after ${retries} retries`)
@@ -153,14 +157,9 @@ export async function fetchFredSeries(
   }
 
   // Fetch with rate limiting and retries
-  let res: Response
-  try {
-    res = await rateLimitedFetch(url)
-  } catch (error) {
-    // If rateLimitedFetch throws, it means the request failed
-    // We need to handle 400 errors specifically with fallback
-    throw error
-  }
+  // rateLimitedFetch now returns the Response even if !res.ok (except for 429)
+  // This allows us to handle 400 errors with fallback logic
+  let res = await rateLimitedFetch(url)
   
   // Check if response is OK
   if (!res.ok) {
