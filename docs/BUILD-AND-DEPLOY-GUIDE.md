@@ -41,6 +41,8 @@ Guía completa para entender el proceso de build, deploy y cómo interpretar los
 - **Local**: SQLite con `better-sqlite3`
 - **Producción**: Turso (SQLite remoto) con `@libsql/client`
 
+⚠️ **Importante:** En producción, `better-sqlite3` NO se carga ni se ejecuta porque Next.js genera un bundle "standalone" que solo incluye `@libsql/client` y excluye las rutas que usan SQLite local. Esto aclara por qué ver esos warnings de compilación no significa nada en runtime.
+
 ### ¿Por qué se compilan addons nativos en Vercel si no se usan?
 
 **Razón técnica:**
@@ -96,7 +98,31 @@ COPY Release/better_sqlite3.node
 
 **Referencia completa:** Ver [BUILD-WARNINGS-BETTER-SQLITE3.md](./BUILD-WARNINGS-BETTER-SQLITE3.md)
 
-### 2. Next.js Cache Warnings
+### 2. Yahoo Finance API Warnings
+
+**Cómo identificarlos:**
+```
+502 Bad Gateway
+429 Too Many Requests
+503 Service Unavailable
+```
+
+**Qué significan:**
+- Yahoo Finance puede devolver ocasionalmente errores 429/502/503
+- Esto es normal y no indica un problema con nuestro código
+- Los jobs están diseñados para reintentar automáticamente
+
+**Por qué son seguros:**
+- ✅ No son errores del proyecto
+- ✅ Los jobs tienen lógica de retry automático
+- ✅ Son temporales y se resuelven solos
+
+**Cómo manejarlos:**
+- **No hacer nada** - los jobs reintentan automáticamente
+- Si persisten por más de 1 hora, verificar el estado de Yahoo Finance
+- En casos extremos, los datos se marcan como "insuficientes" pero no rompen el sistema
+
+### 3. Next.js Cache Warnings
 
 **Cómo identificarlos:**
 ```
@@ -354,6 +380,16 @@ const res = await fetch(url, {
 | `/api/debug/indicator-history` | Historial de indicadores | Valores históricos |
 | `/api/debug/db` | Estado de la DB | Conexión, tablas, conteos |
 
+**Notas importantes:**
+- Todos los endpoints de debug están marcados como `dynamic = 'force-dynamic'` y no se cachean
+- Es normal que tarden entre 200ms y 2s según la cantidad de datos
+- Estos endpoints son útiles para verificar el estado del sistema después de un deploy
+
+⚠️ **Advertencia de Seguridad:** Los endpoints de debug no deben exponerse en aplicaciones públicas sin autenticación. Actualmente están permitidos porque la app no es pública para usuarios finales. Cuando se abra la app al público, se deberán proteger con:
+- Token de acceso
+- Middleware de autenticación
+- O eliminarlos del build final
+
 ---
 
 ## Cómo Interpretar Logs de Vercel
@@ -427,7 +463,7 @@ const res = await fetch(url, {
 
 **En nuestro proyecto:**
 - Todas las API routes corren como Serverless Functions
-- Los jobs pueden tardar hasta 300 segundos
+- **Nota:** El proyecto actual corre en plan Vercel Pro, por lo que los cron jobs pueden ejecutarse hasta 300 segundos. En plan Hobby el límite sería 10 segundos y varios de nuestros jobs no funcionarían.
 
 **Ejemplo de log:**
 ```
@@ -543,7 +579,8 @@ pnpm verify:local
 | `TURSO_DATABASE_URL` | Conexión a Turso | Vercel Dashboard |
 | `TURSO_AUTH_TOKEN` | Auth token de Turso | Vercel Dashboard |
 | `FRED_API_KEY` | API key de FRED | Vercel Dashboard |
-| `ALPHA_VANTAGE_API_KEY` | API key de Alpha Vantage | Vercel Dashboard |
+
+**Nota:** Alpha Vantage ya no se usa en el proyecto. Todo el sistema de correlaciones se migró a Yahoo Finance debido a rate limits. Si aparece `ALPHA_VANTAGE_API_KEY` en algún lugar, puede eliminarse de forma segura.
 
 ### Enlaces Útiles
 
@@ -562,6 +599,25 @@ pnpm verify:local
 4. **Ejecutar jobs manualmente la primera vez** después de cambios importantes
 5. **Monitorear logs de runtime** para detectar errores temprano
 6. **Documentar nuevos warnings** si aparecen y son seguros de ignorar
+
+---
+
+## Actualizaciones Recomendadas
+
+Este documento forma parte de la documentación viva del proyecto y debe mantenerse actualizado. Se recomienda revisar y actualizar este documento cada vez que:
+
+- **Se migra una API externa** (ej. Yahoo Finance → otro proveedor)
+- **Se cambia el sistema de ingesta o cron jobs** (nuevos jobs, cambios en schedules)
+- **Se actualiza Next.js a una nueva versión mayor** (cambios en build, runtime, etc.)
+- **Se actualiza el sistema de DB** (paso a SQLite local, Postgres, etc.)
+- **Se cambia el plan de Vercel** (Hobby → Pro, o viceversa)
+- **Se añaden nuevas dependencias nativas** (nuevos módulos que compilan en build)
+- **Se cambian las variables de entorno críticas** (nuevas APIs, nuevos servicios)
+
+**Nota sobre fuentes de datos externas:**
+- Si se migra de WorldBank a IMF (o viceversa) para algún indicador, actualizar la sección correspondiente
+- Si se elimina o añade una fuente de datos (ej. Alpha Vantage fue eliminado, Yahoo Finance es la fuente principal), actualizar las variables de entorno y las secciones de warnings/errores
+- **Nota sobre Current Account Balance (External Balance):** Aunque el endpoint original era de WorldBank, este indicador ahora utiliza IMF como fuente principal debido a inconsistencias en el formato del API de WorldBank para este indicador. WorldBank permanece como fallback validado en el código, pero IMF es la fuente preferida.
 
 ---
 
