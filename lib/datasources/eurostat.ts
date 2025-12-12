@@ -27,16 +27,17 @@ export async function fetchEurostatSeries(
 ): Promise<MacroSeries> {
   const { dataset, filters = {}, geo = 'EA19', frequency = 'Q' } = params
 
-  // Build filter string: unit=CP_MEUR&s_adj=SA&geo=EA19
+  // Build filter string: unit=CP_MEUR&s_adj=SA&geo=EA19&freq=Q&na_item=B1GQ
   const filterParams = new URLSearchParams()
   if (geo) {
     filterParams.set('geo', geo)
   }
+  // Add all filters (freq, na_item, s_adj, unit, etc.)
   Object.entries(filters).forEach(([key, value]) => {
     filterParams.set(key, value)
   })
 
-  // Eurostat API format: ?format=JSON&lang=en&geo=EA19&unit=CP_MEUR
+  // Eurostat API format: ?format=JSON&lang=en&geo=EA20&freq=Q&na_item=B1GQ&s_adj=SA&unit=CLV_PCH_PRE
   const url = `${EUROSTAT_BASE}/${dataset}?format=JSON&lang=en&${filterParams.toString()}`
 
   let response: Response
@@ -49,6 +50,12 @@ export async function fetchEurostatSeries(
       return res
     }, 3)
   } catch (error) {
+    // If error is 400 and geo is EA20, try fallback to EA19
+    if (geo === 'EA20' && error instanceof Error && error.message.includes('400')) {
+      console.log(`[Eurostat] EA20 failed, trying EA19 fallback for ${dataset}`)
+      const fallbackParams = { ...params, geo: 'EA19' }
+      return fetchEurostatSeries(fallbackParams)
+    }
     throw new Error(`Failed to fetch Eurostat data: ${error instanceof Error ? error.message : String(error)}`)
   }
 

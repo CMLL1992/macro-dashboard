@@ -4,31 +4,35 @@
       "id": "EU_GDP_QOQ",
       "name": "PIB Eurozona (QoQ)",
       "source": "eurostat",
-      "dataset": "nama_10_gdp",
+      "dataset": "namq_10_gdp",
       "filters": {
-        "unit": "CP_MEUR",
-        "s_adj": "SA"
+        "freq": "Q",
+        "na_item": "B1GQ",
+        "s_adj": "SA",
+        "unit": "CLV_PCH_PRE"
       },
-      "geo": "EA19",
+      "geo": "EA20",
       "frequency": "Q",
       "category": "Crecimiento / Actividad",
       "importance": 3,
-      "description": "Gross Domestic Product - Quarter-on-Quarter growth rate for Eurozone (from Eurostat)"
+      "description": "Gross Domestic Product - Quarter-on-Quarter growth rate for Eurozone (from Eurostat namq_10_gdp)"
     },
     {
       "id": "EU_GDP_YOY",
       "name": "PIB Eurozona (YoY)",
       "source": "eurostat",
-      "dataset": "nama_10_gdp",
+      "dataset": "namq_10_gdp",
       "filters": {
-        "unit": "CP_MEUR",
-        "s_adj": "SA"
+        "freq": "Q",
+        "na_item": "B1GQ",
+        "s_adj": "SA",
+        "unit": "CLV_PCH_SM"
       },
-      "geo": "EA19",
+      "geo": "EA20",
       "frequency": "Q",
       "category": "Crecimiento / Actividad",
       "importance": 3,
-      "description": "Gross Domestic Product - Year-on-Year growth rate for Eurozone (calculated from quarterly data, from Eurostat)"
+      "description": "Gross Domestic Product - Year-on-Year growth rate for Eurozone (from Eurostat namq_10_gdp)"
     },
     {
       "id": "EU_CPI_YOY",
