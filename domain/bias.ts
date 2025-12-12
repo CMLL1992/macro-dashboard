@@ -75,30 +75,87 @@ export async function getBiasTableFromUniverse(
 ): Promise<BiasRow[]> {
   const out: BiasRow[] = []
   
-  // Load universe assets
-  let universeAssets: Array<{ symbol: string; class: string; base?: string | null; quote?: string | null; risk_sensitivity?: string; usd_exposure?: string }> = []
+  // Load tactical pairs (reduced list) - Priority 1
+  let tacticalAssets: Array<{ symbol: string; type?: string; base?: string | null; quote?: string | null; risk_sensitivity?: string; usd_exposure?: string }> = []
   try {
     const fs = await import('node:fs/promises')
     const path = await import('node:path')
-    const configPath = path.join(process.cwd(), 'config', 'universe.assets.json')
-    const raw = await fs.readFile(configPath, 'utf8')
-    universeAssets = JSON.parse(raw)
+    const tacticalPath = path.join(process.cwd(), 'config', 'tactical-pairs.json')
+    const tacticalRaw = await fs.readFile(tacticalPath, 'utf8')
+    const tacticalPairs = JSON.parse(tacticalRaw) as Array<{ symbol: string; type?: string }>
+    
+    // Convert tactical-pairs format to universe format
+    tacticalAssets = tacticalPairs.map(pair => {
+      const symbol = pair.symbol.toUpperCase()
+      // Map type to class
+      let assetClass = 'fx'
+      if (pair.type === 'crypto') assetClass = 'crypto'
+      else if (pair.type === 'index') assetClass = 'index'
+      else if (pair.type === 'commodity') assetClass = symbol.startsWith('XAU') || symbol.startsWith('XAG') ? 'metal' : 'commodity'
+      
+      // Extract base/quote from symbol
+      let base: string | null = null
+      let quote: string | null = null
+      if (symbol.includes('/')) {
+        const parts = symbol.split('/')
+        base = parts[0]
+        quote = parts[1]
+      } else if (symbol.length === 6 && assetClass === 'fx') {
+        // EURUSD format
+        base = symbol.substring(0, 3)
+        quote = symbol.substring(3, 6)
+      } else if (symbol.endsWith('USDT') || symbol.endsWith('USD')) {
+        // Crypto format: BTCUSD, ETHUSD
+        base = symbol.replace(/USDT?$/, '')
+        quote = 'USD'
+      }
+      
+      return {
+        symbol,
+        class: assetClass,
+        base,
+        quote,
+        risk_sensitivity: assetClass === 'crypto' ? 'risk_on' : undefined,
+      }
+    })
   } catch (error) {
-    console.warn('[getBiasTable] Failed to load universe.assets.json, using fallback list:', error)
-    // Fallback to basic list if file not found
-    universeAssets = [
-      { symbol: 'EURUSD', class: 'fx', base: 'EUR', quote: 'USD' },
-      { symbol: 'GBPUSD', class: 'fx', base: 'GBP', quote: 'USD' },
-      { symbol: 'AUDUSD', class: 'fx', base: 'AUD', quote: 'USD' },
-      { symbol: 'USDJPY', class: 'fx', base: 'USD', quote: 'JPY' },
-      { symbol: 'USDCAD', class: 'fx', base: 'USD', quote: 'CAD' },
-      { symbol: 'XAUUSD', class: 'metal', base: 'XAU', quote: 'USD' },
-      { symbol: 'BTCUSDT', class: 'crypto', base: 'BTC', quote: 'USDT' },
-      { symbol: 'ETHUSDT', class: 'crypto', base: 'ETH', quote: 'USDT' },
-      { symbol: 'SPX', class: 'index' },
-      { symbol: 'NDX', class: 'index' },
-    ]
+    console.warn('[getBiasTable] Failed to load tactical-pairs.json, falling back to universe.assets.json:', error)
+    
+    // Fallback to universe.assets.json
+    try {
+      const fs = await import('node:fs/promises')
+      const path = await import('node:path')
+      const configPath = path.join(process.cwd(), 'config', 'universe.assets.json')
+      const raw = await fs.readFile(configPath, 'utf8')
+      tacticalAssets = JSON.parse(raw)
+    } catch (fallbackError) {
+      console.warn('[getBiasTable] Failed to load universe.assets.json, using hardcoded reduced list:', fallbackError)
+      // Fallback to hardcoded reduced list
+      tacticalAssets = [
+        { symbol: 'BTCUSD', class: 'crypto', base: 'BTC', quote: 'USD' },
+        { symbol: 'ETHUSD', class: 'crypto', base: 'ETH', quote: 'USD' },
+        { symbol: 'EURUSD', class: 'fx', base: 'EUR', quote: 'USD' },
+        { symbol: 'GBPUSD', class: 'fx', base: 'GBP', quote: 'USD' },
+        { symbol: 'USDJPY', class: 'fx', base: 'USD', quote: 'JPY' },
+        { symbol: 'USDCHF', class: 'fx', base: 'USD', quote: 'CHF' },
+        { symbol: 'AUDUSD', class: 'fx', base: 'AUD', quote: 'USD' },
+        { symbol: 'NZDUSD', class: 'fx', base: 'NZD', quote: 'USD' },
+        { symbol: 'USDCAD', class: 'fx', base: 'USD', quote: 'CAD' },
+        { symbol: 'USDCNH', class: 'fx', base: 'USD', quote: 'CNH' },
+        { symbol: 'USDBRL', class: 'fx', base: 'USD', quote: 'BRL' },
+        { symbol: 'USDMXN', class: 'fx', base: 'USD', quote: 'MXN' },
+        { symbol: 'SPX', class: 'index' },
+        { symbol: 'NDX', class: 'index' },
+        { symbol: 'SX5E', class: 'index' },
+        { symbol: 'NIKKEI', class: 'index' },
+        { symbol: 'XAUUSD', class: 'metal', base: 'XAU', quote: 'USD' },
+        { symbol: 'WTI', class: 'commodity' },
+        { symbol: 'COPPER', class: 'commodity' },
+      ]
+    }
   }
+  
+  const universeAssets = tacticalAssets
 
   const riskOn = risk === 'RISK ON'
   
@@ -212,8 +269,8 @@ export async function getBiasTableFromUniverse(
           })
         }
       }
-    } else if (assetClass === 'metal') {
-      // Metals (Gold, Silver, etc.)
+    } else if (assetClass === 'metal' || assetClass === 'commodity') {
+      // Metals and Commodities (Gold, Silver, Oil, Copper, etc.)
       if (quadrant === 'desaceleracion' || quadrant === 'estanflacion') {
         out.push({ 
           par: formattedPair, 
