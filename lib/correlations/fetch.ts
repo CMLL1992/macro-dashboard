@@ -13,10 +13,10 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 async function fetchYahooDaily(symbol: string, period: string = '5y'): Promise<PricePoint[]> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${encodeURIComponent(period)}&includePrePost=false`
   // Forzar fetch fresco para obtener datos actualizados
+  // Use only cache: 'no-store' (not both cache and next.revalidate)
   const r = await fetch(url, { 
     headers: { 'User-Agent': UA, Accept: 'application/json' }, 
-    cache: 'no-store',
-    next: { revalidate: 0 }
+    cache: 'no-store'
   })
   if (!r.ok) throw new Error(`Yahoo ${symbol} ${r.status}`)
   const j = await r.json()

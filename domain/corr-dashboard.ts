@@ -1,6 +1,5 @@
 import { fetchFredSeries } from '@/lib/fred'
 import { resampleToMonthly } from '@/lib/markets'
-import { binanceKlinesMonthly, BinanceRestrictionError } from '@/lib/markets'
 import { yahooSeriesMonthly, yahooSeriesMonthlyAny } from '@/lib/markets/yahoo'
 import { pearson } from './correlation'
 
@@ -15,6 +14,8 @@ export const YAHOO_MAP: Record<string, string | string[]> = {
   XAUUSD: ['XAUUSD=X', 'GC=F'],
   SPX: '^GSPC',
   NDX: '^NDX',
+  BTCUSD: 'BTC-USD', // Use Yahoo Finance instead of Binance
+  ETHUSD: 'ETH-USD', // Use Yahoo Finance instead of Binance
 }
 
 export function signalOf(r: number | null): 'Positiva' | 'Negativa' | 'Mixta' {
@@ -26,29 +27,24 @@ export function signalOf(r: number | null): 'Positiva' | 'Negativa' | 'Mixta' {
 
 async function fetchAssetSeries(name: string): Promise<{ date: string; value: number }[] | null> {
   try {
-    // Handle crypto pairs - convert internal symbols (BTCUSD, ETHUSD) to Binance format
-    if (name === 'BTCUSD' || name === 'BTCUSDT' || name === 'ETHUSD' || name === 'ETHUSDT') {
-      const s = await binanceKlinesMonthly(name)
-      return s.map(p => ({ date: p.date.slice(0, 7) + '-01', value: p.close }))
-    }
+    // All assets now use Yahoo Finance (including BTCUSD and ETHUSD)
+    // This avoids Binance 451 errors in Vercel production
     const m = YAHOO_MAP[name]
-    if (!m) return null
+    if (!m) {
+      console.warn(`[corr-dashboard] No Yahoo symbol mapping for ${name}`)
+      return null
+    }
+    
     if (Array.isArray(m)) {
       const { rows } = await yahooSeriesMonthlyAny(m, '20y')
       return rows.map(p => ({ date: p.date, value: p.close }))
     }
+    
     const s = await yahooSeriesMonthly(m, '20y')
     return s.map(p => ({ date: p.date, value: p.close }))
   } catch (e) {
-    // Manejo específico para errores de restricción de Binance (451/403)
-    // CAUSA RAÍZ: Binance devuelve 451/403 cuando hay restricciones legales/geográficas
-    // SOLUCIÓN: No lanzar excepción, retornar null y loguear warning claro
-    if (e instanceof BinanceRestrictionError) {
-      console.warn(`[corr-dashboard] ${e.symbol} data unavailable: provider ${e.status} (legal/geo restriction) - marking as INSUFFICIENT_DATA`)
-      return null // Retornar null para que se marque como "Datos no disponibles"
-    }
-    // Otros errores se loguean como warning
-    console.warn(`Error fetching ${name}:`, e)
+    // Log error but don't throw - return null to mark as INSUFFICIENT_DATA
+    console.warn(`[corr-dashboard] Error fetching ${name}:`, e instanceof Error ? e.message : String(e))
     return null
   }
 }

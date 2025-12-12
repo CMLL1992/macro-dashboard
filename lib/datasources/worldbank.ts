@@ -23,6 +23,12 @@ export async function fetchWorldBankSeries(
   params: WorldBankParams
 ): Promise<MacroSeries> {
   const { countryISO3, indicatorCode } = params
+  
+  // Validate that indicatorCode is not empty
+  if (!indicatorCode || indicatorCode.trim() === '') {
+    throw new Error(`WorldBank: indicatorCode is required but was empty for country ${countryISO3}. This indicator may require derivation.`)
+  }
+  
   const url = `https://api.worldbank.org/v2/country/${countryISO3}/indicator/${indicatorCode}?format=json&per_page=20000`
 
   const response = await withRetry(async () => {

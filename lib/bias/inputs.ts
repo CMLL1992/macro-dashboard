@@ -94,14 +94,23 @@ export async function fetchBiasInputs(
   let tradeBalanceTrend = 0
   let currentAccountTrend = 0
   try {
-    const tradeBalanceParams = getCatalogParams('TRADE_BALANCE_USD', 'WORLD_BANK', 'USA')
-    if (tradeBalanceParams) {
-      const tradeBalanceSeries = await fetchWorldBankSeries(tradeBalanceParams as any)
-      tradeBalanceTrend = calculateTrend(tradeBalanceSeries.data)
+    // TRADE_BALANCE_USD requires derivation (exports - imports), skip direct WorldBank fetch
+    // Use IMF or derived computation instead
+    const tradeBalanceParams = getCatalogParams('TRADE_BALANCE_USD', 'IMF', 'USA')
+    if (tradeBalanceParams && 'key' in tradeBalanceParams) {
+      // IMF has direct trade balance
+      try {
+        const { fetchIMFSeries } = await import('@/lib/datasources/imf')
+        const tradeBalanceSeries = await fetchIMFSeries(tradeBalanceParams as any)
+        tradeBalanceTrend = calculateTrend(tradeBalanceSeries.data)
+      } catch (imfError) {
+        console.warn('Could not fetch trade balance from IMF:', imfError)
+      }
     }
 
     const caParams = getCatalogParams('CURRENT_ACCOUNT_USD', 'WORLD_BANK', 'USA')
-    if (caParams) {
+    if (caParams && 'indicatorCode' in caParams && caParams.indicatorCode) {
+      // Only fetch if indicatorCode is not empty
       const caSeries = await fetchWorldBankSeries(caParams as any)
       currentAccountTrend = calculateTrend(caSeries.data)
     }
