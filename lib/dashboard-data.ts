@@ -399,10 +399,40 @@ export async function getDashboardData(): Promise<DashboardData> {
     Array.isArray(biasState.table) ? biasState.table : []
   )
   
-  // Build tactical rows
-  const tacticalRows = Array.isArray(biasState.tableTactical)
+  // Build tactical rows - FILTER to only show pairs from tactical-pairs.json
+  let tacticalRows = Array.isArray(biasState.tableTactical)
     ? biasState.tableTactical
     : []
+  
+  // Load allowed pairs from tactical-pairs.json and filter
+  try {
+    const fs = await import('node:fs/promises')
+    const path = await import('node:path')
+    const tacticalPath = path.join(process.cwd(), 'config', 'tactical-pairs.json')
+    const tacticalRaw = await fs.readFile(tacticalPath, 'utf8')
+    const tacticalPairs = JSON.parse(tacticalRaw) as Array<{ symbol: string; type?: string }>
+    const allowedSymbols = new Set(
+      tacticalPairs.map(p => p.symbol.toUpperCase().replace('/', ''))
+    )
+    
+    // Filter tactical rows to only include allowed pairs
+    tacticalRows = tacticalRows.filter((row: any) => {
+      const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
+      return allowedSymbols.has(symbol)
+    })
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[dashboard-data] Filtered tactical rows:', {
+        originalCount: biasState.tableTactical?.length || 0,
+        filteredCount: tacticalRows.length,
+        allowedSymbols: Array.from(allowedSymbols),
+      })
+    }
+  } catch (error) {
+    console.warn('[dashboard-data] Failed to load tactical-pairs.json for filtering, showing all pairs:', error)
+    // If we can't load the config, show all pairs (fallback behavior)
+  }
+  
   const tacticalRowsSafe = buildTacticalSafe(tacticalRows)
 
   // Detect scenarios (método institucional + macro)
