@@ -47,6 +47,12 @@ curl -X POST \
   -H "Authorization: Bearer $CRON_TOKEN" \
   -H "Content-Type: application/json" \
   "$BASE_URL/api/jobs/compute/bias"
+
+# 4. Cleanup Pairs (elimina pares no en tactical-pairs.json)
+curl -X POST \
+  -H "Authorization: Bearer $CRON_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$BASE_URL/api/jobs/cleanup/pairs"
 ```
 
 ## 📊 Paso 3: Verificar Respuestas
