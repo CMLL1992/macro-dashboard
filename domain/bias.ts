@@ -76,7 +76,9 @@ export async function getBiasTableFromUniverse(
   const out: BiasRow[] = []
   
   // Load tactical pairs (reduced list) - Priority 1
-  let tacticalAssets: Array<{ symbol: string; type?: string; base?: string | null; quote?: string | null; risk_sensitivity?: string; usd_exposure?: string }> = []
+  // Type compatible with universe.assets.json format (class is required, others optional)
+  type UniverseAsset = { symbol: string; class: string; base?: string | null; quote?: string | null; risk_sensitivity?: string; usd_exposure?: string; region?: string }
+  let tacticalAssets: UniverseAsset[] = []
   try {
     const fs = await import('node:fs/promises')
     const path = await import('node:path')
@@ -88,7 +90,7 @@ export async function getBiasTableFromUniverse(
     tacticalAssets = tacticalPairs.map(pair => {
       const symbol = pair.symbol.toUpperCase()
       // Map type to class
-      let assetClass = 'fx'
+      let assetClass: 'fx' | 'index' | 'metal' | 'crypto' | 'commodity' = 'fx'
       if (pair.type === 'crypto') assetClass = 'crypto'
       else if (pair.type === 'index') assetClass = 'index'
       else if (pair.type === 'commodity') assetClass = symbol.startsWith('XAU') || symbol.startsWith('XAG') ? 'metal' : 'commodity'
