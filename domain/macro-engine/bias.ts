@@ -17,6 +17,32 @@ import {
 import { logger } from '@/lib/obs/logger'
 import { isAllowedPair, TACTICAL_PAIR_SET } from '@/config/tactical-pairs'
 
+/**
+ * DEBUG helper to inspect what pairs appear before/after filtering
+ */
+function logTacticalPairsDebug(
+  source: string,
+  rows: Array<{ pair?: string | null; symbol?: string | null }> = []
+) {
+  if (process.env.NODE_ENV === 'production' && process.env.DEBUG_TACTICAL_PAIRS !== 'true') {
+    // Skip logging in production unless explicitly enabled
+    return
+  }
+
+  try {
+    const unique = Array.from(
+      new Set(
+        rows
+          .map(r => (r?.pair ?? r?.symbol ?? '').replace('/', '').toUpperCase())
+          .filter(p => p.length > 0)
+      )
+    ).sort()
+    console.log(`[BIAS_DEBUG] ${source}:`, { count: unique.length, pairs: unique })
+  } catch (err) {
+    console.error('[BIAS_DEBUG_ERROR]', err)
+  }
+}
+
 type USDBiasRaw = {
   score: number
   direction: 'Bullish' | 'Bearish' | 'Neutral'
@@ -443,15 +469,15 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
     } : undefined,
   } : undefined
 
-  // FINAL FILTER: Ensure only allowed pairs are returned
-  logTacticalPairsDebug('getBiasRaw.tableTactical.beforeFilter', tacticalRows)
+  // FINAL FILTER: Ensure only allowed pairs are returned (already filtered above, but double-check)
+  logTacticalPairsDebug('getBiasRaw.final.beforeReturn', tacticalRows)
   
   const filteredTactical = tacticalRows.filter((row: any) => {
     const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
     return isAllowedPair(symbol)
   })
   
-  logTacticalPairsDebug('getBiasRaw.tableTactical.afterFilter', filteredTactical)
+  logTacticalPairsDebug('getBiasRaw.final.afterFilter', filteredTactical)
 
   return {
     latestPoints,
