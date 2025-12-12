@@ -18,6 +18,8 @@ import { getDB } from '@/lib/db/schema'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export async function GET() {
   try {
