@@ -46,7 +46,8 @@ const FRED_SERIES = [
   { id: 'UMCSENT', name: 'University of Michigan: Consumer Sentiment', frequency: 'm' },
   { id: 'HOUST', name: 'Housing Starts: Total New Privately Owned Housing Units Started', frequency: 'm' },
   { id: 'PERMIT', name: 'New Private Housing Units Authorized by Building Permits', frequency: 'm' },
-  { id: 'NFIB', name: 'NFIB Small Business Optimism Index', frequency: 'm' },
+  // NFIB series not available in FRED (returns 400: series does not exist)
+  // { id: 'NFIB', name: 'NFIB Small Business Optimism Index', frequency: 'm' },
   // NOTA: USPMI (ISM Manufacturing) y USPMI_SERVICES (ISM Services) no están en FRED
   // Se obtienen de Trading Economics o ISM directo (ver app/api/jobs/ingest/pmi/route.ts)
 ]

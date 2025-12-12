@@ -133,26 +133,35 @@ export async function fetchFredSeries(
   const observationStart = params?.observation_start ?? '2010-01-01'
   const today = new Date().toISOString().split('T')[0]
   
-  // Build full query with all parameters
+  // Construir la query siempre desde cero (sin heredar realtime_*)
   const qs = new URLSearchParams({
-    observation_start: observationStart,
+    series_id: seriesId,
+    api_key: process.env.FRED_API_KEY!,
+    file_type: 'json',
   })
+  if (observationStart) qs.set('observation_start', observationStart)
   if (params?.observation_end) qs.set('observation_end', params.observation_end)
   if (params?.frequency) qs.set('frequency', params.frequency)
   if (params?.units) qs.set('units', params.units)
-  // Añadir realtime_start y realtime_end para obtener fecha de publicación
-  // FRED API requiere que si units != 'lin', entonces realtime_start debe igualar realtime_end
-  qs.set('realtime_start', today) // Obtener versión más reciente del dato
-  // Si se usa units (transformación), realtime_end debe ser igual a realtime_start
+
+  // Asegurar pares realtime_start/realtime_end solo cuando corresponde
+  qs.delete('realtime_start')
+  qs.delete('realtime_end')
   if (params?.units && params.units !== 'lin') {
-    qs.set('realtime_end', today) // Requerido por FRED cuando units != 'lin'
+    qs.set('realtime_start', today)
+    qs.set('realtime_end', today)
+  } else if (params?.frequency) {
+    qs.set('realtime_start', today)
+    qs.set('realtime_end', today)
   }
 
+  // URL final (ya incluye series_id; api_key solo en server)
   let url: string
   if (isServer) {
-    const key = process.env.FRED_API_KEY!
-    url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${key}&file_type=json&${qs.toString()}`
+    url = `https://api.stlouisfed.org/fred/series/observations?${qs.toString()}`
   } else {
+    // No exponer api_key en el cliente
+    qs.delete('api_key')
     url = `/api/fred/${seriesId}?${qs.toString()}`
   }
 
