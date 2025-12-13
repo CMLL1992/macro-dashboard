@@ -56,6 +56,7 @@ export const EUROPEAN_INDICATOR_KEYS = [
   'eu_pmi_composite',
   'eu_ecb_rate',
   'eu_retail_sales_yoy',
+  'eu_retail_sales_mom',
   'eu_industrial_production_yoy',
   'eu_consumer_confidence',
   'eu_zew_sentiment',

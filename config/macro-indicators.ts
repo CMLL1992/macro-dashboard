@@ -374,12 +374,25 @@ export const MACRO_INDICATORS_CONFIG: Record<string, MacroIndicatorConfig> = {
     label: 'Ventas Minoristas Eurozona (YoY)',
     source: 'TRADING_ECONOMICS',
     externalId: 'Euro Area Retail Sales YoY',
-    transform: 'none', // TradingEconomics ya devuelve YoY
+    transform: 'yoy', // Calculate YoY from index values (Eurostat)
     unit: 'percent',
     scale: 1,
     decimals: 2,
     periodType: 'monthly',
     isOfficialYoY: true,
+  },
+  
+  eu_retail_sales_mom: {
+    id: 'eu_retail_sales_mom',
+    label: 'Ventas Minoristas Eurozona (MoM)',
+    source: 'TRADING_ECONOMICS',
+    externalId: 'Euro Area Retail Sales MoM',
+    transform: 'mom', // Calculate MoM from index values (Eurostat)
+    unit: 'percent',
+    scale: 1,
+    decimals: 2,
+    periodType: 'monthly',
+    isOfficialYoY: false,
   },
   
   eu_industrial_production_yoy: {

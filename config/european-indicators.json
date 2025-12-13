@@ -125,6 +125,22 @@
       "description": "Retail Trade Turnover Index (2015=100) for Euro Area - YoY calculated from index values (from Eurostat)"
     },
     {
+      "id": "EU_RETAIL_SALES_MOM",
+      "name": "Ventas Minoristas Eurozona (MoM)",
+      "source": "eurostat",
+      "dataset": "sts_trtu_m",
+      "filters": {
+        "unit": "I15",
+        "s_adj": "SA",
+        "nace_r2": "G47"
+      },
+      "geo": "EA19",
+      "frequency": "M",
+      "category": "Crecimiento / Actividad",
+      "importance": 2,
+      "description": "Retail Trade Turnover Index (2015=100) for Euro Area - MoM calculated from index values (from Eurostat)"
+    },
+    {
       "id": "EU_INDUSTRIAL_PRODUCTION_YOY",
       "name": "Producción Industrial Eurozona (YoY)",
       "source": "eurostat",
