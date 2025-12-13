@@ -62,6 +62,12 @@ export async function POST(request: NextRequest) {
 
     const indicators = EUROPEAN_INDICATORS.indicators || []
     
+    // TAREA 1: Log indicators to be processed
+    logger.info(`[${jobId}] Starting ingestion for ${indicators.length} European indicators`, {
+      job: jobId,
+      indicatorIds: indicators.map((ind: any) => ind.id),
+    })
+    
     // Note: TradingEconomics removed for Eurozone - now using Eurostat/ECB/FRED only
     // Validate that no indicators use trading_economics source
     const invalidIndicators = indicators.filter((ind: any) => 
@@ -211,6 +217,19 @@ export async function POST(request: NextRequest) {
         macroSeries.name = indicator.name
         macroSeries.frequency = indicator.frequency as any
 
+        // TAREA 1: Log before writing to DB
+        logger.info(`[${jobId}] About to save ${indicator.id}`, {
+          job: jobId,
+          indicatorId: indicator.id,
+          seriesId: macroSeries.id,
+          source: macroSeries.source,
+          dataPoints: macroSeries.data.length,
+          firstValue: macroSeries.data[0]?.value,
+          firstDate: macroSeries.data[0]?.date,
+          lastValue: macroSeries.data[macroSeries.data.length - 1]?.value,
+          lastDate: macroSeries.data[macroSeries.data.length - 1]?.date,
+        })
+
         // Get last date in DB for this series
         let lastDateInDb: string | null = null
         try {
@@ -245,17 +264,61 @@ export async function POST(request: NextRequest) {
           continue
         }
 
+        // TAREA 1: Log before upsert
+        logger.info(`[${jobId}] Calling upsertMacroSeries for ${indicator.id}`, {
+          job: jobId,
+          indicatorId: indicator.id,
+          seriesId: macroSeries.id,
+          pointsToInsert: newPoints.length,
+          sampleValue: newPoints[0]?.value,
+          sampleDate: newPoints[0]?.date,
+        })
+
         // Upsert series metadata and observations
-        await upsertMacroSeries(macroSeries)
+        try {
+          await upsertMacroSeries(macroSeries)
+          
+          // TAREA 1: Verify data was saved
+          let verifyCount = 0
+          try {
+            if (isUsingTurso()) {
+              const db = getUnifiedDB()
+              const verifyResult = await db.prepare(
+                `SELECT COUNT(*) as count FROM macro_observations WHERE series_id = ?`
+              ).get(indicator.id) as { count: number } | null
+              verifyCount = verifyResult?.count || 0
+            } else {
+              const db = getUnifiedDB()
+              const verifyResult = await db.prepare(
+                `SELECT COUNT(*) as count FROM macro_observations WHERE series_id = ?`
+              ).get(indicator.id) as { count: number } | undefined
+              verifyCount = verifyResult?.count || 0
+            }
+          } catch (verifyErr) {
+            logger.warn(`[${jobId}] Could not verify saved data for ${indicator.id}`, { error: String(verifyErr) })
+          }
+          
+          logger.info(`[${jobId}] Successfully saved ${indicator.id}`, {
+            job: jobId,
+            indicatorId: indicator.id,
+            seriesId: macroSeries.id,
+            totalPoints: macroSeries.data.length,
+            newPoints: newPoints.length,
+            lastDate: newPoints[newPoints.length - 1]?.date,
+            verifyCount, // Number of rows in DB after save
+          })
+        } catch (upsertError) {
+          logger.error(`[${jobId}] upsertMacroSeries failed for ${indicator.id}`, {
+            job: jobId,
+            indicatorId: indicator.id,
+            seriesId: macroSeries.id,
+            error: upsertError instanceof Error ? upsertError.message : String(upsertError),
+            stack: upsertError instanceof Error ? upsertError.stack : undefined,
+          })
+          throw upsertError // Re-throw to be caught by outer catch
+        }
 
         ingested++
-        logger.info(`Ingested ${indicator.id}`, {
-          job: jobId,
-          indicator: indicator.id,
-          totalPoints: macroSeries.data.length,
-          newPoints: newPoints.length,
-          lastDate: newPoints[newPoints.length - 1]?.date,
-        })
       } catch (error) {
         errors++
         const errorMessage = error instanceof Error ? error.message : String(error)
