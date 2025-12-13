@@ -85,17 +85,25 @@ export async function POST(request: NextRequest) {
     const FORCE_FULL_REINGEST = true
 
     for (const indicator of indicators) {
+      // Process each indicator independently - errors in one don't affect others
       try {
+        logger.info(`[${jobId}] Processing ${indicator.id} from ${indicator.source}`, {
+          job: jobId,
+          indicatorId: indicator.id,
+          source: indicator.source,
+        })
+        
         let macroSeries: MacroSeries | null = null
 
-        // Fetch based on source
-        if (indicator.source === 'ecb') {
-          macroSeries = await fetchECBSeries({
-            flow: indicator.flow,
-            key: indicator.key,
-            freq: indicator.frequency as any,
-          })
-        } else if (indicator.source === 'ecb_sdw') {
+        // Fetch based on source - each source is wrapped in try/catch to prevent one failure from aborting the job
+        try {
+          if (indicator.source === 'ecb') {
+            macroSeries = await fetchECBSeries({
+              flow: indicator.flow,
+              key: indicator.key,
+              freq: indicator.frequency as any,
+            })
+          } else if (indicator.source === 'ecb_sdw') {
           const code = (indicator as any).code
           if (!code) {
             throw new Error(`ECB SDW code is required for ${indicator.id}`)
@@ -203,6 +211,34 @@ export async function POST(request: NextRequest) {
           throw new Error(`TradingEconomics is not allowed for Eurozone indicators. Use 'eurostat', 'ecb', 'fred', 'econdify', or 'dbnomics' instead. Indicator: ${indicator.id}`)
         } else {
           throw new Error(`Unknown source: ${indicator.source} for indicator ${indicator.id}`)
+        }
+        
+        // Log successful fetch
+        if (macroSeries && macroSeries.data.length > 0) {
+          logger.info(`[${jobId}] Successfully fetched ${indicator.id}`, {
+            job: jobId,
+            indicatorId: indicator.id,
+            source: indicator.source,
+            dataPoints: macroSeries.data.length,
+            firstDate: macroSeries.data[0]?.date,
+            lastDate: macroSeries.data[macroSeries.data.length - 1]?.date,
+          })
+        }
+        } catch (fetchError) {
+          // Log fetch error but don't abort the job - continue with next indicator
+          logger.error(`[${jobId}] Failed to fetch ${indicator.id} from ${indicator.source}`, {
+            job: jobId,
+            indicatorId: indicator.id,
+            source: indicator.source,
+            error: fetchError instanceof Error ? fetchError.message : String(fetchError),
+            stack: fetchError instanceof Error ? fetchError.stack : undefined,
+          })
+          errors++
+          ingestErrors.push({ 
+            indicatorId: indicator.id, 
+            error: `Fetch failed: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}` 
+          })
+          continue // Skip to next indicator
         }
 
         if (!macroSeries || macroSeries.data.length === 0) {
@@ -320,14 +356,18 @@ export async function POST(request: NextRequest) {
 
         ingested++
       } catch (error) {
+        // Outer catch - catches any error not handled by inner try/catch blocks
         errors++
         const errorMessage = error instanceof Error ? error.message : String(error)
-        logger.error(`Failed to ingest ${indicator.id}`, {
+        const errorStack = error instanceof Error ? error.stack : undefined
+        logger.error(`[${jobId}] Failed to ingest ${indicator.id} (outer catch)`, {
           job: jobId,
           indicator: indicator.id,
           error: errorMessage,
+          stack: errorStack,
         })
         ingestErrors.push({ indicatorId: indicator.id, error: errorMessage })
+        // Continue with next indicator - don't abort the entire job
       }
     }
 
