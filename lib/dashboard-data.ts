@@ -12,7 +12,7 @@ import { detectScenarios, getInstitutionalScenarios } from '@/domain/scenarios'
 import type { BiasState } from '@/domain/macro-engine/bias'
 import type { CorrelationState } from '@/domain/macro-engine/correlations'
 import { WEIGHTS } from '@/domain/posture'
-import { MAP_KEY_TO_WEIGHT_KEY } from '@/domain/diagnostic'
+import { MAP_KEY_TO_WEIGHT_KEY, getMacroDiagnosis } from '@/domain/diagnostic'
 import type { BiasRow } from '@/domain/bias'
 import { getRecentEventsWithImpact } from '@/lib/db/recent-events'
 import type { RecentEventWithImpact } from '@/lib/db/recent-events'
@@ -403,20 +403,13 @@ function buildUsdMarketInsights(rows: TacticalRowSafe[]): UsdMarketInsights {
  */
 export async function getDashboardData(): Promise<DashboardData> {
   // TAREA 2: Fetch data in parallel for optimization (70-90% faster)
-  let biasState, correlationState, europeanIndicators, macroDiagnosis
-  try {
-    const { getMacroDiagnosis } = await import('@/domain/diagnostic')
-    [biasState, correlationState, europeanIndicators, macroDiagnosis] = await Promise.all([
+  const [biasState, correlationState, europeanIndicators, macroDiagnosis] =
+    await Promise.all([
       getBiasState(),
       getCorrelationState(),
       getEuropeanIndicatorsForDashboard(),
       getMacroDiagnosis(), // Added for parallelization
     ])
-  } catch (error) {
-    console.error('[dashboard-data] Error fetching data:', error)
-    // Propagate the original error without wrapping it
-    throw error instanceof Error ? error : new Error(String(error))
-  }
 
   // Build indicator rows from biasState.table (for USA/GLOBAL only)
   const biasTable = Array.isArray(biasState.table) ? biasState.table : []
