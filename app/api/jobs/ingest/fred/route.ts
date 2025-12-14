@@ -167,13 +167,20 @@ export async function POST(request: NextRequest) {
       // Check hard limit before processing each series
       const elapsed = Date.now() - startedAt
       if (elapsed > HARD_LIMIT_MS) {
+        // If we hit hard limit, nextCursor should be the CURRENT series (we'll continue from here)
+        const currentIndex = FRED_SERIES.findIndex(s => s.id === series.id)
+        if (currentIndex >= 0 && currentIndex + 1 < FRED_SERIES.length) {
+          actualNextCursor = FRED_SERIES[currentIndex].id // Continue from this series next time
+        } else {
+          actualNextCursor = null // We're at the end
+        }
         logger.warn(`Hard limit reached, stopping batch processing`, {
           job: jobId,
           elapsedMs: elapsed,
           processedCount,
-          nextSeries: series.id,
+          currentSeries: series.id,
+          nextCursor: actualNextCursor,
         })
-        nextCursor = series.id
         break
       }
 
