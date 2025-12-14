@@ -621,6 +621,13 @@ Este documento forma parte de la documentación viva del proyecto y debe mantene
 
 ---
 
+## 📚 Documentación relacionada
+
+- **Runbook de producción (jobs chunked):** `docs/RUNBOOK-JOBS-CHUNKED-PRODUCCION.md` - Guía completa para ejecutar jobs con batch mode en producción
+- **Migración de job_state:** `docs/MIGRACION-JOB-STATE.md` - Instrucciones para crear la tabla `job_state` en Turso
+
+---
+
 **Última actualización:** Diciembre 2024
 
 
