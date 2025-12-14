@@ -8,7 +8,8 @@ import { getDB } from './schema'
 import { getUnifiedDB, isUsingTurso } from './unified-db'
 import { labelOf, yoy, mom, last, sma } from '@/lib/fred'
 import type { LatestPoint, SeriesPoint } from '@/lib/fred'
-import { computePrevCurr, isStale, getFrequency, type Observation } from '@/lib/macro/prev-curr'
+import { computePrevCurr, getFrequency, type Observation } from '@/lib/macro/prev-curr'
+import { computeFreshness } from '@/lib/utils/freshness'
 import { MACRO_INDICATORS_CONFIG, getIndicatorConfig, formatIndicatorValue, formatIndicatorDate, type Transform } from '@/config/macro-indicators'
 
 // Mapa de claves internas a series_id en macro_observations
@@ -130,7 +131,11 @@ export async function getSeriesPrevCurr(seriesId: string): Promise<{
   }))
 
   const { previous, current } = computePrevCurr(obs)
-  const stale = isStale(current?.date ?? null, getFrequency(frequency))
+  // Note: seriesId is used here, but computeFreshness expects indicator key
+  // This function is used internally, so we'll use a generic check
+  const lastDate = current?.date ? new Date(current.date) : null
+  const freshness = computeFreshness(seriesId, lastDate)
+  const stale = freshness === 'STALE' || freshness === 'PENDING'
 
   return {
     previous: previous ? { date: previous.date, value: previous.value } : null,
@@ -439,6 +444,11 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
         
         if (history && history.value_current !== null && history.date_current) {
           // Use pre-calculated value from indicator_history
+          // Calculate freshness using the indicator key
+          const lastDate = history.date_current ? new Date(history.date_current) : null
+          const freshness = computeFreshness(key, lastDate)
+          const stale = freshness === 'STALE' || freshness === 'PENDING'
+          
           results.push({
             key,
             label: KEY_LABELS[key] ?? labelOf(seriesId),
@@ -447,7 +457,7 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
             unit: key === 'gdp_qoq' ? '%' : 'K',
             value_previous: history.value_previous,
             date_previous: history.date_previous ?? null,
-            isStale: false,
+            isStale: stale,
           })
           continue // Skip calculation, use pre-calculated value
         }
@@ -600,7 +610,10 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
     }))
 
     const { previous, current } = computePrevCurr(obs)
-    const stale = isStale(current?.date ?? null, getFrequency(frequency))
+    // Use computeFreshness with the indicator key (not seriesId) for per-indicator maxLagDays
+    const lastDate = current?.date ? new Date(current.date) : null
+    const freshness = computeFreshness(key, lastDate)
+    const stale = freshness === 'STALE' || freshness === 'PENDING'
 
     // DEBUG: Log for European indicators, retail_yoy, and GDP with results
     if (key.startsWith('eu_') || key === 'retail_yoy' || key === 'eu_gdp_qoq' || key === 'eu_gdp_yoy' || key === 'jolts_openings') {
