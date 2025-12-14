@@ -198,7 +198,6 @@ export async function POST(request: NextRequest) {
     let errors = 0
     const ingestErrors: Array<{ symbol?: string; error: string }> = []
     const failedSymbols: string[] = [] // Track symbols that failed after retries
-    const failedSymbols: string[] = [] // Track symbols that failed after retries
 
     // Collect all assets to process (DXY is always first, then forex, indices, metals, crypto)
     const allAssets: Array<{ symbol: string; category: 'dxy' | 'forex' | 'index' | 'metal' | 'crypto'; config?: any }> = []
