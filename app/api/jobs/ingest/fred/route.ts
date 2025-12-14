@@ -108,20 +108,34 @@ export async function POST(request: NextRequest) {
     const FORCE_FULL_REINGEST = true
 
     // Find starting index from cursor
+    // IMPORTANT: If cursor exists, start AFTER it (cursorIndex + 1), not at it
     let startIndex = 0
     if (cursor) {
       const cursorIndex = FRED_SERIES.findIndex(s => s.id === cursor)
       if (cursorIndex >= 0) {
-        startIndex = cursorIndex
+        startIndex = cursorIndex + 1 // Start AFTER the cursor, not at it
+      } else {
+        logger.warn(`Cursor ${cursor} not found in FRED_SERIES, starting from beginning`, { job: jobId })
+        startIndex = 0
       }
     }
 
-    const seriesToProcess = FRED_SERIES.slice(startIndex, startIndex + batchSize)
+    const endIndex = Math.min(startIndex + batchSize, FRED_SERIES.length)
+    const seriesToProcess = FRED_SERIES.slice(startIndex, endIndex)
+    
+    // Calculate nextCursor: should point to the NEXT item after the batch, not the last processed
+    const nextCursor = endIndex < FRED_SERIES.length ? FRED_SERIES[endIndex].id : null
+    const done = endIndex >= FRED_SERIES.length
+
     logger.info(`Processing batch: ${seriesToProcess.length} series starting from index ${startIndex}`, {
       job: jobId,
       totalSeries: FRED_SERIES.length,
       startIndex,
+      endIndex,
       batchSize,
+      cursor,
+      nextCursor,
+      done,
       seriesIds: seriesToProcess.map(s => s.id),
     })
 
@@ -146,8 +160,8 @@ export async function POST(request: NextRequest) {
       logger.warn('Could not pre-fetch last dates, will query individually', { job: jobId, error: String(err) })
     }
 
-    let nextCursor: string | null = null
     let processedCount = 0
+    let actualNextCursor: string | null = nextCursor // Will be updated if we hit hard limit
 
     for (const series of seriesToProcess) {
       // Check hard limit before processing each series
@@ -300,27 +314,41 @@ export async function POST(request: NextRequest) {
           durationMs: seriesDurationMs,
         })
       }
-
-      // Update next cursor after each successful series
-      nextCursor = series.id
+      // Note: nextCursor is already calculated before the loop (points to item AFTER batch)
+      // We only update it if we hit hard limit mid-batch
     }
 
+    // Use actualNextCursor (may have been updated if we hit hard limit)
+    const finalNextCursor = actualNextCursor !== null ? actualNextCursor : nextCursor
+
     // Check if we've processed all series
-    const isComplete = startIndex + processedCount >= FRED_SERIES.length
-    const done = isComplete && nextCursor === null
+    const isComplete = endIndex >= FRED_SERIES.length
+    const finalDone = isComplete && finalNextCursor === null
+
+    // Log final cursor state
+    logger.info(`Batch processing complete`, {
+      job: jobId,
+      startIndex,
+      endIndex,
+      processedCount,
+      totalSeries: FRED_SERIES.length,
+      cursor,
+      nextCursor: finalNextCursor,
+      done: finalDone,
+    })
 
     // Save job state
     const durationMs = Date.now() - startedAt
     await saveJobState(
       jobId,
-      done ? null : nextCursor,
-      done ? 'success' : 'partial',
+      finalDone ? null : finalNextCursor,
+      finalDone ? 'success' : 'partial',
       durationMs
     )
 
     // Only process PMI if we're in the last batch (to avoid timeout)
     // PMI is processed after all FRED series, so only do it if we're done with FRED series
-    const isLastBatch = isComplete
+    const isLastBatch = finalDone
     let pmiIngested = false
     let pmiError: string | null = null
     
@@ -404,10 +432,12 @@ export async function POST(request: NextRequest) {
       ingested,
       errors,
       durationMs: totalDurationMs,
-      done,
-      nextCursor,
+      done: finalDone,
+      nextCursor: finalNextCursor,
       processedCount,
       totalSeries: FRED_SERIES.length,
+      startIndex,
+      endIndex,
       totalSeriesTime,
       avgSeriesTime: Math.round(avgSeriesTime),
       slowestSeries: slowestSeries ? { id: slowestSeries.seriesId, durationMs: slowestSeries.durationMs } : null,
@@ -415,7 +445,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Save ingest history (only if done, to avoid cluttering history with partial batches)
-    if (done) {
+    if (finalDone) {
       try {
         await saveIngestHistory({
           jobType: 'ingest_fred',
@@ -488,8 +518,8 @@ export async function POST(request: NextRequest) {
       ingested,
       errors,
       processed: processedCount,
-      nextCursor,
-      done,
+      nextCursor: finalNextCursor,
+      done: finalDone,
       durationMs: totalDurationMs,
       finishedAt,
       ingestErrors: ingestErrors.slice(0, 10), // Limit to first 10 errors
