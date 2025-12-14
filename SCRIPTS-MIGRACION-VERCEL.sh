@@ -130,3 +130,5 @@ echo "1. Verificar que los valores son correctos"
 echo "2. Abrir https://$NUEVA_URL/dashboard en el navegador"
 echo "3. Verificar que el dashboard carga sin errores"
 echo "4. Continuar con la migración del dominio (si aplica)"
+
+

@@ -125,3 +125,5 @@ ADAUSDT, ALGOUSDT, ARBUSDT, ASX, ATOMUSDT, AUDJPY, AUDNZD, AUDUSD, AVAXUSDT, BCH
    - Monitorear jobs en producción
    - Verificar que correlaciones se calculan correctamente
    - Verificar que indicadores transformados se actualizan correctamente
+
+

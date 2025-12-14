@@ -296,3 +296,5 @@ const filteredRows: IndicatorRow[] = rows.filter((row) => {
 
 **Generado por:** Revisión automatizada  
 **Última actualización:** 2025-12-11
+
+

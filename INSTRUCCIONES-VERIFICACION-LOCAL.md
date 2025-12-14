@@ -198,3 +198,5 @@ Una vez que **TODOS** los items del checklist estén ✅:
 ---
 
 **Última actualización:** $(date +"%d/%m/%Y %H:%M")
+
+

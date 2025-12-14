@@ -92,3 +92,5 @@ Si en el futuro queremos eliminarlos por estética, las opciones 1 o 2 son las m
 - [better-sqlite3 GitHub Issues](https://github.com/WiseLibs/better-sqlite3/issues)
 - [Node.js Native Addons](https://nodejs.org/api/addons.html)
 - [Vercel Build Logs](https://vercel.com/docs/concepts/builds)
+
+

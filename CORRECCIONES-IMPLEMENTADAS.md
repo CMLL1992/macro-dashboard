@@ -104,3 +104,5 @@
 - **GDPC1 y PAYEMS**: Si siguen apareciendo con count:0, verificar que el job `/api/jobs/ingest/fred` se haya ejecutado correctamente y haya ingerido datos históricos.
 - **Correlaciones null**: Es normal que algunos pares (especialmente USDCNH) tengan correlación null si Yahoo Finance no tiene datos históricos suficientes.
 - **Binance 451**: Ya no debería aparecer este error, ya que corr-dashboard ahora usa Yahoo Finance exclusivamente para crypto.
+
+

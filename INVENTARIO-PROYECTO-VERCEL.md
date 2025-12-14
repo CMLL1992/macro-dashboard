@@ -132,3 +132,5 @@
 
 **⚠️ IMPORTANTE:** Este documento contiene información sensible.  
 **NO** subirlo a Git. Guardarlo localmente y eliminarlo después de la migración.
+
+

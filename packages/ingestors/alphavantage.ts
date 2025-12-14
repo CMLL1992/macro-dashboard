@@ -108,3 +108,5 @@ function parseAlphaVantageResponse(data: any[]): Observation[] {
 
 
 
+
+

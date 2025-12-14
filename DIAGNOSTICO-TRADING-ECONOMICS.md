@@ -195,3 +195,5 @@ const apiKey = process.env.TRADING_ECONOMICS_API_KEY
 3. ✅ Revisar logs de Vercel para errores específicos
 4. ✅ Comparar respuesta de API desde local vs Vercel
 5. ✅ Verificar plan y whitelist en TradingEconomics dashboard
+
+

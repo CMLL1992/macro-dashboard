@@ -209,3 +209,5 @@ pnpm verify:local
 ---
 
 **Una vez completado este checklist, el entorno local estará al 100% y podrás proceder a desplegar a Vercel.**
+
+

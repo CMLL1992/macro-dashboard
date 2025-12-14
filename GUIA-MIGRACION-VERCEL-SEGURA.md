@@ -477,3 +477,5 @@ Si hay sistemas externos que llaman a rutas del dashboard:
 ---
 
 **Última actualización:** 2025-12-11
+
+

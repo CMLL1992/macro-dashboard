@@ -381,3 +381,5 @@ Ver documento: `GUIA-REDEPLOY-VERCEL.md` (si existe) o seguir las instrucciones 
 - Ejecuta actualización de datos: `pnpm job:bootstrap`
 - Verifica que los jobs se ejecuten correctamente
 - Revisa logs del servidor para errores
+
+

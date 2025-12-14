@@ -210,3 +210,5 @@
 - [ ] **PENDIENTE:** Verificar que Eurostat API funciona correctamente
 - [ ] **PENDIENTE:** Verificar que todas las correlaciones se calculan
 - [ ] **PENDIENTE:** Decidir sobre UK/JP (mantener TE o migrar)
+
+

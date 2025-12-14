@@ -299,3 +299,5 @@ Antes de considerar el proyecto 100% autónomo:
 **Una vez completado todo esto, el dashboard funcionará 24/7 sin necesidad de tener tu PC abierto.** 🎉
 
 
+
+

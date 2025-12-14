@@ -39,3 +39,5 @@ export function isAllowedPair(pair: string | null | undefined): boolean {
 export function getAllowedPairs(): string[] {
   return Array.from(TACTICAL_PAIR_SET).sort()
 }
+
+

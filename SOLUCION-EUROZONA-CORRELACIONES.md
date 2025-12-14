@@ -97,3 +97,5 @@ Ejecutar manualmente en producción:
 - Los jobs programados en `vercel.json` correrán automáticamente según su schedule
 - Después de ejecutar manualmente, los datos deberían aparecer en el dashboard
 - Si después de ejecutar los jobs manualmente aún faltan datos, revisar los logs en Vercel para errores específicos
+
+

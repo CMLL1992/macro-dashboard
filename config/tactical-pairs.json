@@ -19,3 +19,5 @@
   { "symbol": "WTI", "type": "commodity", "yahoo_symbol": "CL=F" },
   { "symbol": "COPPER", "type": "commodity", "yahoo_symbol": "HG=F" }
 ]
+
+

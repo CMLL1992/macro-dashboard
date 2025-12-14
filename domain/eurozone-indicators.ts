@@ -61,3 +61,5 @@ export const EUROPEAN_INDICATOR_KEYS = [
   'eu_consumer_confidence',
   'eu_zew_sentiment',
 ] as const
+
+

@@ -189,3 +189,5 @@ El sistema está funcionando correctamente cuando:
 
 **Última actualización:** 2025-12-12  
 **Commit:** `def505a`
+
+

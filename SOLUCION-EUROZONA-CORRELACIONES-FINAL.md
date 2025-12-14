@@ -107,3 +107,5 @@ curl https://tu-dominio.com/api/debug/dashboard-data
 1. `domain/eurozone-indicators.ts` (nuevo) - Helper centralizado
 2. `lib/dashboard-data.ts` - Usa helper y merge de indicadores europeos
 3. `app/api/jobs/correlations/route.ts` - Normalización de símbolos
+
+

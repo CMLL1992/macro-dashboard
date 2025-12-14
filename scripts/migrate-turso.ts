@@ -418,3 +418,5 @@ main().catch((err) => {
   console.error('❌ Error fatal en migración de Turso:', err)
   process.exit(1)
 })
+
+

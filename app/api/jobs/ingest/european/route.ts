@@ -22,6 +22,11 @@ import { fetchEcondifySeries } from '@/lib/datasources/econdify'
 import fs from 'node:fs'
 import path from 'node:path'
 
+// Helper function to validate dates
+function isValidDate(date: Date): boolean {
+  return date instanceof Date && !isNaN(date.getTime())
+}
+
 // Load European indicators config
 function loadEuropeanIndicators() {
   try {
@@ -104,126 +109,168 @@ export async function POST(request: NextRequest) {
               freq: indicator.frequency as any,
             })
           } else if (indicator.source === 'ecb_sdw') {
-          const code = (indicator as any).code
-          if (!code) {
-            throw new Error(`ECB SDW code is required for ${indicator.id}`)
+            const code = (indicator as any).code
+            if (!code) {
+              throw new Error(`ECB SDW code is required for ${indicator.id}`)
+            }
+            macroSeries = await fetchECBSimpleSeries(code, 100) // Fetch last 100 observations for historical data
+            // Override ID and name to match indicator configuration
+            if (macroSeries) {
+              macroSeries.id = indicator.id
+              macroSeries.name = indicator.name
+              macroSeries.frequency = indicator.frequency as any
+            }
+          } else if (indicator.source === 'fred') {
+            const seriesId = (indicator as any).series_id
+            if (!seriesId) {
+              throw new Error(`FRED series_id is required for ${indicator.id}`)
+            }
+            
+            // For Eurostat series (EA19*), they are already YoY, so don't apply transformation
+            // Check if series ID starts with EA19 (Eurostat series) - these are already YoY
+            const isEurostatYoY = seriesId.startsWith('EA19') && (indicator.id.includes('_YOY') || indicator.name.toLowerCase().includes('yoy'))
+            
+            // Determine if we need YoY transformation
+            // For Eurostat YoY series, they're already YoY, so use units=lin (no transformation)
+            // For other series that need YoY, use units=pc1 (percent change from year ago)
+            const needsYoY = !isEurostatYoY && (indicator.id.includes('_YOY') || indicator.name.toLowerCase().includes('yoy'))
+            const units = needsYoY ? 'pc1' : 'lin' // Use lin for Eurostat YoY series (already YoY)
+            
+            // Fetch from FRED
+            // Note: Some FRED series don't support frequency parameter, so we omit it
+            const observations = await fetchFredSeries(seriesId, {
+              observation_start: '2010-01-01',
+              observation_end: new Date().toISOString().slice(0, 10),
+              units: units, // Use lin for Eurostat YoY (already YoY), pc1 for others
+              // Don't set frequency - let FRED use the series' native frequency
+            })
+            
+            if (observations.length === 0) {
+              throw new Error('No observations returned from FRED')
+            }
+            
+            // Convert to MacroSeries format
+            // IMPORTANT: Use observation_period if available (actual period of data), otherwise use date
+            // This ensures each observation has its unique date, not a fallback date
+            macroSeries = {
+              id: indicator.id,
+              source: 'FRED',
+              indicator: seriesId,
+              nativeId: seriesId,
+              name: indicator.name,
+              frequency: indicator.frequency as any,
+              data: observations
+                .map(obs => {
+                  // Use observation_period if available (actual period), otherwise use date
+                  const observationDate = obs.observation_period || obs.date
+                  
+                  // Validate date format (YYYY-MM-DD)
+                  const parsedDate = new Date(observationDate)
+                  if (!isValidDate(parsedDate)) {
+                    logger.warn(`[${jobId}] Invalid date for ${indicator.id}: ${observationDate}`, {
+                      job: jobId,
+                      indicatorId: indicator.id,
+                      invalidDate: observationDate,
+                      originalDate: obs.date,
+                      observationPeriod: obs.observation_period,
+                    })
+                    return null // Skip this observation
+                  }
+                  
+                  return {
+                    date: observationDate, // Use actual observation period, not realtime_start
+                    value: obs.value,
+                  }
+                })
+                .filter((dp): dp is { date: string; value: number } => dp !== null),
+              lastUpdated: observations[observations.length - 1]?.observation_period || observations[observations.length - 1]?.date,
+              meta: {
+                series_id: seriesId,
+              },
+            }
+            
+            // Log date validation summary
+            if (macroSeries.data.length !== observations.length) {
+              logger.warn(`[${jobId}] Filtered ${observations.length - macroSeries.data.length} observations with invalid dates for ${indicator.id}`, {
+                job: jobId,
+                indicatorId: indicator.id,
+                originalCount: observations.length,
+                validCount: macroSeries.data.length,
+              })
+            }
+            } else if (indicator.source === 'eurostat') {
+            const dataset = (indicator as any).dataset
+            const filters = (indicator as any).filters || {}
+            const geo = (indicator as any).geo || 'EA19'
+            
+            if (!dataset) {
+              throw new Error(`Eurostat dataset is required for ${indicator.id}`)
+            }
+            
+            // Log Eurostat query parameters before fetching
+            const eurostatParams = {
+              dataset,
+              filters,
+              geo,
+              frequency: indicator.frequency as any,
+            }
+            const eurostatUrl = `https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/${dataset}?format=JSON&lang=en&geo=${geo}&${Object.entries(filters).map(([k, v]) => `${k}=${v}`).join('&')}`
+            logger.info(`[${jobId}] Fetching Eurostat data for ${indicator.id}`, {
+              job: jobId,
+              indicatorId: indicator.id,
+              url: eurostatUrl,
+              params: JSON.stringify(eurostatParams),
+            })
+            
+            macroSeries = await fetchEurostatSeries(eurostatParams)
+            
+            // Override ID and name to match indicator configuration
+            if (macroSeries) {
+              macroSeries.id = indicator.id
+              macroSeries.name = indicator.name
+              macroSeries.frequency = indicator.frequency as any
+            }
+          } else if (indicator.source === 'econdify') {
+            const country = (indicator as any).country
+            const indicatorName = (indicator as any).indicator
+            if (!country || !indicatorName) {
+              throw new Error(`Econdify country and indicator are required for ${indicator.id}`)
+            }
+            
+            macroSeries = await fetchEcondifySeries({
+              country,
+              indicator: indicatorName,
+            })
+            
+            // Override ID to match indicator.id
+            if (macroSeries) {
+              macroSeries.id = indicator.id
+              macroSeries.name = indicator.name
+            }
+          } else if (indicator.source === 'dbnomics') {
+            macroSeries = await fetchDBnomicsSeries({
+              provider: indicator.provider,
+              dataset: indicator.dataset,
+              series: indicator.series,
+            })
+          } else if (indicator.source === 'trading_economics' || indicator.source === 'TRADING_ECONOMICS') {
+            // TradingEconomics is explicitly not allowed for Eurozone indicators
+            throw new Error(`TradingEconomics is not allowed for Eurozone indicators. Use 'eurostat', 'ecb', 'fred', 'econdify', or 'dbnomics' instead. Indicator: ${indicator.id}`)
+          } else {
+            throw new Error(`Unknown source: ${indicator.source} for indicator ${indicator.id}`)
           }
-          macroSeries = await fetchECBSimpleSeries(code, 100) // Fetch last 100 observations for historical data
-          // Override ID and name to match indicator configuration
-          if (macroSeries) {
-            macroSeries.id = indicator.id
-            macroSeries.name = indicator.name
-            macroSeries.frequency = indicator.frequency as any
+          
+          // Log successful fetch
+          if (macroSeries && macroSeries.data.length > 0) {
+            logger.info(`[${jobId}] Successfully fetched ${indicator.id}`, {
+              job: jobId,
+              indicatorId: indicator.id,
+              source: indicator.source,
+              dataPoints: macroSeries.data.length,
+              firstDate: macroSeries.data[0]?.date,
+              lastDate: macroSeries.data[macroSeries.data.length - 1]?.date,
+            })
           }
-        } else if (indicator.source === 'fred') {
-          const seriesId = (indicator as any).series_id
-          if (!seriesId) {
-            throw new Error(`FRED series_id is required for ${indicator.id}`)
-          }
-          
-          // For Eurostat series (EA19*), they are already YoY, so don't apply transformation
-          // Check if series ID starts with EA19 (Eurostat series) - these are already YoY
-          const isEurostatYoY = seriesId.startsWith('EA19') && (indicator.id.includes('_YOY') || indicator.name.toLowerCase().includes('yoy'))
-          
-          // Determine if we need YoY transformation
-          // For Eurostat YoY series, they're already YoY, so use units=lin (no transformation)
-          // For other series that need YoY, use units=pc1 (percent change from year ago)
-          const needsYoY = !isEurostatYoY && (indicator.id.includes('_YOY') || indicator.name.toLowerCase().includes('yoy'))
-          const units = needsYoY ? 'pc1' : 'lin' // Use lin for Eurostat YoY series (already YoY)
-          
-          // Fetch from FRED
-          // Note: Some FRED series don't support frequency parameter, so we omit it
-          const observations = await fetchFredSeries(seriesId, {
-            observation_start: '2010-01-01',
-            observation_end: new Date().toISOString().slice(0, 10),
-            units: units, // Use lin for Eurostat YoY (already YoY), pc1 for others
-            // Don't set frequency - let FRED use the series' native frequency
-          })
-          
-          if (observations.length === 0) {
-            throw new Error('No observations returned from FRED')
-          }
-          
-          // Convert to MacroSeries format
-          macroSeries = {
-            id: indicator.id,
-            source: 'FRED',
-            indicator: seriesId,
-            nativeId: seriesId,
-            name: indicator.name,
-            frequency: indicator.frequency as any,
-            data: observations.map(obs => ({
-              date: obs.date,
-              value: obs.value,
-            })),
-            lastUpdated: observations[observations.length - 1]?.date,
-            meta: {
-              series_id: seriesId,
-            },
-          }
-        } else if (indicator.source === 'eurostat') {
-          const dataset = (indicator as any).dataset
-          const filters = (indicator as any).filters || {}
-          const geo = (indicator as any).geo || 'EA19'
-          
-          if (!dataset) {
-            throw new Error(`Eurostat dataset is required for ${indicator.id}`)
-          }
-          
-          macroSeries = await fetchEurostatSeries({
-            dataset,
-            filters,
-            geo,
-            frequency: indicator.frequency as any,
-          })
-          
-          // Override ID and name to match indicator configuration
-          if (macroSeries) {
-            macroSeries.id = indicator.id
-            macroSeries.name = indicator.name
-            macroSeries.frequency = indicator.frequency as any
-          }
-        } else if (indicator.source === 'econdify') {
-          const country = (indicator as any).country
-          const indicatorName = (indicator as any).indicator
-          if (!country || !indicatorName) {
-            throw new Error(`Econdify country and indicator are required for ${indicator.id}`)
-          }
-          
-          macroSeries = await fetchEcondifySeries({
-            country,
-            indicator: indicatorName,
-          })
-          
-          // Override ID to match indicator.id
-          if (macroSeries) {
-            macroSeries.id = indicator.id
-            macroSeries.name = indicator.name
-          }
-        } else if (indicator.source === 'dbnomics') {
-          macroSeries = await fetchDBnomicsSeries({
-            provider: indicator.provider,
-            dataset: indicator.dataset,
-            series: indicator.series,
-          })
-        } else if (indicator.source === 'trading_economics' || indicator.source === 'TRADING_ECONOMICS') {
-          // TradingEconomics is explicitly not allowed for Eurozone indicators
-          throw new Error(`TradingEconomics is not allowed for Eurozone indicators. Use 'eurostat', 'ecb', 'fred', 'econdify', or 'dbnomics' instead. Indicator: ${indicator.id}`)
-        } else {
-          throw new Error(`Unknown source: ${indicator.source} for indicator ${indicator.id}`)
-        }
-        
-        // Log successful fetch
-        if (macroSeries && macroSeries.data.length > 0) {
-          logger.info(`[${jobId}] Successfully fetched ${indicator.id}`, {
-            job: jobId,
-            indicatorId: indicator.id,
-            source: indicator.source,
-            dataPoints: macroSeries.data.length,
-            firstDate: macroSeries.data[0]?.date,
-            lastDate: macroSeries.data[macroSeries.data.length - 1]?.date,
-          })
-        }
         } catch (fetchError) {
           // Log fetch error but don't abort the job - continue with next indicator
           logger.error(`[${jobId}] Failed to fetch ${indicator.id} from ${indicator.source}`, {
@@ -312,27 +359,49 @@ export async function POST(request: NextRequest) {
 
         // Upsert series metadata and observations
         try {
-          await upsertMacroSeries(macroSeries)
-          
-          // TAREA 1: Verify data was saved
-          let verifyCount = 0
+          // Count rows BEFORE insertion
+          let verifyCountBefore = 0
           try {
             if (isUsingTurso()) {
               const db = getUnifiedDB()
-              const verifyResult = await db.prepare(
+              const beforeResult = await db.prepare(
                 `SELECT COUNT(*) as count FROM macro_observations WHERE series_id = ?`
               ).get(indicator.id) as { count: number } | null
-              verifyCount = verifyResult?.count || 0
+              verifyCountBefore = beforeResult?.count || 0
             } else {
               const db = getUnifiedDB()
-              const verifyResult = await db.prepare(
+              const beforeResult = await db.prepare(
                 `SELECT COUNT(*) as count FROM macro_observations WHERE series_id = ?`
               ).get(indicator.id) as { count: number } | undefined
-              verifyCount = verifyResult?.count || 0
+              verifyCountBefore = beforeResult?.count || 0
             }
-          } catch (verifyErr) {
-            logger.warn(`[${jobId}] Could not verify saved data for ${indicator.id}`, { error: String(verifyErr) })
+          } catch (beforeErr) {
+            logger.warn(`[${jobId}] Could not count rows before insertion for ${indicator.id}`, { error: String(beforeErr) })
           }
+          
+          await upsertMacroSeries(macroSeries)
+          
+          // Count rows AFTER insertion
+          let verifyCountAfter = 0
+          try {
+            if (isUsingTurso()) {
+              const db = getUnifiedDB()
+              const afterResult = await db.prepare(
+                `SELECT COUNT(*) as count FROM macro_observations WHERE series_id = ?`
+              ).get(indicator.id) as { count: number } | null
+              verifyCountAfter = afterResult?.count || 0
+            } else {
+              const db = getUnifiedDB()
+              const afterResult = await db.prepare(
+                `SELECT COUNT(*) as count FROM macro_observations WHERE series_id = ?`
+              ).get(indicator.id) as { count: number } | undefined
+              verifyCountAfter = afterResult?.count || 0
+            }
+          } catch (afterErr) {
+            logger.warn(`[${jobId}] Could not count rows after insertion for ${indicator.id}`, { error: String(afterErr) })
+          }
+          
+          const delta = verifyCountAfter - verifyCountBefore
           
           logger.info(`[${jobId}] Successfully saved ${indicator.id}`, {
             job: jobId,
@@ -341,8 +410,22 @@ export async function POST(request: NextRequest) {
             totalPoints: macroSeries.data.length,
             newPoints: newPoints.length,
             lastDate: newPoints[newPoints.length - 1]?.date,
-            verifyCount, // Number of rows in DB after save
+            verifyCountBefore, // Rows before insertion
+            verifyCountAfter, // Rows after insertion
+            delta, // Difference (should match newPoints.length if all were inserted)
           })
+          
+          // Warn if delta doesn't match expected new points (accounting for potential duplicates)
+          if (delta < newPoints.length) {
+            logger.warn(`[${jobId}] Delta (${delta}) is less than newPoints (${newPoints.length}) for ${indicator.id} - possible duplicates or insertion issues`, {
+              job: jobId,
+              indicatorId: indicator.id,
+              delta,
+              newPoints: newPoints.length,
+              verifyCountBefore,
+              verifyCountAfter,
+            })
+          }
         } catch (upsertError) {
           logger.error(`[${jobId}] upsertMacroSeries failed for ${indicator.id}`, {
             job: jobId,

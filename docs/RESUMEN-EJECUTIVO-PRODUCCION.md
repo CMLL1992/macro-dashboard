@@ -297,3 +297,5 @@ Una vez completado este checklist, tu dashboard **CM11 Trading** funcionará 100
 - ✅ Funciona completamente sin tu ordenador
 
 
+
+

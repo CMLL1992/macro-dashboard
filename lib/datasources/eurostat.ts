@@ -39,6 +39,10 @@ export async function fetchEurostatSeries(
 
   // Eurostat API format: ?format=JSON&lang=en&geo=EA20&freq=Q&na_item=B1GQ&s_adj=SA&unit=CLV_PCH_PRE
   const url = `${EUROSTAT_BASE}/${dataset}?format=JSON&lang=en&${filterParams.toString()}`
+  
+  // Log the full URL and parameters for debugging
+  console.log(`[Eurostat] Fetching: ${url}`)
+  console.log(`[Eurostat] Parameters:`, JSON.stringify({ dataset, filters, geo, frequency }, null, 2))
 
   let response: Response
   try {
@@ -236,3 +240,5 @@ export async function fetchEurostatRetailSales(geo: string = 'EA19'): Promise<Ma
     frequency: 'M',
   })
 }
+
+
