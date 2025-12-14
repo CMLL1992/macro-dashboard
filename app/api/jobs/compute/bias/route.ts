@@ -125,39 +125,60 @@ export async function POST(request: NextRequest) {
     const uniquePairsToProcess = Array.from(new Set(filteredAssets.map(a => a.symbol))).sort()
     
     // Find starting index from cursor
+    // IMPORTANT: If cursor exists, start AFTER it (cursorIndex + 1), not at it
     let startIndex = 0
     if (cursor) {
       const cursorIndex = filteredAssets.findIndex(a => a.symbol === cursor)
       if (cursorIndex >= 0) {
-        startIndex = cursorIndex
+        startIndex = cursorIndex + 1 // Start AFTER the cursor, not at it
+      } else {
+        logger.warn(`Cursor ${cursor} not found in filteredAssets, starting from beginning`, { job: jobId })
+        startIndex = 0
       }
     }
 
-    const assetsToProcess = filteredAssets.slice(startIndex, startIndex + batchSize)
+    const endIndex = Math.min(startIndex + batchSize, filteredAssets.length)
+    const assetsToProcess = filteredAssets.slice(startIndex, endIndex)
+    
+    // Calculate nextCursor: should point to the NEXT item after the batch, not the last processed
+    const nextCursor = endIndex < filteredAssets.length ? filteredAssets[endIndex].symbol : null
+    const done = endIndex >= filteredAssets.length
+
     logger.info('Filtered assets for bias computation', {
       job: jobId,
       originalCount: assets.length,
       filteredCount: filteredAssets.length,
       totalPairs: uniquePairsToProcess,
       startIndex,
+      endIndex,
       batchSize,
+      cursor,
+      nextCursor,
+      done,
       pairsInBatch: assetsToProcess.map(a => a.symbol),
     })
 
-    let nextCursor: string | null = null
     let processedCount = 0
+    let actualNextCursor: string | null = nextCursor // Will be updated if we hit hard limit
 
     for (const asset of assetsToProcess) {
       // Check hard limit before processing each asset
       const elapsed = Date.now() - startedAt
       if (elapsed > HARD_LIMIT_MS) {
+        // If we hit hard limit, nextCursor should be the CURRENT asset (we'll continue from here)
+        const currentIndex = filteredAssets.findIndex(a => a.symbol === asset.symbol)
+        if (currentIndex >= 0 && currentIndex + 1 < filteredAssets.length) {
+          actualNextCursor = filteredAssets[currentIndex].symbol // Continue from this asset next time
+        } else {
+          actualNextCursor = null // We're at the end
+        }
         logger.warn(`Hard limit reached, stopping batch processing`, {
           job: jobId,
           elapsedMs: elapsed,
           processedCount,
-          nextAsset: asset.symbol,
+          currentAsset: asset.symbol,
+          nextCursor: actualNextCursor,
         })
-        nextCursor = asset.symbol
         break
       }
 
@@ -193,14 +214,28 @@ export async function POST(request: NextRequest) {
           error: error instanceof Error ? error.message : String(error),
         })
       }
-
-      // Update next cursor after each asset
-      nextCursor = asset.symbol
+      // Note: nextCursor is already calculated before the loop (points to item AFTER batch)
+      // We only update it if we hit hard limit mid-batch
     }
 
+    // Use actualNextCursor (may have been updated if we hit hard limit)
+    const finalNextCursor = actualNextCursor !== null ? actualNextCursor : nextCursor
+
     // Check if we've processed all assets
-    const isComplete = startIndex + processedCount >= filteredAssets.length
-    const done = isComplete && nextCursor === null
+    const isComplete = endIndex >= filteredAssets.length
+    const finalDone = isComplete && finalNextCursor === null
+
+    // Log final cursor state
+    logger.info(`Bias computation batch complete`, {
+      job: jobId,
+      startIndex,
+      endIndex,
+      processedCount,
+      totalAssets: filteredAssets.length,
+      cursor,
+      nextCursor: finalNextCursor,
+      done: finalDone,
+    })
 
     // Save job state
     const durationMs = Date.now() - startedAt
@@ -239,7 +274,7 @@ export async function POST(request: NextRequest) {
 
     // Only run post-processing (alerts, snapshots) if this is the last batch
     // This avoids timeout and ensures alerts only fire once per full computation
-    const isLastBatch = isComplete
+    const isLastBatch = finalDone
 
     // Check USD regime change alert (Trigger A) - only if last batch
     let diagnosis: Awaited<ReturnType<typeof getMacroDiagnosis>> | null = null
@@ -476,8 +511,8 @@ export async function POST(request: NextRequest) {
       computed,
       errors,
       processed: processedCount,
-      nextCursor,
-      done,
+      nextCursor: finalNextCursor,
+      done: finalDone,
       durationMs: Date.now() - startedAt,
       finishedAt,
     })
