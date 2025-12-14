@@ -372,6 +372,13 @@ export async function initializeSchemaUnified(): Promise<void> {
       preferences_json TEXT NOT NULL,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE IF NOT EXISTS job_state (
+      job_name TEXT PRIMARY KEY,
+      cursor TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      last_run_status TEXT,
+      last_run_duration_ms INTEGER
+    )`,
     `CREATE TABLE IF NOT EXISTS notification_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,

@@ -17,6 +17,7 @@ import { logger } from '@/lib/obs/logger'
 import { upsertAssetPrice, upsertAssetMetadata } from '@/lib/db/upsert'
 import { fetchAssetDaily, fetchDXYDaily } from '@/lib/correlations/fetch'
 import { fetchTopCryptocurrencies, fetchCoinMarketCapLatest } from '@/lib/datasources/coinmarketcap'
+import { getJobState, saveJobState } from '@/lib/db/job-state'
 import fs from 'fs'
 import path from 'path'
 
@@ -112,73 +113,167 @@ export async function POST(request: NextRequest) {
   }
 
   const jobId = 'ingest_assets'
-  const startedAt = new Date().toISOString()
+  const startedAt = Date.now()
+  const HARD_LIMIT_MS = 240_000 // 4 minutes (leave margin before 300s timeout)
+
+  // Parse batch parameters
+  const { searchParams } = new URL(request.url)
+  const batchSize = parseInt(searchParams.get('batch') || '5', 10)
+  const cursorParam = searchParams.get('cursor')
+  const resetParam = searchParams.get('reset') === 'true'
 
   try {
-    logger.info('Starting asset prices ingestion', { job: jobId })
+    // Get or reset job state
+    let cursor: string | null = null
+    if (resetParam) {
+      await saveJobState(jobId, null, 'success')
+      logger.info('Job state reset requested', { job: jobId })
+    } else {
+      const state = cursorParam ? null : await getJobState(jobId)
+      cursor = cursorParam || state?.cursor || null
+    }
+
+    logger.info('Starting asset prices ingestion', {
+      job: jobId,
+      batchSize,
+      cursor,
+      reset: resetParam,
+    })
 
     const config = loadAssetsConfig()
     let ingested = 0
     let errors = 0
     const ingestErrors: Array<{ symbol?: string; error: string }> = []
 
-    // PRIORITY: Ingest DXY first (needed for correlations)
-    try {
-      logger.info('Ingesting DXY from FRED', { job: jobId })
-      const dxyPrices = await fetchDXYDaily()
-      
-      if (dxyPrices.length > 0) {
-        // Upsert DXY metadata
-        await upsertAssetMetadata({
-          symbol: 'DXY',
-          name: 'US Dollar Index (DXY)',
-          category: 'index',
-          source: 'FRED',
-        })
-
-        // Upsert DXY prices
-        for (const price of dxyPrices) {
-          await upsertAssetPrice({
-            symbol: 'DXY',
-            date: price.date,
-            close: price.value,
-            source: 'FRED',
-          })
-        }
-
-        ingested++
-        logger.info('Ingested DXY', {
-          job: jobId,
-          symbol: 'DXY',
-          points: dxyPrices.length,
-        })
-      } else {
-        logger.warn('No DXY data fetched from FRED', { job: jobId })
-        errors++
+    // Collect all assets to process (DXY is always first, then forex, indices, metals, crypto)
+    const allAssets: Array<{ symbol: string; category: 'dxy' | 'forex' | 'index' | 'metal' | 'crypto'; config?: any }> = []
+    
+    // DXY is always first
+    allAssets.push({ symbol: 'DXY', category: 'dxy' })
+    
+    // Add forex
+    for (const asset of config.forex || []) {
+      allAssets.push({ symbol: asset.symbol, category: 'forex', config: asset })
+    }
+    
+    // Add indices
+    for (const asset of config.indices || []) {
+      allAssets.push({ symbol: asset.symbol, category: 'index', config: asset })
+    }
+    
+    // Add metals
+    for (const asset of config.metals || []) {
+      allAssets.push({ symbol: asset.symbol, category: 'metal', config: asset })
+    }
+    
+    // Add crypto (will be processed separately, but add placeholder)
+    if (config.crypto && config.crypto.length > 0) {
+      for (const asset of config.crypto) {
+        allAssets.push({ symbol: asset.symbol, category: 'crypto', config: asset })
       }
-    } catch (error) {
-      errors++
-      const errorMsg = error instanceof Error ? error.message : String(error)
-      ingestErrors.push({ symbol: 'DXY', error: errorMsg })
-      logger.error('Failed to ingest DXY', {
-        job: jobId,
-        symbol: 'DXY',
-        error: errorMsg,
-      })
     }
 
-    // Process forex pairs
-    for (const asset of config.forex || []) {
-      try {
-        const yahooSymbol = asset.yahoo_symbol || `${asset.symbol}=X`
+    // Find starting index from cursor
+    let startIndex = 0
+    if (cursor) {
+      const cursorIndex = allAssets.findIndex(a => a.symbol === cursor)
+      if (cursorIndex >= 0) {
+        startIndex = cursorIndex
+      }
+    }
+
+    const assetsToProcess = allAssets.slice(startIndex, startIndex + batchSize)
+    logger.info(`Processing batch: ${assetsToProcess.length} assets starting from index ${startIndex}`, {
+      job: jobId,
+      totalAssets: allAssets.length,
+      startIndex,
+      batchSize,
+      symbols: assetsToProcess.map(a => a.symbol),
+    })
+
+    let nextCursor: string | null = null
+    let processedCount = 0
+
+    // Process assets in batch
+    for (const assetItem of assetsToProcess) {
+      // Check hard limit before processing each asset
+      const elapsed = Date.now() - startedAt
+      if (elapsed > HARD_LIMIT_MS) {
+        logger.warn(`Hard limit reached, stopping batch processing`, {
+          job: jobId,
+          elapsedMs: elapsed,
+          processedCount,
+          nextAsset: assetItem.symbol,
+        })
+        nextCursor = assetItem.symbol
+        break
+      }
+
+      processedCount++
+
+      // PRIORITY: Ingest DXY first (needed for correlations)
+      if (assetItem.category === 'dxy') {
+        try {
+          logger.info('Ingesting DXY from FRED', { job: jobId })
+          const dxyPrices = await fetchDXYDaily()
+          
+          if (dxyPrices.length > 0) {
+            // Upsert DXY metadata
+            await upsertAssetMetadata({
+              symbol: 'DXY',
+              name: 'US Dollar Index (DXY)',
+              category: 'index',
+              source: 'FRED',
+            })
+
+            // Upsert DXY prices
+            for (const price of dxyPrices) {
+              await upsertAssetPrice({
+                symbol: 'DXY',
+                date: price.date,
+                close: price.value,
+                source: 'FRED',
+              })
+            }
+
+            ingested++
+            logger.info('Ingested DXY', {
+              job: jobId,
+              symbol: 'DXY',
+              points: dxyPrices.length,
+            })
+          } else {
+            logger.warn('No DXY data fetched from FRED', { job: jobId })
+            errors++
+          }
+        } catch (error) {
+          errors++
+          const errorMsg = error instanceof Error ? error.message : String(error)
+          ingestErrors.push({ symbol: 'DXY', error: errorMsg })
+          logger.error('Failed to ingest DXY', {
+            job: jobId,
+            symbol: 'DXY',
+            error: errorMsg,
+          })
+        }
+        nextCursor = assetItem.symbol
+        continue
+      }
+
+      // Process forex pairs
+      if (assetItem.category === 'forex' && assetItem.config) {
+        const asset = assetItem.config
+        try {
+          const yahooSymbol = asset.yahoo_symbol || `${asset.symbol}=X`
         // Obtener 5 años de datos históricos para poder calcular correlaciones con más precisión
         const prices = await fetchYahooOHLCV(yahooSymbol, '5y')
         
-        if (prices.length === 0) {
-          logger.warn(`No prices for ${asset.symbol}`, { job: jobId })
-          errors++
-          continue
-        }
+          if (prices.length === 0) {
+            logger.warn(`No prices for ${asset.symbol}`, { job: jobId })
+            errors++
+            nextCursor = assetItem.symbol
+            continue
+          }
 
         // Upsert metadata
         await upsertAssetMetadata({
@@ -213,233 +308,28 @@ export async function POST(request: NextRequest) {
         errors++
         const errorMsg = error instanceof Error ? error.message : String(error)
         ingestErrors.push({ symbol: asset.symbol, error: errorMsg })
-        logger.error(`Failed to ingest ${asset.symbol}`, {
-          job: jobId,
-          symbol: asset.symbol,
-          error: errorMsg,
-        })
-      }
-    }
-
-    // Process indices (including NASDAQ)
-    for (const asset of config.indices || []) {
-      try {
-        const yahooSymbol = asset.yahoo_symbol || `^${asset.symbol}`
-        // Obtener 5 años de datos históricos para poder calcular correlaciones con más precisión
-        const prices = await fetchYahooOHLCV(yahooSymbol, '5y')
-        
-        if (prices.length === 0) {
-          logger.warn(`No prices for ${asset.symbol}`, { job: jobId })
-          errors++
-          continue
-        }
-
-        // Upsert metadata
-        await upsertAssetMetadata({
-          symbol: asset.symbol,
-          name: asset.name,
-          category: 'index',
-          source: 'YAHOO',
-          yahoo_symbol: yahooSymbol,
-        })
-
-        // Upsert prices
-        for (const price of prices) {
-          await upsertAssetPrice({
+          logger.error(`Failed to ingest ${asset.symbol}`, {
+            job: jobId,
             symbol: asset.symbol,
-            date: price.date,
-            open: price.open,
-            high: price.high,
-            low: price.low,
-            close: price.close,
-            volume: price.volume,
-            source: 'YAHOO',
+            error: errorMsg,
           })
         }
-
-        ingested++
-        logger.info(`Ingested ${asset.symbol}`, {
-          job: jobId,
-          symbol: asset.symbol,
-          points: prices.length,
-        })
-      } catch (error) {
-        errors++
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        ingestErrors.push({ symbol: asset.symbol, error: errorMsg })
-        logger.error(`Failed to ingest ${asset.symbol}`, {
-          job: jobId,
-          symbol: asset.symbol,
-          error: errorMsg,
-        })
+        nextCursor = assetItem.symbol
+        continue
       }
-    }
 
-    // Process metals
-    for (const asset of config.metals || []) {
-      try {
-        const yahooSymbol = asset.yahoo_symbol
-        if (!yahooSymbol) {
-          logger.warn(`No Yahoo symbol for ${asset.symbol}`, { job: jobId })
-          errors++
-          continue
-        }
-
-        // Obtener 5 años de datos históricos para poder calcular correlaciones con más precisión
-        const prices = await fetchYahooOHLCV(yahooSymbol, '5y')
-        
-        if (prices.length === 0) {
-          logger.warn(`No prices for ${asset.symbol}`, { job: jobId })
-          errors++
-          continue
-        }
-
-        // Upsert metadata
-        await upsertAssetMetadata({
-          symbol: asset.symbol,
-          name: asset.name,
-          category: 'metal',
-          source: 'YAHOO',
-          yahoo_symbol: yahooSymbol,
-        })
-
-        // Upsert prices
-        for (const price of prices) {
-          await upsertAssetPrice({
-            symbol: asset.symbol,
-            date: price.date,
-            open: price.open,
-            high: price.high,
-            low: price.low,
-            close: price.close,
-            volume: price.volume,
-            source: 'YAHOO',
-          })
-        }
-
-        ingested++
-        logger.info(`Ingested ${asset.symbol}`, {
-          job: jobId,
-          symbol: asset.symbol,
-          points: prices.length,
-        })
-      } catch (error) {
-        errors++
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        ingestErrors.push({ symbol: asset.symbol, error: errorMsg })
-        logger.error(`Failed to ingest ${asset.symbol}`, {
-          job: jobId,
-          symbol: asset.symbol,
-          error: errorMsg,
-        })
-      }
-    }
-
-    // Process cryptocurrencies
-    const cmcApiKey = process.env.COINMARKETCAP_API_KEY
-    if (cmcApiKey) {
-      try {
-        // Get top 25 cryptocurrencies from CoinMarketCap
-        const topCrypto = await fetchTopCryptocurrencies(25, cmcApiKey)
-        
-        // Map to our config symbols
-        const cryptoMap = new Map(
-          (config.crypto || []).map((c: any) => [c.coinmarketcap_id, c])
-        )
-
-        for (const crypto of topCrypto) {
-          try {
-            const configCrypto = cryptoMap.get(crypto.id) as { symbol?: string } | undefined
-            const symbol = configCrypto?.symbol || `${crypto.symbol}USDT`
-            
-            // Try to get latest price from CoinMarketCap
-            const latest = await fetchCoinMarketCapLatest(crypto.id, cmcApiKey)
-            
-            // Fallback to Yahoo Finance for historical data
-            const yahooSymbol = `${crypto.symbol}-USD`
-            // Obtener 5 años de datos históricos para poder calcular correlaciones con más precisión
-        const prices = await fetchYahooOHLCV(yahooSymbol, '5y')
-            
-            if (latest) {
-              // Add latest price if not in historical data
-              const today = new Date().toISOString().slice(0, 10)
-              const hasToday = prices.some(p => p.date === today)
-              
-              if (!hasToday) {
-                prices.push({
-                  date: today,
-                  open: latest.price,
-                  high: latest.price,
-                  low: latest.price,
-                  close: latest.price,
-                  volume: latest.volume24h,
-                })
-              }
-            }
-
-            if (prices.length === 0) {
-              logger.warn(`No prices for ${symbol}`, { job: jobId })
-              errors++
-              continue
-            }
-
-            // Upsert metadata
-            await upsertAssetMetadata({
-              symbol,
-              name: crypto.name,
-              category: 'crypto',
-              source: 'COINMARKETCAP',
-              yahoo_symbol: yahooSymbol,
-            })
-
-            // Upsert prices
-            for (const price of prices) {
-              await upsertAssetPrice({
-                symbol,
-                date: price.date,
-                open: price.open,
-                high: price.high,
-                low: price.low,
-                close: price.close,
-                volume: price.volume,
-                source: latest ? 'COINMARKETCAP' : 'YAHOO',
-              })
-            }
-
-            ingested++
-            logger.info(`Ingested ${symbol}`, {
-              job: jobId,
-              symbol,
-              points: prices.length,
-            })
-          } catch (error) {
-            errors++
-            const errorMsg = error instanceof Error ? error.message : String(error)
-            ingestErrors.push({ symbol: crypto.symbol, error: errorMsg })
-            logger.error(`Failed to ingest ${crypto.symbol}`, {
-              job: jobId,
-              symbol: crypto.symbol,
-              error: errorMsg,
-            })
-          }
-        }
-      } catch (error) {
-        logger.error('Failed to fetch top cryptocurrencies', {
-          job: jobId,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    } else {
-      // Fallback: use config crypto list with Yahoo Finance
-      for (const asset of config.crypto || []) {
+      // Process indices (including NASDAQ)
+      if (assetItem.category === 'index' && assetItem.config) {
+        const asset = assetItem.config
         try {
-          const yahooSymbol = `${asset.symbol.replace('USDT', '')}-USD`
-          // Obtener 5 años de datos históricos para poder calcular correlaciones con más precisión
+          const yahooSymbol = asset.yahoo_symbol || `^${asset.symbol}`
+        // Obtener 5 años de datos históricos para poder calcular correlaciones con más precisión
         const prices = await fetchYahooOHLCV(yahooSymbol, '5y')
-          
+        
           if (prices.length === 0) {
             logger.warn(`No prices for ${asset.symbol}`, { job: jobId })
             errors++
+            nextCursor = assetItem.symbol
             continue
           }
 
@@ -447,7 +337,7 @@ export async function POST(request: NextRequest) {
           await upsertAssetMetadata({
             symbol: asset.symbol,
             name: asset.name,
-            category: 'crypto',
+            category: 'index',
             source: 'YAHOO',
             yahoo_symbol: yahooSymbol,
           })
@@ -482,25 +372,169 @@ export async function POST(request: NextRequest) {
             error: errorMsg,
           })
         }
+        nextCursor = assetItem.symbol
+        continue
       }
-    }
+
+      // Process metals
+      if (assetItem.category === 'metal' && assetItem.config) {
+        const asset = assetItem.config
+        try {
+          const yahooSymbol = asset.yahoo_symbol
+          if (!yahooSymbol) {
+            logger.warn(`No Yahoo symbol for ${asset.symbol}`, { job: jobId })
+            errors++
+            nextCursor = assetItem.symbol
+            continue
+          }
+
+          // Obtener 5 años de datos históricos para poder calcular correlaciones con más precisión
+          const prices = await fetchYahooOHLCV(yahooSymbol, '5y')
+          
+          if (prices.length === 0) {
+            logger.warn(`No prices for ${asset.symbol}`, { job: jobId })
+            errors++
+            nextCursor = assetItem.symbol
+            continue
+          }
+
+          // Upsert metadata
+          await upsertAssetMetadata({
+            symbol: asset.symbol,
+            name: asset.name,
+            category: 'metal',
+            source: 'YAHOO',
+            yahoo_symbol: yahooSymbol,
+          })
+
+          // Upsert prices
+          for (const price of prices) {
+            await upsertAssetPrice({
+              symbol: asset.symbol,
+              date: price.date,
+              open: price.open,
+              high: price.high,
+              low: price.low,
+              close: price.close,
+              volume: price.volume,
+              source: 'YAHOO',
+            })
+          }
+
+          ingested++
+          logger.info(`Ingested ${asset.symbol}`, {
+            job: jobId,
+            symbol: asset.symbol,
+            points: prices.length,
+          })
+        } catch (error) {
+          errors++
+          const errorMsg = error instanceof Error ? error.message : String(error)
+          ingestErrors.push({ symbol: asset.symbol, error: errorMsg })
+          logger.error(`Failed to ingest ${asset.symbol}`, {
+            job: jobId,
+            symbol: asset.symbol,
+            error: errorMsg,
+          })
+        }
+        nextCursor = assetItem.symbol
+        continue
+      }
+
+      // Process cryptocurrencies (only if we have time and this is in the batch)
+      if (assetItem.category === 'crypto' && assetItem.config) {
+        const asset = assetItem.config
+        try {
+          // Simplified: always use Yahoo Finance for crypto (CoinMarketCap processing is complex and can timeout)
+          const yahooSymbol = `${asset.symbol.replace('USDT', '').replace('USD', '')}-USD`
+          const prices = await fetchYahooOHLCV(yahooSymbol, '5y')
+          
+          if (prices.length === 0) {
+            logger.warn(`No prices for ${asset.symbol}`, { job: jobId })
+            errors++
+          } else {
+            // Upsert metadata
+            await upsertAssetMetadata({
+              symbol: asset.symbol,
+              name: asset.name,
+              category: 'crypto',
+              source: 'YAHOO',
+              yahoo_symbol: yahooSymbol,
+            })
+
+            // Upsert prices
+            for (const price of prices) {
+              await upsertAssetPrice({
+                symbol: asset.symbol,
+                date: price.date,
+                open: price.open,
+                high: price.high,
+                low: price.low,
+                close: price.close,
+                volume: price.volume,
+                source: 'YAHOO',
+              })
+            }
+
+            ingested++
+            logger.info(`Ingested ${asset.symbol}`, {
+              job: jobId,
+              symbol: asset.symbol,
+              points: prices.length,
+            })
+          }
+        } catch (error) {
+          errors++
+          const errorMsg = error instanceof Error ? error.message : String(error)
+          ingestErrors.push({ symbol: asset.symbol, error: errorMsg })
+          logger.error(`Failed to ingest ${asset.symbol}`, {
+            job: jobId,
+            symbol: asset.symbol,
+            error: errorMsg,
+          })
+        }
+        nextCursor = assetItem.symbol
+        continue
+      }
+    } // End of for loop
+
+    // Check if we've processed all assets
+    const isComplete = startIndex + processedCount >= allAssets.length
+    const done = isComplete && nextCursor === null
+
+    // Save job state
+    const totalDurationMs = Date.now() - startedAt
+    await saveJobState(
+      jobId,
+      done ? null : nextCursor,
+      done ? 'success' : 'partial',
+      totalDurationMs
+    )
 
     const finishedAt = new Date().toISOString()
-    const durationMs = new Date(finishedAt).getTime() - new Date(startedAt).getTime()
 
-    logger.info('Asset prices ingestion completed', {
+    logger.info('Asset prices ingestion batch completed', {
       job: jobId,
       ingested,
       errors,
-      durationMs,
+      durationMs: totalDurationMs,
+      done,
+      nextCursor,
+      processedCount,
+      totalAssets: allAssets.length,
     })
 
     return NextResponse.json({
       success: true,
+      job: jobId,
       ingested,
       errors,
-      duration_ms: durationMs,
+      processed: processedCount,
+      nextCursor,
+      done,
+      durationMs: totalDurationMs,
       finishedAt,
+      ingestErrors: ingestErrors.slice(0, 10), // Limit to first 10 errors
     })
   } catch (error) {
     const finishedAt = new Date().toISOString()

@@ -28,6 +28,7 @@ import { getInstitutionalScenarios } from '@/domain/scenarios'
 import getCorrelationState from '@/domain/macro-engine/correlations'
 import { recordJobSuccess } from '@/lib/db/job-status'
 import { isAllowedPair } from '@/config/tactical-pairs'
+import { getJobState, saveJobState } from '@/lib/db/job-state'
 
 export async function POST(request: NextRequest) {
   // In development on localhost, allow without token if CRON_TOKEN is not set
@@ -45,10 +46,32 @@ export async function POST(request: NextRequest) {
   }
 
   const jobId = 'compute_bias'
-  const startedAt = new Date().toISOString()
+  const startedAt = Date.now()
+  const HARD_LIMIT_MS = 240_000 // 4 minutes (leave margin before 300s timeout)
+
+  // Parse batch parameters
+  const { searchParams } = new URL(request.url)
+  const batchSize = parseInt(searchParams.get('batch') || '5', 10)
+  const cursorParam = searchParams.get('cursor')
+  const resetParam = searchParams.get('reset') === 'true'
 
   try {
-    logger.info('Starting bias computation', { job: jobId })
+    // Get or reset job state
+    let cursor: string | null = null
+    if (resetParam) {
+      await saveJobState(jobId, null, 'success')
+      logger.info('Job state reset requested', { job: jobId })
+    } else {
+      const state = cursorParam ? null : await getJobState(jobId)
+      cursor = cursorParam || state?.cursor || null
+    }
+
+    logger.info('Starting bias computation', {
+      job: jobId,
+      batchSize,
+      cursor,
+      reset: resetParam,
+    })
 
     // Load tactical pairs (reduced list) - Priority 1
     let assets: AssetMeta[] = []
@@ -100,14 +123,45 @@ export async function POST(request: NextRequest) {
     const filteredAssets = assets.filter(asset => isAllowedPair(asset.symbol))
     
     const uniquePairsToProcess = Array.from(new Set(filteredAssets.map(a => a.symbol))).sort()
+    
+    // Find starting index from cursor
+    let startIndex = 0
+    if (cursor) {
+      const cursorIndex = filteredAssets.findIndex(a => a.symbol === cursor)
+      if (cursorIndex >= 0) {
+        startIndex = cursorIndex
+      }
+    }
+
+    const assetsToProcess = filteredAssets.slice(startIndex, startIndex + batchSize)
     logger.info('Filtered assets for bias computation', {
       job: jobId,
       originalCount: assets.length,
       filteredCount: filteredAssets.length,
-      pairs: uniquePairsToProcess,
+      totalPairs: uniquePairsToProcess,
+      startIndex,
+      batchSize,
+      pairsInBatch: assetsToProcess.map(a => a.symbol),
     })
 
-    for (const asset of filteredAssets) {
+    let nextCursor: string | null = null
+    let processedCount = 0
+
+    for (const asset of assetsToProcess) {
+      // Check hard limit before processing each asset
+      const elapsed = Date.now() - startedAt
+      if (elapsed > HARD_LIMIT_MS) {
+        logger.warn(`Hard limit reached, stopping batch processing`, {
+          job: jobId,
+          elapsedMs: elapsed,
+          processedCount,
+          nextAsset: asset.symbol,
+        })
+        nextCursor = asset.symbol
+        break
+      }
+
+      processedCount++
       try {
         const bias = await computeMacroBias(asset)
         const narrative = buildBiasNarrative(bias, asset)
@@ -139,7 +193,23 @@ export async function POST(request: NextRequest) {
           error: error instanceof Error ? error.message : String(error),
         })
       }
+
+      // Update next cursor after each asset
+      nextCursor = asset.symbol
     }
+
+    // Check if we've processed all assets
+    const isComplete = startIndex + processedCount >= filteredAssets.length
+    const done = isComplete && nextCursor === null
+
+    // Save job state
+    const durationMs = Date.now() - startedAt
+    await saveJobState(
+      jobId,
+      done ? null : nextCursor,
+      done ? 'success' : 'partial',
+      durationMs
+    )
 
     const finishedAt = new Date().toISOString()
 
@@ -156,17 +226,27 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    logger.info('Bias computation completed', {
+    logger.info('Bias computation batch completed', {
       job: jobId,
       computed,
       errors,
+      done,
+      nextCursor,
+      processedCount,
+      totalAssets: filteredAssets.length,
+      durationMs,
     })
 
-    // Check USD regime change alert (Trigger A)
+    // Only run post-processing (alerts, snapshots) if this is the last batch
+    // This avoids timeout and ensures alerts only fire once per full computation
+    const isLastBatch = isComplete
+
+    // Check USD regime change alert (Trigger A) - only if last batch
     let diagnosis: Awaited<ReturnType<typeof getMacroDiagnosis>> | null = null
     let biasState: Awaited<ReturnType<typeof getBiasState>> | null = null
     
-    try {
+    if (isLastBatch && durationMs < HARD_LIMIT_MS) {
+      try {
       diagnosis = await getMacroDiagnosis()
       if (!diagnosis) {
         throw new Error('Failed to get macro diagnosis')
@@ -379,14 +459,27 @@ export async function POST(request: NextRequest) {
       // No fallar el job completo si falla el backtest
     }
 
-    // Revalidate dashboard
-    try { revalidatePath('/') } catch {}
+      // Revalidate dashboard (only if last batch)
+      try { revalidatePath('/') } catch {}
+    } else {
+      logger.info('Skipping post-processing (alerts, snapshots) - not last batch or time limit reached', {
+        job: jobId,
+        isLastBatch,
+        durationMs,
+        hardLimit: HARD_LIMIT_MS,
+      })
+    }
 
     return NextResponse.json({
       success: true,
+      job: jobId,
       computed,
       errors,
-      duration_ms: new Date(finishedAt).getTime() - new Date(startedAt).getTime(),
+      processed: processedCount,
+      nextCursor,
+      done,
+      durationMs: Date.now() - startedAt,
+      finishedAt,
     })
   } catch (error) {
     const finishedAt = new Date().toISOString()

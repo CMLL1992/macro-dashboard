@@ -22,6 +22,7 @@ import { getAllIndicatorHistories } from '@/lib/db/read'
 import { getMacroDiagnosis } from '@/domain/diagnostic'
 import { KEY_TO_SERIES_ID } from '@/lib/db/read-macro'
 import { fetchWithFallback, createFredFallbackSources } from '@/lib/datasources/fallback'
+import { getJobState, saveJobState } from '@/lib/db/job-state'
 
 // FRED series IDs used by the dashboard
 const FRED_SERIES = [
@@ -71,10 +72,32 @@ export async function POST(request: NextRequest) {
   }
 
   const jobId = 'ingest_fred'
-  const startedAt = new Date().toISOString()
+  const startedAt = Date.now()
+  const HARD_LIMIT_MS = 240_000 // 4 minutes (leave margin before 300s timeout)
+
+  // Parse batch parameters
+  const { searchParams } = new URL(request.url)
+  const batchSize = parseInt(searchParams.get('batch') || '10', 10)
+  const cursorParam = searchParams.get('cursor')
+  const resetParam = searchParams.get('reset') === 'true'
 
   try {
-    logger.info('Starting FRED data ingestion', { job: jobId })
+    // Get or reset job state
+    let cursor: string | null = null
+    if (resetParam) {
+      await saveJobState(jobId, null, 'success')
+      logger.info('Job state reset requested', { job: jobId })
+    } else {
+      const state = cursorParam ? null : await getJobState(jobId)
+      cursor = cursorParam || state?.cursor || null
+    }
+
+    logger.info('Starting FRED data ingestion', {
+      job: jobId,
+      batchSize,
+      cursor,
+      reset: resetParam,
+    })
 
     let ingested = 0
     let errors = 0
@@ -84,25 +107,63 @@ export async function POST(request: NextRequest) {
     // Forzar reingesta completa temporalmente para rellenar histórico y "dato anterior"
     const FORCE_FULL_REINGEST = true
 
+    // Find starting index from cursor
+    let startIndex = 0
+    if (cursor) {
+      const cursorIndex = FRED_SERIES.findIndex(s => s.id === cursor)
+      if (cursorIndex >= 0) {
+        startIndex = cursorIndex
+      }
+    }
+
+    const seriesToProcess = FRED_SERIES.slice(startIndex, startIndex + batchSize)
+    logger.info(`Processing batch: ${seriesToProcess.length} series starting from index ${startIndex}`, {
+      job: jobId,
+      totalSeries: FRED_SERIES.length,
+      startIndex,
+      batchSize,
+      seriesIds: seriesToProcess.map(s => s.id),
+    })
+
     // Pre-fetch all last dates from DB in a single query to optimize (still useful for logging)
+    // Only fetch for series in current batch to optimize
     const db = getUnifiedDB()
     let lastDatesMap = new Map<string, string | null>()
     try {
-      const seriesIds = FRED_SERIES.map(s => s.id)
-      const placeholders = seriesIds.map(() => '?').join(',')
-      const result = await db.prepare(
-        `SELECT series_id, MAX(date) as max_date FROM macro_observations WHERE series_id IN (${placeholders}) GROUP BY series_id`
-      ).all(...seriesIds) as Array<{ series_id: string; max_date: string | null }>
-      
-      for (const row of result) {
-        lastDatesMap.set(row.series_id, row.max_date)
+      const seriesIds = seriesToProcess.map(s => s.id)
+      if (seriesIds.length > 0) {
+        const placeholders = seriesIds.map(() => '?').join(',')
+        const result = await db.prepare(
+          `SELECT series_id, MAX(date) as max_date FROM macro_observations WHERE series_id IN (${placeholders}) GROUP BY series_id`
+        ).all(...seriesIds) as Array<{ series_id: string; max_date: string | null }>
+        
+        for (const row of result) {
+          lastDatesMap.set(row.series_id, row.max_date)
+        }
+        logger.info('Pre-fetched last dates from DB', { job: jobId, count: lastDatesMap.size })
       }
-      logger.info('Pre-fetched last dates from DB', { job: jobId, count: lastDatesMap.size })
     } catch (err) {
       logger.warn('Could not pre-fetch last dates, will query individually', { job: jobId, error: String(err) })
     }
 
-    for (const series of FRED_SERIES) {
+    let nextCursor: string | null = null
+    let processedCount = 0
+
+    for (const series of seriesToProcess) {
+      // Check hard limit before processing each series
+      const elapsed = Date.now() - startedAt
+      if (elapsed > HARD_LIMIT_MS) {
+        logger.warn(`Hard limit reached, stopping batch processing`, {
+          job: jobId,
+          elapsedMs: elapsed,
+          processedCount,
+          nextSeries: series.id,
+        })
+        nextCursor = series.id
+        break
+      }
+
+      processedCount++
       const seriesStartTime = Date.now()
       try {
         // Get indicator config synchronously (if available) - cache import to avoid repeated imports
@@ -239,16 +300,38 @@ export async function POST(request: NextRequest) {
           durationMs: seriesDurationMs,
         })
       }
+
+      // Update next cursor after each successful series
+      nextCursor = series.id
     }
 
-    // Ingest PMI Manufacturing from alternative sources (not available in FRED)
-    // Try Alpha Vantage -> Manual entry (TradingEconomics removed for USA)
+    // Check if we've processed all series
+    const isComplete = startIndex + processedCount >= FRED_SERIES.length
+    const done = isComplete && nextCursor === null
+
+    // Save job state
+    const durationMs = Date.now() - startedAt
+    await saveJobState(
+      jobId,
+      done ? null : nextCursor,
+      done ? 'success' : 'partial',
+      durationMs
+    )
+
+    // Only process PMI if we're in the last batch (to avoid timeout)
+    // PMI is processed after all FRED series, so only do it if we're done with FRED series
+    const isLastBatch = isComplete
     let pmiIngested = false
     let pmiError: string | null = null
     
-    // Source: Alpha Vantage (if available)
-    if (!pmiIngested && process.env.ALPHA_VANTAGE_API_KEY) {
-      try {
+    // Ingest PMI Manufacturing from alternative sources (not available in FRED)
+    // Try Alpha Vantage -> Manual entry (TradingEconomics removed for USA)
+    // Only process if we have time and this is the last batch
+    if (isLastBatch && !pmiIngested && process.env.ALPHA_VANTAGE_API_KEY) {
+      // Check time limit before processing PMI
+      const elapsed = Date.now() - startedAt
+      if (elapsed < HARD_LIMIT_MS) {
+        try {
         logger.info('Attempting PMI ingestion from Alpha Vantage', { job: jobId })
         const { fetchAlphaVantagePMI } = await import('@/packages/ingestors/alphavantage')
         
@@ -287,10 +370,17 @@ export async function POST(request: NextRequest) {
         })
         if (!pmiError) pmiError = avError
       }
+      } else {
+        logger.warn('Skipping PMI ingestion - time limit reached', {
+          job: jobId,
+          elapsed,
+          hardLimit: HARD_LIMIT_MS,
+        })
+      }
     }
     
-    // Log final status
-    if (!pmiIngested) {
+    // Log final status (only if last batch)
+    if (isLastBatch && !pmiIngested) {
       errors++
       const finalError = pmiError || 'No PMI data sources available or all sources failed'
       ingestErrors.push({ seriesId: 'USPMI', error: finalError })
@@ -302,44 +392,47 @@ export async function POST(request: NextRequest) {
     }
 
     const finishedAt = new Date().toISOString()
-    const durationMs = new Date(finishedAt).getTime() - new Date(startedAt).getTime()
+    const totalDurationMs = Date.now() - startedAt
 
     // Log timing summary
     const totalSeriesTime = seriesTimings.reduce((sum, t) => sum + t.durationMs, 0)
     const avgSeriesTime = seriesTimings.length > 0 ? totalSeriesTime / seriesTimings.length : 0
     const slowestSeries = seriesTimings.sort((a, b) => b.durationMs - a.durationMs)[0]
     
-    logger.info('FRED ingestion completed', {
+    logger.info('FRED ingestion batch completed', {
       job: jobId,
       ingested,
       errors,
-      durationMs,
+      durationMs: totalDurationMs,
+      done,
+      nextCursor,
+      processedCount,
+      totalSeries: FRED_SERIES.length,
       totalSeriesTime,
       avgSeriesTime: Math.round(avgSeriesTime),
       slowestSeries: slowestSeries ? { id: slowestSeries.seriesId, durationMs: slowestSeries.durationMs } : null,
       seriesTimings: seriesTimings.slice(0, 5), // Log top 5 slowest
     })
 
-    // Save ingest history
-    try {
-      await saveIngestHistory({
-        jobType: 'ingest_fred',
-        updatedSeriesCount: ingested,
-        errorsCount: errors,
-        durationMs,
-        errors: ingestErrors.length > 0 ? ingestErrors : undefined,
-        finishedAt,
-      })
-    } catch (error) {
-      logger.error('Failed to save ingest history', { job: jobId, error })
+    // Save ingest history (only if done, to avoid cluttering history with partial batches)
+    if (done) {
+      try {
+        await saveIngestHistory({
+          jobType: 'ingest_fred',
+          updatedSeriesCount: ingested,
+          errorsCount: errors,
+          durationMs: totalDurationMs,
+          errors: ingestErrors.length > 0 ? ingestErrors : undefined,
+          finishedAt,
+        })
+      } catch (error) {
+        logger.error('Failed to save ingest history', { job: jobId, error })
+      }
     }
 
-    // Check macro release alerts (Trigger C) - Only if we have time (< 250s elapsed)
+    // Check macro release alerts (Trigger C) - Only if we have time and this is the last batch
     // Skip if we're running out of time to avoid timeout
-    const timeElapsed = Date.now() - new Date(startedAt).getTime()
-    const TIME_LIMIT_MS = 250 * 1000 // 250 seconds (leave 50s buffer)
-    
-    if (timeElapsed < TIME_LIMIT_MS) {
+    if (isLastBatch && totalDurationMs < HARD_LIMIT_MS) {
       try {
         const alertsStartTime = Date.now()
         const diagnosis = await getMacroDiagnosis()
@@ -381,19 +474,25 @@ export async function POST(request: NextRequest) {
         })
       }
     } else {
-      logger.warn('Skipping macro release alerts check due to time limit', {
+      logger.warn('Skipping macro release alerts check due to time limit or not last batch', {
         job: jobId,
-        timeElapsed,
-        timeLimit: TIME_LIMIT_MS,
+        isLastBatch,
+        durationMs: totalDurationMs,
+        hardLimit: HARD_LIMIT_MS,
       })
     }
 
     return NextResponse.json({
       success: true,
+      job: jobId,
       ingested,
       errors,
-      duration_ms: durationMs,
+      processed: processedCount,
+      nextCursor,
+      done,
+      durationMs: totalDurationMs,
       finishedAt,
+      ingestErrors: ingestErrors.slice(0, 10), // Limit to first 10 errors
     })
   } catch (error) {
     const finishedAt = new Date().toISOString()
