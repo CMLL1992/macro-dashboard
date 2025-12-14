@@ -205,6 +205,14 @@ const schemaStatements = [
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(metric_name, labels)
   )`,
+  `CREATE TABLE IF NOT EXISTS job_state (
+    job_name TEXT PRIMARY KEY,
+    cursor TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_run_status TEXT,
+    last_run_duration_ms INTEGER
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_job_state_updated_at ON job_state(updated_at)`,
   `CREATE TABLE IF NOT EXISTS ingest_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     job_type TEXT NOT NULL,
@@ -276,6 +284,13 @@ const schemaStatements = [
     error_count INTEGER DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS job_state (
+    job_name TEXT PRIMARY KEY,
+    cursor TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_run_status TEXT,
+    last_run_duration_ms INTEGER
+  )`,
   // Índices
   `CREATE INDEX IF NOT EXISTS idx_observations_series_date ON macro_observations(series_id, date)`,
   `CREATE INDEX IF NOT EXISTS idx_asset_prices_symbol_date ON asset_prices(symbol, date)`,
@@ -306,6 +321,7 @@ const schemaStatements = [
   `CREATE INDEX IF NOT EXISTS idx_macro_event_impact_release_id ON macro_event_impact(release_id)`,
   `CREATE INDEX IF NOT EXISTS idx_macro_event_impact_currency ON macro_event_impact(currency)`,
   `CREATE INDEX IF NOT EXISTS idx_job_status_updated_at ON job_status(updated_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_job_state_updated_at ON job_state(updated_at)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_economic_events_source_event_id ON economic_events(source_event_id)`,
 ]
 

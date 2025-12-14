@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateCronToken, unauthorizedResponse } from '@/lib/security/token'
 import { logger } from '@/lib/obs/logger'
 import { upsertAssetPrice, upsertAssetMetadata } from '@/lib/db/upsert'
+import { upsertAssetPricesBatch } from '@/lib/db/upsert-asset-prices-batch'
 import { fetchAssetDaily, fetchDXYDaily } from '@/lib/correlations/fetch'
 import { fetchTopCryptocurrencies, fetchCoinMarketCapLatest } from '@/lib/datasources/coinmarketcap'
 import { getJobState, saveJobState } from '@/lib/db/job-state'
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
 
   // Parse batch parameters
   const { searchParams } = new URL(request.url)
-  const batchSize = parseInt(searchParams.get('batch') || '5', 10)
+  const batchSize = parseInt(searchParams.get('batch') || '2', 10) // Default: 2 (reduced from 5 to avoid timeout)
   const cursorParam = searchParams.get('cursor')
   const resetParam = searchParams.get('reset') === 'true'
 
@@ -226,15 +227,15 @@ export async function POST(request: NextRequest) {
               source: 'FRED',
             })
 
-            // Upsert DXY prices
-            for (const price of dxyPrices) {
-              await upsertAssetPrice({
-                symbol: 'DXY',
-                date: price.date,
-                close: price.value,
+            // Upsert DXY prices (batch insert for performance)
+            await upsertAssetPricesBatch(
+              'DXY',
+              dxyPrices.map(p => ({
+                date: p.date,
+                close: p.value,
                 source: 'FRED',
-              })
-            }
+              }))
+            )
 
             ingested++
             logger.info('Ingested DXY', {
@@ -275,39 +276,50 @@ export async function POST(request: NextRequest) {
             continue
           }
 
-        // Upsert metadata
-        await upsertAssetMetadata({
-          symbol: asset.symbol,
-          name: asset.name,
-          category: 'forex',
-          source: 'YAHOO',
-          yahoo_symbol: yahooSymbol,
-        })
-
-        // Upsert prices
-        for (const price of prices) {
-          await upsertAssetPrice({
+          // Upsert metadata
+          await upsertAssetMetadata({
             symbol: asset.symbol,
-            date: price.date,
-            open: price.open,
-            high: price.high,
-            low: price.low,
-            close: price.close,
-            volume: price.volume,
+            name: asset.name,
+            category: 'forex',
             source: 'YAHOO',
+            yahoo_symbol: yahooSymbol,
           })
-        }
 
-        ingested++
-        logger.info(`Ingested ${asset.symbol}`, {
-          job: jobId,
-          symbol: asset.symbol,
-          points: prices.length,
-        })
-      } catch (error) {
-        errors++
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        ingestErrors.push({ symbol: asset.symbol, error: errorMsg })
+          // Check deadline before batch upsert
+          const elapsedBeforeUpsert = Date.now() - startedAt
+          if (elapsedBeforeUpsert > HARD_LIMIT_MS) {
+            logger.warn(`Hard limit reached before upsert for ${asset.symbol}`, {
+              job: jobId,
+              elapsedMs: elapsedBeforeUpsert,
+            })
+            nextCursor = assetItem.symbol
+            break
+          }
+
+          // Upsert prices (batch insert for performance)
+          await upsertAssetPricesBatch(
+            asset.symbol,
+            prices.map(p => ({
+              date: p.date,
+              open: p.open,
+              high: p.high,
+              low: p.low,
+              close: p.close,
+              volume: p.volume,
+              source: 'YAHOO',
+            }))
+          )
+
+          ingested++
+          logger.info(`Ingested ${asset.symbol}`, {
+            job: jobId,
+            symbol: asset.symbol,
+            points: prices.length,
+          })
+        } catch (error) {
+          errors++
+          const errorMsg = error instanceof Error ? error.message : String(error)
+          ingestErrors.push({ symbol: asset.symbol, error: errorMsg })
           logger.error(`Failed to ingest ${asset.symbol}`, {
             job: jobId,
             symbol: asset.symbol,
@@ -342,19 +354,30 @@ export async function POST(request: NextRequest) {
             yahoo_symbol: yahooSymbol,
           })
 
-          // Upsert prices
-          for (const price of prices) {
-            await upsertAssetPrice({
-              symbol: asset.symbol,
-              date: price.date,
-              open: price.open,
-              high: price.high,
-              low: price.low,
-              close: price.close,
-              volume: price.volume,
-              source: 'YAHOO',
+          // Check deadline before batch upsert
+          const elapsedBeforeUpsert = Date.now() - startedAt
+          if (elapsedBeforeUpsert > HARD_LIMIT_MS) {
+            logger.warn(`Hard limit reached before upsert for ${asset.symbol}`, {
+              job: jobId,
+              elapsedMs: elapsedBeforeUpsert,
             })
+            nextCursor = assetItem.symbol
+            break
           }
+
+          // Upsert prices (batch insert for performance)
+          await upsertAssetPricesBatch(
+            asset.symbol,
+            prices.map(p => ({
+              date: p.date,
+              open: p.open,
+              high: p.high,
+              low: p.low,
+              close: p.close,
+              volume: p.volume,
+              source: 'YAHOO',
+            }))
+          )
 
           ingested++
           logger.info(`Ingested ${asset.symbol}`, {
@@ -407,19 +430,30 @@ export async function POST(request: NextRequest) {
             yahoo_symbol: yahooSymbol,
           })
 
-          // Upsert prices
-          for (const price of prices) {
-            await upsertAssetPrice({
-              symbol: asset.symbol,
-              date: price.date,
-              open: price.open,
-              high: price.high,
-              low: price.low,
-              close: price.close,
-              volume: price.volume,
-              source: 'YAHOO',
+          // Check deadline before batch upsert
+          const elapsedBeforeUpsert = Date.now() - startedAt
+          if (elapsedBeforeUpsert > HARD_LIMIT_MS) {
+            logger.warn(`Hard limit reached before upsert for ${asset.symbol}`, {
+              job: jobId,
+              elapsedMs: elapsedBeforeUpsert,
             })
+            nextCursor = assetItem.symbol
+            break
           }
+
+          // Upsert prices (batch insert for performance)
+          await upsertAssetPricesBatch(
+            asset.symbol,
+            prices.map(p => ({
+              date: p.date,
+              open: p.open,
+              high: p.high,
+              low: p.low,
+              close: p.close,
+              volume: p.volume,
+              source: 'YAHOO',
+            }))
+          )
 
           ingested++
           logger.info(`Ingested ${asset.symbol}`, {
@@ -462,19 +496,30 @@ export async function POST(request: NextRequest) {
               yahoo_symbol: yahooSymbol,
             })
 
-            // Upsert prices
-            for (const price of prices) {
-              await upsertAssetPrice({
-                symbol: asset.symbol,
-                date: price.date,
-                open: price.open,
-                high: price.high,
-                low: price.low,
-                close: price.close,
-                volume: price.volume,
-                source: 'YAHOO',
+            // Check deadline before batch upsert
+            const elapsedBeforeUpsert = Date.now() - startedAt
+            if (elapsedBeforeUpsert > HARD_LIMIT_MS) {
+              logger.warn(`Hard limit reached before upsert for ${asset.symbol}`, {
+                job: jobId,
+                elapsedMs: elapsedBeforeUpsert,
               })
+              nextCursor = assetItem.symbol
+              break
             }
+
+            // Upsert prices (batch insert for performance)
+            await upsertAssetPricesBatch(
+              asset.symbol,
+              prices.map(p => ({
+                date: p.date,
+                open: p.open,
+                high: p.high,
+                low: p.low,
+                close: p.close,
+                volume: p.volume,
+                source: 'YAHOO',
+              }))
+            )
 
             ingested++
             logger.info(`Ingested ${asset.symbol}`, {

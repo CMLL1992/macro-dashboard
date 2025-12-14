@@ -26,8 +26,19 @@ export async function getJobState(jobName: string): Promise<JobState | null> {
     ).get(jobName) as JobState | null
     
     return result
-  } catch (error) {
-    logger.warn(`Failed to get job state for ${jobName}`, { error: String(error) })
+  } catch (error: any) {
+    // If table doesn't exist, return null (table will be created by migration)
+    if (error?.message?.includes('no such table') || error?.message?.includes('does not exist')) {
+      logger.warn(`Table job_state does not exist yet for ${jobName}`, { 
+        job: jobName,
+        error: String(error) 
+      })
+      return null
+    }
+    logger.warn(`Failed to get job state for ${jobName}`, { 
+      job: jobName,
+      error: String(error) 
+    })
     return null
   }
 }
@@ -45,7 +56,7 @@ export async function saveJobState(
     const db = getUnifiedDB()
     await db.prepare(
       `INSERT INTO job_state (job_name, cursor, updated_at, last_run_status, last_run_duration_ms)
-       VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?)
+       VALUES (?, ?, datetime('now'), ?, ?)
        ON CONFLICT(job_name) DO UPDATE SET
          cursor = excluded.cursor,
          updated_at = excluded.updated_at,
@@ -59,12 +70,22 @@ export async function saveJobState(
       status,
       durationMs,
     })
-  } catch (error) {
+  } catch (error: any) {
+    // If table doesn't exist, log warning but don't throw (table will be created by migration)
+    if (error?.message?.includes('no such table') || error?.message?.includes('does not exist')) {
+      logger.warn(`Table job_state does not exist yet - job will continue without state tracking`, {
+        job: jobName,
+        error: String(error),
+        note: 'Run migration script to create job_state table',
+      })
+      // Don't throw - job state is not critical, job can continue
+      return
+    }
     logger.error(`Failed to save job state for ${jobName}`, {
       job: jobName,
       error: String(error),
     })
-    // Don't throw - job state is not critical
+    // Don't throw - job state is not critical, job must continue
   }
 }
 
