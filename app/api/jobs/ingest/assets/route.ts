@@ -37,9 +37,14 @@ function loadAssetsConfig() {
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 
 /**
- * Fetch Yahoo Finance daily OHLCV data
+ * Fetch Yahoo Finance daily OHLCV data with retry and timeout
+ * Handles SSL errors, network timeouts, and connection resets gracefully
  */
-async function fetchYahooOHLCV(symbol: string, period: string = '1mo'): Promise<Array<{
+async function fetchYahooOHLCV(
+  symbol: string, 
+  period: string = '1mo',
+  maxRetries: number = 3
+): Promise<Array<{
   date: string
   open: number
   high: number
@@ -48,64 +53,111 @@ async function fetchYahooOHLCV(symbol: string, period: string = '1mo'): Promise<
   volume: number
 }>> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${encodeURIComponent(period)}&includePrePost=false`
+  const REQUEST_TIMEOUT_MS = 20000 // 20 seconds per request
   
-  try {
-    const r = await fetch(url, {
-      headers: { 'User-Agent': UA, Accept: 'application/json' },
-      cache: 'no-store',
-    })
-    
-    if (!r.ok) throw new Error(`Yahoo ${symbol} ${r.status}`)
-    
-    const j = await r.json()
-    const res = j?.chart?.result?.[0]
-    if (!res?.timestamp || !res?.indicators?.quote?.[0]) return []
-    
-    const ts: number[] = res.timestamp
-    const quote = res.indicators.quote[0]
-    const opens: (number | null)[] = quote.open || []
-    const highs: (number | null)[] = quote.high || []
-    const lows: (number | null)[] = quote.low || []
-    const closes: (number | null)[] = quote.close || []
-    const volumes: (number | null)[] = quote.volume || []
-    
-    const out: Array<{
-      date: string
-      open: number
-      high: number
-      low: number
-      close: number
-      volume: number
-    }> = []
-    
-    for (let i = 0; i < ts.length; i++) {
-      const t = ts[i]
-      const open = opens[i]
-      const high = highs[i]
-      const low = lows[i]
-      const close = closes[i]
-      const volume = volumes[i] || 0
+  let lastError: Error | null = null
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
       
-      if (close == null || Number.isNaN(close)) continue
+      try {
+        const r = await fetch(url, {
+          headers: { 'User-Agent': UA, Accept: 'application/json' },
+          cache: 'no-store',
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+        
+        if (!r.ok) throw new Error(`Yahoo ${symbol} ${r.status}`)
+        
+        const j = await r.json()
+        const res = j?.chart?.result?.[0]
+        if (!res?.timestamp || !res?.indicators?.quote?.[0]) return []
+        
+        const ts: number[] = res.timestamp
+        const quote = res.indicators.quote[0]
+        const opens: (number | null)[] = quote.open || []
+        const highs: (number | null)[] = quote.high || []
+        const lows: (number | null)[] = quote.low || []
+        const closes: (number | null)[] = quote.close || []
+        const volumes: (number | null)[] = quote.volume || []
+        
+        const out: Array<{
+          date: string
+          open: number
+          high: number
+          low: number
+          close: number
+          volume: number
+        }> = []
+        
+        for (let i = 0; i < ts.length; i++) {
+          const t = ts[i]
+          const open = opens[i]
+          const high = highs[i]
+          const low = lows[i]
+          const close = closes[i]
+          const volume = volumes[i] || 0
+          
+          if (close == null || Number.isNaN(close)) continue
+          
+          const d = new Date(t * 1000)
+          const date = d.toISOString().slice(0, 10)
+          
+          out.push({
+            date,
+            open: open ?? close,
+            high: high ?? close,
+            low: low ?? close,
+            close,
+            volume: volume || 0,
+          })
+        }
+        
+        return out.sort((a, b) => a.date.localeCompare(b.date))
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId)
+        if (fetchError.name === 'AbortError') {
+          lastError = new Error(`Yahoo ${symbol} timeout after ${REQUEST_TIMEOUT_MS}ms`)
+        } else {
+          lastError = fetchError instanceof Error ? fetchError : new Error(String(fetchError))
+        }
+        throw lastError
+      }
+    } catch (error: any) {
+      lastError = error instanceof Error ? error : new Error(String(error))
       
-      const d = new Date(t * 1000)
-      const date = d.toISOString().slice(0, 10)
+      // Check if it's an SSL/network error that we should retry
+      const isRetryable = 
+        error.message?.includes('SSL') ||
+        error.message?.includes('ECONNRESET') ||
+        error.message?.includes('ETIMEDOUT') ||
+        error.message?.includes('ENOTFOUND') ||
+        error.message?.includes('ECONNREFUSED') ||
+        error.name === 'AbortError' ||
+        error.code === 'ECONNRESET' ||
+        error.code === 'ETIMEDOUT' ||
+        error.code === 'ENOTFOUND'
       
-      out.push({
-        date,
-        open: open ?? close,
-        high: high ?? close,
-        low: low ?? close,
-        close,
-        volume: volume || 0,
-      })
+      if (attempt < maxRetries && isRetryable) {
+        const backoffMs = attempt * 500 // 500ms, 1000ms, 1500ms
+        logger.warn(`Yahoo fetch failed for ${symbol}, retrying (${attempt}/${maxRetries})`, {
+          error: error.message,
+          backoffMs,
+        })
+        await new Promise(resolve => setTimeout(resolve, backoffMs))
+        continue
+      }
+      
+      // If not retryable or max retries reached, throw
+      throw lastError
     }
-    
-    return out.sort((a, b) => a.date.localeCompare(b.date))
-  } catch (error) {
-    logger.error(`Error fetching Yahoo OHLCV for ${symbol}`, { error })
-    return []
   }
+  
+  // Should never reach here, but TypeScript needs it
+  throw lastError || new Error(`Yahoo ${symbol} failed after ${maxRetries} attempts`)
 }
 
 export async function POST(request: NextRequest) {
@@ -145,6 +197,8 @@ export async function POST(request: NextRequest) {
     let ingested = 0
     let errors = 0
     const ingestErrors: Array<{ symbol?: string; error: string }> = []
+    const failedSymbols: string[] = [] // Track symbols that failed after retries
+    const failedSymbols: string[] = [] // Track symbols that failed after retries
 
     // Collect all assets to process (DXY is always first, then forex, indices, metals, crypto)
     const allAssets: Array<{ symbol: string; category: 'dxy' | 'forex' | 'index' | 'metal' | 'crypto'; config?: any }> = []
@@ -319,13 +373,17 @@ export async function POST(request: NextRequest) {
         } catch (error) {
           errors++
           const errorMsg = error instanceof Error ? error.message : String(error)
+          failedSymbols.push(asset.symbol)
           ingestErrors.push({ symbol: asset.symbol, error: errorMsg })
-          logger.error(`Failed to ingest ${asset.symbol}`, {
+          logger.error(`Failed to ingest ${asset.symbol} after retries`, {
             job: jobId,
             symbol: asset.symbol,
             error: errorMsg,
+            failedSymbols: failedSymbols.length,
           })
+          // NO throw - continue to next symbol
         }
+        // Cursor MUST advance even if symbol failed
         nextCursor = assetItem.symbol
         continue
       }
@@ -388,13 +446,17 @@ export async function POST(request: NextRequest) {
         } catch (error) {
           errors++
           const errorMsg = error instanceof Error ? error.message : String(error)
+          failedSymbols.push(asset.symbol)
           ingestErrors.push({ symbol: asset.symbol, error: errorMsg })
-          logger.error(`Failed to ingest ${asset.symbol}`, {
+          logger.error(`Failed to ingest ${asset.symbol} after retries`, {
             job: jobId,
             symbol: asset.symbol,
             error: errorMsg,
+            failedSymbols: failedSymbols.length,
           })
+          // NO throw - continue to next symbol
         }
+        // Cursor MUST advance even if symbol failed
         nextCursor = assetItem.symbol
         continue
       }
@@ -464,13 +526,17 @@ export async function POST(request: NextRequest) {
         } catch (error) {
           errors++
           const errorMsg = error instanceof Error ? error.message : String(error)
+          failedSymbols.push(asset.symbol)
           ingestErrors.push({ symbol: asset.symbol, error: errorMsg })
-          logger.error(`Failed to ingest ${asset.symbol}`, {
+          logger.error(`Failed to ingest ${asset.symbol} after retries`, {
             job: jobId,
             symbol: asset.symbol,
             error: errorMsg,
+            failedSymbols: failedSymbols.length,
           })
+          // NO throw - continue to next symbol
         }
+        // Cursor MUST advance even if symbol failed
         nextCursor = assetItem.symbol
         continue
       }
@@ -531,13 +597,17 @@ export async function POST(request: NextRequest) {
         } catch (error) {
           errors++
           const errorMsg = error instanceof Error ? error.message : String(error)
+          failedSymbols.push(asset.symbol)
           ingestErrors.push({ symbol: asset.symbol, error: errorMsg })
-          logger.error(`Failed to ingest ${asset.symbol}`, {
+          logger.error(`Failed to ingest ${asset.symbol} after retries`, {
             job: jobId,
             symbol: asset.symbol,
             error: errorMsg,
+            failedSymbols: failedSymbols.length,
           })
+          // NO throw - continue to next symbol
         }
+        // Cursor MUST advance even if symbol failed
         nextCursor = assetItem.symbol
         continue
       }
@@ -567,6 +637,7 @@ export async function POST(request: NextRequest) {
       nextCursor,
       processedCount,
       totalAssets: allAssets.length,
+      failedSymbols: failedSymbols.length,
     })
 
     return NextResponse.json({
@@ -579,6 +650,7 @@ export async function POST(request: NextRequest) {
       done,
       durationMs: totalDurationMs,
       finishedAt,
+      failedSymbols: failedSymbols.slice(0, 20), // Include failed symbols in response
       ingestErrors: ingestErrors.slice(0, 10), // Limit to first 10 errors
     })
   } catch (error) {
