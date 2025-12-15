@@ -230,38 +230,58 @@ export async function POST(request: NextRequest) {
     }
 
     // Find starting index from cursor
+    // IMPORTANT: If cursor exists, start AFTER it (cursorIndex + 1), not at it
     let startIndex = 0
     if (cursor) {
       const cursorIndex = allAssets.findIndex(a => a.symbol === cursor)
       if (cursorIndex >= 0) {
-        startIndex = cursorIndex
+        startIndex = cursorIndex + 1 // Start AFTER the cursor, not at it
+      } else {
+        logger.warn(`Cursor ${cursor} not found in allAssets, starting from beginning`, { job: jobId })
+        startIndex = 0
       }
     }
 
-    const assetsToProcess = allAssets.slice(startIndex, startIndex + batchSize)
+    const endIndex = Math.min(startIndex + batchSize, allAssets.length)
+    const assetsToProcess = allAssets.slice(startIndex, endIndex)
+    
+    // Calculate nextCursor: should point to the NEXT item after the batch, not the last processed
+    const nextCursor = endIndex < allAssets.length ? allAssets[endIndex].symbol : null
+    const done = endIndex >= allAssets.length
     logger.info(`Processing batch: ${assetsToProcess.length} assets starting from index ${startIndex}`, {
       job: jobId,
       totalAssets: allAssets.length,
       startIndex,
+      endIndex,
       batchSize,
+      cursor,
+      nextCursor,
+      done,
       symbols: assetsToProcess.map(a => a.symbol),
     })
 
-    let nextCursor: string | null = null
     let processedCount = 0
+    let actualNextCursor: string | null = nextCursor // Will be updated if we hit hard limit
 
     // Process assets in batch
     for (const assetItem of assetsToProcess) {
       // Check hard limit before processing each asset
       const elapsed = Date.now() - startedAt
       if (elapsed > HARD_LIMIT_MS) {
+        // If we hit hard limit, nextCursor should be the CURRENT asset (we'll continue from here)
+        const currentIndex = allAssets.findIndex(a => a.symbol === assetItem.symbol)
+        if (currentIndex >= 0 && currentIndex + 1 < allAssets.length) {
+          actualNextCursor = allAssets[currentIndex].symbol // Continue from this asset next time
+        } else {
+          actualNextCursor = null // We're at the end
+        }
         logger.warn(`Hard limit reached, stopping batch processing`, {
           job: jobId,
           elapsedMs: elapsed,
           processedCount,
-          nextAsset: assetItem.symbol,
+          currentAsset: assetItem.symbol,
+          nextCursor: actualNextCursor,
         })
-        nextCursor = assetItem.symbol
         break
       }
 
@@ -312,7 +332,8 @@ export async function POST(request: NextRequest) {
             error: errorMsg,
           })
         }
-        nextCursor = assetItem.symbol
+        // Cursor MUST advance even if symbol failed
+        // Note: nextCursor is already calculated before the loop
         continue
       }
 
@@ -385,7 +406,7 @@ export async function POST(request: NextRequest) {
           // NO throw - continue to next symbol
         }
         // Cursor MUST advance even if symbol failed
-        nextCursor = assetItem.symbol
+        // Note: nextCursor is already calculated before the loop
         continue
       }
 
@@ -458,7 +479,7 @@ export async function POST(request: NextRequest) {
           // NO throw - continue to next symbol
         }
         // Cursor MUST advance even if symbol failed
-        nextCursor = assetItem.symbol
+        // Note: nextCursor is already calculated before the loop
         continue
       }
 
@@ -538,7 +559,7 @@ export async function POST(request: NextRequest) {
           // NO throw - continue to next symbol
         }
         // Cursor MUST advance even if symbol failed
-        nextCursor = assetItem.symbol
+        // Note: nextCursor is already calculated before the loop
         continue
       }
 
@@ -554,11 +575,14 @@ export async function POST(request: NextRequest) {
             logger.warn(`No prices for ${asset.symbol}`, { job: jobId })
             errors++
           } else {
+            // Determine category: commodity if flagged, otherwise crypto
+            const category = asset.isCommodity ? 'commodity' : 'crypto'
+            
             // Upsert metadata
             await upsertAssetMetadata({
               symbol: asset.symbol,
               name: asset.name,
-              category: 'crypto',
+              category: category,
               source: 'YAHOO',
               yahoo_symbol: yahooSymbol,
             })
@@ -609,14 +633,30 @@ export async function POST(request: NextRequest) {
           // NO throw - continue to next symbol
         }
         // Cursor MUST advance even if symbol failed
-        nextCursor = assetItem.symbol
+        // Note: nextCursor is already calculated before the loop (points to item AFTER batch)
+        // We only update it if we hit hard limit mid-batch
         continue
       }
     } // End of for loop
 
+    // Use actualNextCursor (may have been updated if we hit hard limit)
+    const finalNextCursor = actualNextCursor !== null ? actualNextCursor : nextCursor
+
     // Check if we've processed all assets
-    const isComplete = startIndex + processedCount >= allAssets.length
-    const done = isComplete && nextCursor === null
+    const isComplete = endIndex >= allAssets.length
+    const finalDone = isComplete && finalNextCursor === null
+
+    // Log final cursor state
+    logger.info(`Asset ingestion batch complete`, {
+      job: jobId,
+      startIndex,
+      endIndex,
+      processedCount,
+      totalAssets: allAssets.length,
+      cursor,
+      nextCursor: finalNextCursor,
+      done: finalDone,
+    })
 
     // Save job state
     const totalDurationMs = Date.now() - startedAt
@@ -634,10 +674,12 @@ export async function POST(request: NextRequest) {
       ingested,
       errors,
       durationMs: totalDurationMs,
-      done,
-      nextCursor,
+      done: finalDone,
+      nextCursor: finalNextCursor,
       processedCount,
       totalAssets: allAssets.length,
+      startIndex,
+      endIndex,
       failedSymbols: failedSymbols.length,
     })
 
@@ -647,8 +689,8 @@ export async function POST(request: NextRequest) {
       ingested,
       errors,
       processed: processedCount,
-      nextCursor,
-      done,
+      nextCursor: finalNextCursor,
+      done: finalDone,
       durationMs: totalDurationMs,
       finishedAt,
       failedSymbols: failedSymbols.slice(0, 20), // Include failed symbols in response
