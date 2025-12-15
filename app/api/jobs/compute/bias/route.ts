@@ -54,6 +54,8 @@ export async function POST(request: NextRequest) {
   const batchSize = parseInt(searchParams.get('batch') || '5', 10)
   const cursorParam = searchParams.get('cursor')
   const resetParam = searchParams.get('reset') === 'true'
+  const universeParam = searchParams.get('universe') // 'all' for full universe, default: tactical only
+  const useFullUniverse = universeParam === 'all'
 
   try {
     // Get or reset job state

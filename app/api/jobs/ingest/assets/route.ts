@@ -174,6 +174,8 @@ export async function POST(request: NextRequest) {
   const batchSize = parseInt(searchParams.get('batch') || '2', 10) // Default: 2 (reduced from 5 to avoid timeout)
   const cursorParam = searchParams.get('cursor')
   const resetParam = searchParams.get('reset') === 'true'
+  const universeParam = searchParams.get('universe') // 'all' for full universe, default: tactical only
+  const useFullUniverse = universeParam === 'all'
 
   try {
     // Get or reset job state
@@ -540,12 +542,12 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // Process cryptocurrencies (only if we have time and this is in the batch)
+      // Process cryptocurrencies and commodities (only if we have time and this is in the batch)
       if (assetItem.category === 'crypto' && assetItem.config) {
         const asset = assetItem.config
         try {
-          // Simplified: always use Yahoo Finance for crypto (CoinMarketCap processing is complex and can timeout)
-          const yahooSymbol = `${asset.symbol.replace('USDT', '').replace('USD', '')}-USD`
+          // Use yahoo_symbol from config if available, otherwise construct it
+          const yahooSymbol = asset.yahoo_symbol || `${asset.symbol.replace('USDT', '').replace('USD', '')}-USD`
           const prices = await fetchYahooOHLCV(yahooSymbol, '5y')
           
           if (prices.length === 0) {
