@@ -348,7 +348,7 @@ export async function POST(request: NextRequest) {
           if (prices.length === 0) {
             logger.warn(`No prices for ${asset.symbol}`, { job: jobId })
             errors++
-            nextCursor = assetItem.symbol
+            // Note: nextCursor is already calculated before the loop
             continue
           }
 
@@ -364,11 +364,18 @@ export async function POST(request: NextRequest) {
           // Check deadline before batch upsert
           const elapsedBeforeUpsert = Date.now() - startedAt
           if (elapsedBeforeUpsert > HARD_LIMIT_MS) {
+            // If we hit hard limit, nextCursor should be the CURRENT asset
+            const currentIndex = allAssets.findIndex(a => a.symbol === assetItem.symbol)
+            if (currentIndex >= 0 && currentIndex + 1 < allAssets.length) {
+              actualNextCursor = allAssets[currentIndex].symbol
+            } else {
+              actualNextCursor = null
+            }
             logger.warn(`Hard limit reached before upsert for ${asset.symbol}`, {
               job: jobId,
               elapsedMs: elapsedBeforeUpsert,
+              nextCursor: actualNextCursor,
             })
-            nextCursor = assetItem.symbol
             break
           }
 
@@ -421,7 +428,7 @@ export async function POST(request: NextRequest) {
           if (prices.length === 0) {
             logger.warn(`No prices for ${asset.symbol}`, { job: jobId })
             errors++
-            nextCursor = assetItem.symbol
+            // Note: nextCursor is already calculated before the loop
             continue
           }
 
@@ -437,11 +444,18 @@ export async function POST(request: NextRequest) {
           // Check deadline before batch upsert
           const elapsedBeforeUpsert = Date.now() - startedAt
           if (elapsedBeforeUpsert > HARD_LIMIT_MS) {
+            // If we hit hard limit, nextCursor should be the CURRENT asset
+            const currentIndex = allAssets.findIndex(a => a.symbol === assetItem.symbol)
+            if (currentIndex >= 0 && currentIndex + 1 < allAssets.length) {
+              actualNextCursor = allAssets[currentIndex].symbol
+            } else {
+              actualNextCursor = null
+            }
             logger.warn(`Hard limit reached before upsert for ${asset.symbol}`, {
               job: jobId,
               elapsedMs: elapsedBeforeUpsert,
+              nextCursor: actualNextCursor,
             })
-            nextCursor = assetItem.symbol
             break
           }
 
@@ -491,7 +505,7 @@ export async function POST(request: NextRequest) {
           if (!yahooSymbol) {
             logger.warn(`No Yahoo symbol for ${asset.symbol}`, { job: jobId })
             errors++
-            nextCursor = assetItem.symbol
+            // Note: nextCursor is already calculated before the loop
             continue
           }
 
@@ -501,7 +515,7 @@ export async function POST(request: NextRequest) {
           if (prices.length === 0) {
             logger.warn(`No prices for ${asset.symbol}`, { job: jobId })
             errors++
-            nextCursor = assetItem.symbol
+            // Note: nextCursor is already calculated before the loop
             continue
           }
 
@@ -517,11 +531,18 @@ export async function POST(request: NextRequest) {
           // Check deadline before batch upsert
           const elapsedBeforeUpsert = Date.now() - startedAt
           if (elapsedBeforeUpsert > HARD_LIMIT_MS) {
+            // If we hit hard limit, nextCursor should be the CURRENT asset
+            const currentIndex = allAssets.findIndex(a => a.symbol === assetItem.symbol)
+            if (currentIndex >= 0 && currentIndex + 1 < allAssets.length) {
+              actualNextCursor = allAssets[currentIndex].symbol
+            } else {
+              actualNextCursor = null
+            }
             logger.warn(`Hard limit reached before upsert for ${asset.symbol}`, {
               job: jobId,
               elapsedMs: elapsedBeforeUpsert,
+              nextCursor: actualNextCursor,
             })
-            nextCursor = assetItem.symbol
             break
           }
 
