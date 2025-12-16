@@ -382,55 +382,66 @@ export async function POST(request: NextRequest) {
     // Ingest PMI Manufacturing from alternative sources (not available in FRED)
     // Try Alpha Vantage -> Manual entry (TradingEconomics removed for USA)
     // Only process if we have time and this is the last batch
-    if (isLastBatch && !pmiIngested && process.env.ALPHA_VANTAGE_API_KEY) {
-      // Check time limit before processing PMI
-      const elapsed = Date.now() - startedAt
-      if (elapsed < HARD_LIMIT_MS) {
-        try {
-        logger.info('Attempting PMI ingestion from Alpha Vantage', { job: jobId })
-        const { fetchAlphaVantagePMI } = await import('@/packages/ingestors/alphavantage')
-        
-        const pmiObservations = await fetchAlphaVantagePMI(process.env.ALPHA_VANTAGE_API_KEY)
-        
-        if (pmiObservations.length > 0) {
-          const pmiSeries: MacroSeries = {
-            id: 'USPMI',
-            source: 'ALPHA_VANTAGE',
-            indicator: 'USPMI',
-            nativeId: 'MANUFACTURING_PMI',
-            name: 'ISM Manufacturing: PMI',
-            frequency: 'M', // Monthly
-            data: pmiObservations.map(obs => ({
-              date: obs.date,
-              value: obs.value,
-            })),
-            lastUpdated: pmiObservations[pmiObservations.length - 1]?.date || undefined,
-          }
-
-          await upsertMacroSeries(pmiSeries)
-          ingested++
-          pmiIngested = true
-          
-          logger.info('Ingested USPMI from Alpha Vantage', {
-            job: jobId,
-            series_id: 'USPMI',
-            points: pmiObservations.length,
-          })
-        }
-      } catch (error) {
-        const avError = error instanceof Error ? error.message : String(error)
-        logger.warn('Alpha Vantage PMI ingestion failed', {
-          job: jobId,
-          error: avError,
-        })
-        if (!pmiError) pmiError = avError
-      }
+    if (isLastBatch && !pmiIngested) {
+      if (!process.env.ALPHA_VANTAGE_API_KEY) {
+        logger.warn('ALPHA_VANTAGE_API_KEY not configured, skipping PMI ingestion', { job: jobId })
+        pmiError = 'ALPHA_VANTAGE_API_KEY not configured'
       } else {
-        logger.warn('Skipping PMI ingestion - time limit reached', {
-          job: jobId,
-          elapsed,
-          hardLimit: HARD_LIMIT_MS,
-        })
+        // Check time limit before processing PMI
+        const elapsed = Date.now() - startedAt
+        if (elapsed < HARD_LIMIT_MS) {
+          try {
+            logger.info('Attempting PMI ingestion from Alpha Vantage', { job: jobId })
+            const { fetchAlphaVantagePMI } = await import('@/packages/ingestors/alphavantage')
+            
+            const pmiObservations = await fetchAlphaVantagePMI(process.env.ALPHA_VANTAGE_API_KEY)
+            
+            if (pmiObservations.length > 0) {
+              const pmiSeries: MacroSeries = {
+                id: 'USPMI',
+                source: 'ALPHA_VANTAGE',
+                indicator: 'USPMI',
+                nativeId: 'MANUFACTURING_PMI',
+                name: 'ISM Manufacturing: PMI',
+                frequency: 'M', // Monthly - no transformations needed (diffusion index)
+                data: pmiObservations.map(obs => ({
+                  date: obs.date,
+                  value: obs.value,
+                })),
+                lastUpdated: pmiObservations[pmiObservations.length - 1]?.date || undefined,
+              }
+
+              await upsertMacroSeries(pmiSeries)
+              ingested++
+              pmiIngested = true
+              
+              logger.info('Ingested USPMI from Alpha Vantage', {
+                job: jobId,
+                series_id: 'USPMI',
+                points: pmiObservations.length,
+                lastDate: pmiObservations[pmiObservations.length - 1]?.date,
+                lastValue: pmiObservations[pmiObservations.length - 1]?.value,
+              })
+            } else {
+              logger.warn('Alpha Vantage returned no PMI observations', { job: jobId })
+              pmiError = 'No observations returned from Alpha Vantage'
+            }
+          } catch (error) {
+            const avError = error instanceof Error ? error.message : String(error)
+            logger.warn('Alpha Vantage PMI ingestion failed', {
+              job: jobId,
+              error: avError,
+            })
+            if (!pmiError) pmiError = avError
+          }
+        } else {
+          logger.warn('Skipping PMI ingestion - time limit reached', {
+            job: jobId,
+            elapsed,
+            hardLimit: HARD_LIMIT_MS,
+          })
+          pmiError = 'Time limit reached'
+        }
       }
     }
     

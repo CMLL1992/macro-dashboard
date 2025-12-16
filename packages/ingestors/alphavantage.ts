@@ -32,42 +32,77 @@ export async function fetchAlphaVantagePMI(
 ): Promise<Observation[]> {
   try {
     // Alpha Vantage Economic Data endpoint
-    const url = `${AV_BASE}?function=MANUFACTURING_PMI&interval=monthly&apikey=${apiKey}`;
+    // Note: Alpha Vantage may use different function names - try multiple formats
+    const functions = ['MANUFACTURING_PMI', 'PMI', 'ISM_MANUFACTURING_PMI']
     
-    const response = await fetchWithTimeout(url);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    for (const func of functions) {
+      try {
+        const url = `${AV_BASE}?function=${func}&interval=monthly&apikey=${apiKey}`;
+        
+        const response = await fetchWithTimeout(url, { timeoutMs: 10000 });
+        
+        if (!response.ok) {
+          if (response.status === 404 && func !== functions[functions.length - 1]) {
+            // Try next function name
+            continue
+          }
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Alpha Vantage puede devolver errores en el JSON
+        if (data['Error Message']) {
+          if (func !== functions[functions.length - 1]) {
+            // Try next function name
+            continue
+          }
+          throw new Error(data['Error Message']);
+        }
+        
+        if (data['Note']) {
+          throw new Error('Alpha Vantage API rate limit exceeded');
+        }
+        
+        // Parsear datos de Alpha Vantage
+        if (data['data'] && Array.isArray(data['data'])) {
+          const parsed = parseAlphaVantageResponse(data['data'])
+          if (parsed.length > 0) {
+            return parsed
+          }
+        }
+        
+        // Formato alternativo: Monthly Time Series
+        if (data['Monthly Time Series']) {
+          const series = data['Monthly Time Series'];
+          const parsed = Object.entries(series).map(([date, value]: [string, any]) => ({
+            indicator_id: 'AV:PMI',
+            date: date,
+            value: parseFloat(value['value'] || value['PMI'] || value['4. close'] || value),
+            source_url: `https://www.alphavantage.co/query?function=${func}`,
+            released_at: date,
+          })).filter(obs => !isNaN(obs.value) && obs.value > 0)
+          
+          if (parsed.length > 0) {
+            return parsed.sort((a, b) => a.date.localeCompare(b.date))
+          }
+        }
+        
+        // Si llegamos aquí y no hay datos, intentar siguiente función
+        if (func !== functions[functions.length - 1]) {
+          continue
+        }
+      } catch (funcError) {
+        // Si no es el último intento, continuar con siguiente función
+        if (func !== functions[functions.length - 1]) {
+          continue
+        }
+        throw funcError
+      }
     }
     
-    const data = await response.json();
-    
-    // Alpha Vantage puede devolver errores en el JSON
-    if (data['Error Message']) {
-      throw new Error(data['Error Message']);
-    }
-    
-    if (data['Note']) {
-      throw new Error('Alpha Vantage API rate limit exceeded');
-    }
-    
-    // Parsear datos de Alpha Vantage
-    if (data['data'] && Array.isArray(data['data'])) {
-      return parseAlphaVantageResponse(data['data']);
-    }
-    
-    // Formato alternativo
-    if (data['Monthly Time Series']) {
-      const series = data['Monthly Time Series'];
-      return Object.entries(series).map(([date, value]: [string, any]) => ({
-        indicator_id: 'AV:PMI',
-        date: date,
-        value: parseFloat(value['value'] || value['PMI'] || value),
-        source_url: `https://www.alphavantage.co/query?function=MANUFACTURING_PMI`,
-        released_at: date,
-      })).filter(obs => !isNaN(obs.value));
-    }
-    
+    // Si ninguna función funcionó, retornar array vacío
+    console.warn('[alphavantage] No PMI data found with any function name')
     return [];
   } catch (error) {
     console.error('[alphavantage] Error fetching PMI:', error);
