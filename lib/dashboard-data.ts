@@ -707,14 +707,16 @@ export async function getDashboardData(): Promise<DashboardData> {
     percentage: usTotal > 0 ? Math.round((usIndicators.length / usTotal) * 100) : 0,
   }
   
-  dashboardData.coverage = {
-    EU: euCoverage,
-    US: usCoverage,
+  // Dashboard data ready
+  const dashboardDataWithCoverage: DashboardData = {
+    ...dashboardData,
+    coverage: {
+      EU: euCoverage,
+      US: usCoverage,
+    },
   }
   
-  // Dashboard data ready
-  
-  return dashboardData
+  return dashboardDataWithCoverage
 }
 
 

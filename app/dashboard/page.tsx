@@ -107,6 +107,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
     updatedAt,
     recentEvents,
     meta,
+    coverage, // Coverage metrics (EU/US)
   } = data
 
   // Removed debug logs that could cause serialization issues
@@ -124,6 +125,37 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
           </div>
           <JobStatusIndicator />
         </div>
+
+        {/* Coverage Metrics (null-safe) */}
+        {coverage && (
+          <div className="rounded-lg border bg-muted/50 p-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex-1 min-w-[200px]">
+                <div className="text-xs text-muted-foreground mb-1">Cobertura de Datos</div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">EU:</span>
+                    <span className={`text-sm font-semibold ${coverage.EU.percentage === 100 ? 'text-green-600 dark:text-green-400' : coverage.EU.percentage >= 90 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {coverage.EU.percentage}%
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      ({coverage.EU.withData}/{coverage.EU.total})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">US:</span>
+                    <span className={`text-sm font-semibold ${coverage.US.percentage === 100 ? 'text-green-600 dark:text-green-400' : coverage.US.percentage >= 90 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {coverage.US.percentage}%
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      ({coverage.US.withData}/{coverage.US.total})
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Explicación de la página Dashboard */}
         <Accordion 
