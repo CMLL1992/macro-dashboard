@@ -38,6 +38,11 @@ export async function fetchEurostatSeries(
   })
 
   // Eurostat API format: ?format=JSON&lang=en&geo=EA20&freq=Q&na_item=B1GQ&s_adj=SA&unit=CLV_PCH_PRE
+  // Add frequency to filters if not present
+  if (!filters.freq && frequency) {
+    filterParams.set('freq', frequency)
+  }
+  
   const url = `${EUROSTAT_BASE}/${dataset}?format=JSON&lang=en&${filterParams.toString()}`
   
   // Log the full URL and parameters for debugging
@@ -49,21 +54,53 @@ export async function fetchEurostatSeries(
     response = await withRetry(async () => {
       const res = await fetchWithTimeout(url, { timeoutMs: 20000 })
       if (!res.ok) {
+        const errorBody = await res.text().catch(() => 'Unable to read error response')
+        console.error(`[Eurostat] HTTP ${res.status} for ${dataset}:`, {
+          url,
+          status: res.status,
+          statusText: res.statusText,
+          errorBody: errorBody.substring(0, 500),
+        })
         throw new Error(`Eurostat ${res.status}: ${res.statusText} - ${url}`)
       }
       return res
     }, 3)
   } catch (error) {
-    // If error is 400 and geo is EA20, try fallback to EA19
-    if (geo === 'EA20' && error instanceof Error && error.message.includes('400')) {
-      console.log(`[Eurostat] EA20 failed, trying EA19 fallback for ${dataset}`)
-      const fallbackParams = { ...params, geo: 'EA19' }
-      return fetchEurostatSeries(fallbackParams)
+    // Try fallback geos if current one fails
+    if (error instanceof Error && error.message.includes('400')) {
+      const fallbackGeos = geo === 'EA20' ? ['EA19', 'EU27_2020'] : geo === 'EA19' ? ['EA20', 'EU27_2020'] : []
+      for (const fallbackGeo of fallbackGeos) {
+        console.log(`[Eurostat] ${geo} failed, trying ${fallbackGeo} fallback for ${dataset}`)
+        try {
+          const fallbackParams = { ...params, geo: fallbackGeo }
+          return await fetchEurostatSeries(fallbackParams)
+        } catch (fallbackError) {
+          console.warn(`[Eurostat] ${fallbackGeo} also failed for ${dataset}:`, fallbackError)
+          continue
+        }
+      }
     }
     throw new Error(`Failed to fetch Eurostat data: ${error instanceof Error ? error.message : String(error)}`)
   }
 
   const json = await response.json()
+
+  // Log response details for debugging
+  const responseSize = JSON.stringify(json).length
+  const dimensionKeys = json.dimension ? Object.keys(json.dimension) : []
+  const nValues = json.value ? Object.keys(json.value).length : 0
+  const hasTimeDim = json.dimension?.time?.category?.index ? Object.keys(json.dimension.time.category.index).length : 0
+  
+  console.log(`[Eurostat] Response for ${dataset}:`, {
+    url,
+    status: response.status,
+    responseSize,
+    dimensionKeys,
+    nValues,
+    hasTimeDim,
+    hasValue: !!json.value,
+    hasDimension: !!json.dimension,
+  })
 
   // Eurostat JSON structure:
   // {
@@ -77,6 +114,13 @@ export async function fetchEurostatSeries(
   // }
 
   if (!json.value || !json.dimension) {
+    console.warn(`[Eurostat] No data returned for ${dataset}`, {
+      url,
+      hasValue: !!json.value,
+      hasDimension: !!json.dimension,
+      dimensionKeys,
+      nValues,
+    })
     return {
       id: `EUROSTAT:${dataset}`,
       source: 'EUROSTAT',
@@ -88,6 +132,9 @@ export async function fetchEurostatSeries(
       meta: {
         reason: 'NO_DATA',
         url,
+        dimensionKeys,
+        nValues,
+        responseSize,
       },
     }
   }
@@ -95,6 +142,11 @@ export async function fetchEurostatSeries(
   // Extract time dimension
   const timeDim = json.dimension?.time?.category
   if (!timeDim || !timeDim.index) {
+    console.warn(`[Eurostat] No time dimension for ${dataset}`, {
+      url,
+      availableDimensions: Object.keys(json.dimension || {}),
+      hasTimeDim: !!json.dimension?.time,
+    })
     return {
       id: `EUROSTAT:${dataset}`,
       source: 'EUROSTAT',
@@ -106,6 +158,7 @@ export async function fetchEurostatSeries(
       meta: {
         reason: 'NO_TIME_DIMENSION',
         url,
+        availableDimensions: Object.keys(json.dimension || {}),
       },
     }
   }
@@ -169,6 +222,13 @@ export async function fetchEurostatSeries(
 
   // Get dataset name from JSON-stat label if available
   const datasetName = json.label || dataset
+
+  console.log(`[Eurostat] Successfully parsed ${dataset}:`, {
+    url,
+    dataPoints: sortedData.length,
+    firstDate: sortedData[0]?.date,
+    lastDate: sortedData[sortedData.length - 1]?.date,
+  })
 
   return {
     id: `EUROSTAT:${dataset}`,

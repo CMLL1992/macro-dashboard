@@ -114,11 +114,12 @@
       "source": "eurostat",
       "dataset": "sts_trtu_m",
       "filters": {
+        "freq": "M",
         "unit": "I15",
         "s_adj": "SA",
         "nace_r2": "G47"
       },
-      "geo": "EA19",
+      "geo": "EA20",
       "frequency": "M",
       "category": "Crecimiento / Actividad",
       "importance": 2,
@@ -130,11 +131,12 @@
       "source": "eurostat",
       "dataset": "sts_trtu_m",
       "filters": {
+        "freq": "M",
         "unit": "I15",
         "s_adj": "SA",
         "nace_r2": "G47"
       },
-      "geo": "EA19",
+      "geo": "EA20",
       "frequency": "M",
       "category": "Crecimiento / Actividad",
       "importance": 2,
@@ -146,11 +148,12 @@
       "source": "eurostat",
       "dataset": "sts_inpr_m",
       "filters": {
+        "freq": "M",
         "unit": "I15",
         "s_adj": "SA",
         "nace_r2": "B-D"
       },
-      "geo": "EA19",
+      "geo": "EA20",
       "frequency": "M",
       "category": "Crecimiento / Actividad",
       "importance": 2,
