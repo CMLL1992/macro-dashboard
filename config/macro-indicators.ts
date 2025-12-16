@@ -194,8 +194,9 @@ export const MACRO_INDICATORS_CONFIG: Record<string, MacroIndicatorConfig> = {
     label: 'Ventas Minoristas (YoY)',
     source: 'FRED',
     fredSeriesId: 'RSAFS', // Retail and Food Services Sales (Total, nivel)
-    fredTransform: 'pc1',  // FRED ya devuelve YoY con units=pc1
-    transform: 'none',     // No aplicar transform adicional, FRED ya devuelve YoY
+    // fredTransform removed: FRED units=pc1 may not be supported for RSAFS
+    // Instead, ingest raw level and calculate YoY in read-macro.ts using yoy() function
+    transform: 'yoy',      // Calculate YoY from raw level data
     unit: 'percent',
     scale: 1,
     decimals: 2,
