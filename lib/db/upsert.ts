@@ -169,11 +169,19 @@ export async function upsertMacroSeries(series: MacroSeries): Promise<void> {
 
 /**
  * Upsert macro bias
+ * GUARDRAIL: Only allows symbols from tactical-pairs.json
  */
 export async function upsertMacroBias(
   bias: MacroBias,
   narrative?: BiasNarrative
 ): Promise<void> {
+  // Guardrail: Filter by allowlist before inserting
+  const { isAllowedPair } = await import('@/config/tactical-pairs')
+  if (!isAllowedPair(bias.asset)) {
+    console.warn(`[upsertMacroBias] Rejected non-allowed symbol: ${bias.asset}`)
+    return // Silently skip - don't insert non-allowed symbols
+  }
+  
   if (isUsingTurso()) {
     const db = getUnifiedDB()
     await db.prepare(`
@@ -222,6 +230,7 @@ export async function upsertMacroBias(
 
 /**
  * Upsert correlation
+ * GUARDRAIL: Only allows symbols from tactical-pairs.json
  */
 export async function upsertCorrelation(params: {
   symbol: string
@@ -233,6 +242,13 @@ export async function upsertCorrelation(params: {
   last_asset_date?: string | null
   last_base_date?: string | null
 }): Promise<void> {
+  // Guardrail: Filter by allowlist before inserting
+  const { isAllowedPair } = await import('@/config/tactical-pairs')
+  const normalizedSymbol = params.symbol.toUpperCase()
+  if (!isAllowedPair(normalizedSymbol)) {
+    console.warn(`[upsertCorrelation] Rejected non-allowed symbol: ${normalizedSymbol}`)
+    return // Silently skip - don't insert non-allowed symbols
+  }
   if (isUsingTurso()) {
     const db = getUnifiedDB()
     await db.prepare(`

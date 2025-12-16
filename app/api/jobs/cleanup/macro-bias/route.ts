@@ -49,12 +49,45 @@ export async function POST(request: NextRequest) {
     const db = getUnifiedDB()
     const isTurso = isUsingTurso()
 
-    // Build SQL conditions for allowed symbols
-    const placeholders = allowedPairs.map(() => '?').join(',')
-
+    let normalizedRows = 0
     let deletedRows = 0
 
-    // Delete macro_bias entries for non-allowed symbols
+    // Step 1: Normalize ETHUSDT → ETHUSD (and any other variants)
+    try {
+      if (isTurso) {
+        const result = await db.prepare(`
+          UPDATE macro_bias
+          SET symbol = 'ETHUSD'
+          WHERE symbol = 'ETHUSDT'
+        `).run()
+        normalizedRows = result.changes || 0
+      } else {
+        const stmt = db.prepare(`
+          UPDATE macro_bias
+          SET symbol = 'ETHUSD'
+          WHERE symbol = 'ETHUSDT'
+        `)
+        const result = stmt.run() as { changes: number; lastInsertRowid: number | bigint }
+        normalizedRows = result.changes || 0
+      }
+      if (normalizedRows > 0) {
+        logger.info('Normalized ETHUSDT → ETHUSD in macro_bias', {
+          job: jobId,
+          normalized: normalizedRows,
+        })
+      }
+    } catch (error) {
+      logger.warn('Failed to normalize ETHUSDT in macro_bias (may not exist)', {
+        job: jobId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      // Don't throw - normalization is optional
+    }
+
+    // Step 2: Delete macro_bias entries for non-allowed symbols
+    // Build SQL conditions for allowed symbols
+    const placeholders = allowedPairs.map(() => '?').join(',')
+    
     try {
       if (isTurso) {
         const result = await db.prepare(`
@@ -72,6 +105,7 @@ export async function POST(request: NextRequest) {
       }
       logger.info('Cleaned up macro_bias', {
         job: jobId,
+        normalized: normalizedRows,
         deleted: deletedRows,
       })
     } catch (error) {
@@ -87,6 +121,7 @@ export async function POST(request: NextRequest) {
 
     logger.info('Macro_bias cleanup completed', {
       job: jobId,
+      normalized: normalizedRows,
       deletedRows,
       duration_ms: duration,
     })
@@ -97,6 +132,7 @@ export async function POST(request: NextRequest) {
       startedAt,
       finishedAt,
       duration_ms: duration,
+      normalized: normalizedRows,
       deleted: deletedRows,
       allowedPairs,
     })

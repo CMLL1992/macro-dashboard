@@ -40,4 +40,24 @@ export function getAllowedPairs(): string[] {
   return Array.from(TACTICAL_PAIR_SET).sort()
 }
 
+/**
+ * Get allowed symbols as array for SQL IN clause
+ * Returns array of normalized symbols: ['BTCUSD', 'ETHUSD', ...]
+ */
+export function getAllowedSymbolsForSQL(): string[] {
+  return Array.from(TACTICAL_PAIR_SET).sort()
+}
+
+/**
+ * Build SQL WHERE clause for filtering by allowed symbols
+ * Returns: "symbol IN (?, ?, ...)" and the array of values
+ * Usage: const [whereClause, values] = getSQLFilterForAllowedSymbols()
+ *        const query = `SELECT * FROM table WHERE ${whereClause}`
+ */
+export function getSQLFilterForAllowedSymbols(): [string, string[]] {
+  const symbols = getAllowedSymbolsForSQL()
+  const placeholders = symbols.map(() => '?').join(', ')
+  return [`symbol IN (${placeholders})`, symbols]
+}
+
 

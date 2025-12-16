@@ -117,8 +117,6 @@ Editar `vercel.json`:
 
 ### 3.1 FRED (Primero)
 
-⚠️ **Advertencia sobre `reset=true`:** Este parámetro elimina el cursor guardado y reinicia el job desde el principio. Usar solo para backfill completo o debugging. Si el job ya está en progreso, omitir `reset=true` y usar solo `cursor=<NEXT_CURSOR>` para continuar.
-
 **Reset y arrancar desde cero:**
 ```bash
 curl -X POST "https://tu-dominio.vercel.app/api/jobs/ingest/fred?batch=10&reset=true" \
@@ -157,8 +155,6 @@ curl -X POST "https://tu-dominio.vercel.app/api/jobs/ingest/fred?batch=10&cursor
 ---
 
 ### 3.2 Assets (Segundo, después de FRED)
-
-⚠️ **Advertencia sobre `reset=true`:** Este parámetro elimina el cursor guardado y reinicia el job desde el principio. Usar solo para backfill completo o debugging. Si el job ya está en progreso, omitir `reset=true` y usar solo `cursor=<NEXT_CURSOR>` para continuar.
 
 **Reset:**
 ```bash

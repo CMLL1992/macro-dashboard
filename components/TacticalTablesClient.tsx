@@ -6,6 +6,28 @@ import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 
+// Allowlist defensiva: solo estos 19 símbolos pueden aparecer en el dashboard
+// Esta es la última línea de defensa en caso de que el backend no filtre correctamente
+const ALLOWED_SYMBOLS = new Set([
+  'BTCUSD', 'ETHUSD', // Crypto
+  'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD', // G10 FX
+  'USDCNH', 'USDBRL', 'USDMXN', // EM FX
+  'SPX', 'NDX', 'SX5E', 'NIKKEI', // Indices
+  'XAUUSD', 'WTI', 'COPPER', // Commodities
+])
+
+// Normalizar símbolo para comparación (uppercase, sin slashes)
+function normalizeSymbol(symbol: string | null | undefined): string {
+  if (!symbol) return ''
+  return symbol.toUpperCase().replace('/', '').replace('-', '')
+}
+
+// Verificar si un símbolo está permitido
+function isAllowedSymbol(symbol: string | null | undefined): boolean {
+  const normalized = normalizeSymbol(symbol)
+  return ALLOWED_SYMBOLS.has(normalized)
+}
+
 type TacticalRow = {
   pair: string
   trend: string
@@ -50,6 +72,17 @@ export default function TacticalTablesClient({ rows }: Props) {
 
   const rowsWithCategory = useMemo(() => {
     return rows
+      .filter((row) => {
+        // Filtro defensivo: solo mostrar símbolos permitidos
+        const symbol = normalizeSymbol(row.pair)
+        if (!isAllowedSymbol(symbol)) {
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('[TacticalTablesClient] Filtered out non-allowed symbol:', row.pair, '→ normalized:', symbol)
+          }
+          return false
+        }
+        return true
+      })
       .map((row) => {
         const category = getAssetCategorySafe(row.pair)
         return { ...row, category }

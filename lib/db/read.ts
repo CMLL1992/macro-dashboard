@@ -325,16 +325,25 @@ export async function getAllCorrelationsFromDB(base: string = 'DXY'): Promise<Ar
   corr6: number | null
   corr24: number | null
 }>> {
-  // Get all correlations (including NULL values) to show all assets
+  // Import tactical pairs filter
+  const { getSQLFilterForAllowedSymbols, isAllowedPair } = await import('@/config/tactical-pairs')
+  
+  // Build SQL filter to only get allowed symbols
+  const [whereClause, allowedSymbols] = getSQLFilterForAllowedSymbols()
+  const query = `SELECT symbol, window, value FROM correlations WHERE base = ? AND ${whereClause}`
+  
+  // Get correlations only for allowed symbols
+  // Note: query is "WHERE base = ? AND symbol IN (?, ?, ...)"
+  // So params order is: [base, ...allowedSymbols]
   let rows: Array<{ symbol: string; window: string; value: number | null }>
   if (isUsingTurso()) {
     const db = getUnifiedDB()
-    rows = await db.prepare('SELECT symbol, window, value FROM correlations WHERE base = ?').all(base.toUpperCase()) as Array<{ symbol: string; window: string; value: number | null }>
+    rows = await db.prepare(query).all(base.toUpperCase(), ...allowedSymbols) as Array<{ symbol: string; window: string; value: number | null }>
   } else {
     const db = getDB()
     rows = db
-      .prepare('SELECT symbol, window, value FROM correlations WHERE base = ?')
-      .all(base.toUpperCase()) as Array<{ symbol: string; window: string; value: number | null }>
+      .prepare(query)
+      .all(base.toUpperCase(), ...allowedSymbols) as Array<{ symbol: string; window: string; value: number | null }>
   }
 
   // Group by symbol
@@ -347,6 +356,9 @@ export async function getAllCorrelationsFromDB(base: string = 'DXY'): Promise<Ar
 
   for (const row of rows) {
     const symbol = row.symbol
+    // Double-check filter in memory (defensive programming)
+    if (!isAllowedPair(symbol)) continue
+    
     if (!bySymbol.has(symbol)) {
       bySymbol.set(symbol, { corr12: null, corr3: null, corr6: null, corr24: null })
     }
@@ -359,29 +371,32 @@ export async function getAllCorrelationsFromDB(base: string = 'DXY'): Promise<Ar
     // Note: 6m and 24m are not stored in DB, only 12m and 3m
   }
 
-  // Also include all assets from universe that might not have correlations yet
+  // Also include all allowed assets from tactical-pairs.json that might not have correlations yet
   try {
-    const { getActiveSymbols } = await import('@/lib/correlations/fetch')
-    const allSymbols = await getActiveSymbols()
-    for (const symbol of allSymbols) {
+    const { getAllowedPairs } = await import('@/config/tactical-pairs')
+    const allAllowedSymbols = getAllowedPairs()
+    for (const symbol of allAllowedSymbols) {
       const normalized = symbol.toUpperCase()
       if (!bySymbol.has(normalized)) {
         bySymbol.set(normalized, { corr12: null, corr3: null, corr6: null, corr24: null })
       }
     }
   } catch (error) {
-    // If we can't get active symbols, just return what we have
-    console.warn('[getAllCorrelationsFromDB] Could not get active symbols:', error)
+    // If we can't get allowed symbols, just return what we have
+    console.warn('[getAllCorrelationsFromDB] Could not get allowed symbols:', error)
   }
 
   // Convert to array format (symbols are already normalized in DB as uppercase)
-  return Array.from(bySymbol.entries()).map(([activo, corr]) => ({
-    activo: activo.toUpperCase(), // Ensure uppercase normalization
-    corr12: corr.corr12,
-    corr3: corr.corr3,
-    corr6: null, // Not stored in DB
-    corr24: null, // Not stored in DB
-  }))
+  // Final filter to ensure only allowed symbols
+  return Array.from(bySymbol.entries())
+    .filter(([activo]) => isAllowedPair(activo))
+    .map(([activo, corr]) => ({
+      activo: activo.toUpperCase(), // Ensure uppercase normalization
+      corr12: corr.corr12,
+      corr3: corr.corr3,
+      corr6: null, // Not stored in DB
+      corr24: null, // Not stored in DB
+    }))
 }
 
 export type MacroBiasRecord = {
@@ -396,7 +411,11 @@ export type MacroBiasRecord = {
 export async function getMacroTacticalBias(): Promise<MacroBiasRecord[]> {
   try {
     // Import here to avoid circular dependencies
-    const { isAllowedPair } = await import('@/config/tactical-pairs')
+    const { getSQLFilterForAllowedSymbols, isAllowedPair } = await import('@/config/tactical-pairs')
+    
+    // Build SQL filter to only get allowed symbols
+    const [whereClause, allowedSymbols] = getSQLFilterForAllowedSymbols()
+    const query = `SELECT symbol, score, direction, confidence, drivers_json, computed_at FROM macro_bias WHERE ${whereClause} ORDER BY symbol ASC`
     
     let rows: Array<{
       symbol: string
@@ -409,7 +428,7 @@ export async function getMacroTacticalBias(): Promise<MacroBiasRecord[]> {
     
     if (isUsingTurso()) {
       const db = getUnifiedDB()
-      rows = await db.prepare('SELECT symbol, score, direction, confidence, drivers_json, computed_at FROM macro_bias ORDER BY symbol ASC').all() as Array<{
+      rows = await db.prepare(query).all(...allowedSymbols) as Array<{
         symbol: string
         score: number
         direction: string
@@ -419,24 +438,28 @@ export async function getMacroTacticalBias(): Promise<MacroBiasRecord[]> {
       }>
     } else {
       const db = getDB()
-      rows = db
-        .prepare('SELECT symbol, score, direction, confidence, drivers_json, computed_at FROM macro_bias ORDER BY symbol ASC')
-        .all() as Array<{
-          symbol: string
-          score: number
-          direction: string
-          confidence: number
-          drivers_json: string
-          computed_at: string
-        }>
+      const stmt = db.prepare(query)
+      rows = stmt.all(...allowedSymbols) as Array<{
+        symbol: string
+        score: number
+        direction: string
+        confidence: number
+        drivers_json: string
+        computed_at: string
+      }>
     }
 
-    // FILTER: Only return pairs that are in tactical-pairs.json
+    // Double-check filter in memory (defensive programming)
     const filtered = rows.filter(row => isAllowedPair(row.symbol))
     
     const uniquePairs = Array.from(new Set(filtered.map(r => r.symbol))).sort()
     if (process.env.NODE_ENV === 'development' || process.env.DEBUG_TACTICAL_PAIRS === 'true') {
-      console.log('[MACRO_BIAS_DB] returning pairs:', uniquePairs)
+      console.log('[MACRO_BIAS_DB] SQL filtered pairs:', {
+        allowedSymbolsCount: allowedSymbols.length,
+        rowsReturned: rows.length,
+        afterMemoryFilter: filtered.length,
+        uniquePairs,
+      })
     }
 
     return filtered.map((row) => ({

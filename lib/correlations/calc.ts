@@ -33,6 +33,26 @@ const CORR_CONFIG = loadCorrelationConfig()
 export type PricePoint = { date: string; value: number }
 
 /**
+ * Result type for correlation calculation
+ */
+export type CorrelationResult = {
+  correlation: number | null
+  n_obs: number
+  last_asset_date: string | null
+  last_base_date: string | null
+  reasonNull?: 'NO_DATA' | 'STALE_ASSET' | 'STALE_DXY' | 'NO_OVERLAP' | 'TOO_FEW_POINTS' | 'NAN_AFTER_JOIN' | 'EXCEPTION'
+  diagnostic?: {
+    assetPoints: number
+    dxyPoints: number
+    alignedPoints: number
+    overlapPoints12m: number
+    overlapPoints3m: number
+    assetLastDate: string | null
+    dxyLastDate: string | null
+  }
+}
+
+/**
  * Winsorize returns at configured percentiles
  */
 function winsorize(values: number[]): number[] {
@@ -66,6 +86,7 @@ function calculateLogReturns(prices: PricePoint[]): { date: string; return: numb
 /**
  * Forward fill prices for up to maxForwardFillDays business days
  * Aligns two series by date, using forward-fill for missing values
+ * FIX: Forward-fill cronológico correcto (no inicializa lastDate al final)
  */
 function alignSeries(
   series1: PricePoint[],
@@ -73,34 +94,28 @@ function alignSeries(
   maxForwardFillDays?: number
 ): { date: string; value1: number; value2: number }[] {
   const maxDays = maxForwardFillDays ?? CORR_CONFIG.method.fill.max_days ?? 3
-  const map1 = new Map<string, number>()
-  const map2 = new Map<string, number>()
+  
+  // Normalize series first
+  const s1 = normalizeSeries(series1)
+  const s2 = normalizeSeries(series2)
 
-  // Build maps with forward-fill logic
-  let last1: number | null = null
-  let last1Date: string | null = null
-  for (const p of series1) {
-    map1.set(p.date, p.value)
-    last1 = p.value
-    last1Date = p.date
-  }
+  // Build maps
+  const map1 = new Map(s1.map(p => [p.date, p.value]))
+  const map2 = new Map(s2.map(p => [p.date, p.value]))
 
-  let last2: number | null = null
-  let last2Date: string | null = null
-  for (const p of series2) {
-    map2.set(p.date, p.value)
-    last2 = p.value
-    last2Date = p.date
-  }
-
-  // Get all unique dates, pero solo incluir fechas donde ambas series tienen datos válidos
-  // o pueden ser forward-filled
+  // Get all unique dates
   const allDates = new Set([...map1.keys(), ...map2.keys()])
   const sortedDates = Array.from(allDates).sort()
   
-  // Filtrar fechas futuras (errores de datos)
+  // Filter future dates (data errors)
   const today = new Date().toISOString().slice(0, 10)
   const validDates = sortedDates.filter(d => d <= today)
+
+  // Forward-fill cronológico: last1/last2 se actualizan mientras recorremos fechas
+  let last1: number | null = null
+  let last1Date: string | null = null
+  let last2: number | null = null
+  let last2Date: string | null = null
 
   const aligned: { date: string; value1: number; value2: number }[] = []
 
@@ -108,25 +123,7 @@ function alignSeries(
     let v1 = map1.get(date)
     let v2 = map2.get(date)
 
-    // Forward fill if missing (within maxDays)
-    if (v1 == null && last1 != null && last1Date != null) {
-      const daysDiff = Math.floor(
-        (new Date(date).getTime() - new Date(last1Date).getTime()) / (1000 * 60 * 60 * 24)
-      )
-      if (daysDiff <= maxDays && daysDiff > 0) {
-        v1 = last1
-      }
-    }
-    if (v2 == null && last2 != null && last2Date != null) {
-      const daysDiff = Math.floor(
-        (new Date(date).getTime() - new Date(last2Date).getTime()) / (1000 * 60 * 60 * 24)
-      )
-      if (daysDiff <= maxDays && daysDiff > 0) {
-        v2 = last2
-      }
-    }
-
-    // Update last values
+    // Update last values if we have data
     if (v1 != null) {
       last1 = v1
       last1Date = date
@@ -134,6 +131,25 @@ function alignSeries(
     if (v2 != null) {
       last2 = v2
       last2Date = date
+    }
+
+    // Forward fill if missing (within maxDays)
+    if (v1 == null && last1 != null && last1Date != null) {
+      const daysDiff = Math.floor(
+        (new Date(date).getTime() - new Date(last1Date).getTime()) / 86400000
+      )
+      if (daysDiff > 0 && daysDiff <= maxDays) {
+        v1 = last1
+      }
+    }
+
+    if (v2 == null && last2 != null && last2Date != null) {
+      const daysDiff = Math.floor(
+        (new Date(date).getTime() - new Date(last2Date).getTime()) / 86400000
+      )
+      if (daysDiff > 0 && daysDiff <= maxDays) {
+        v2 = last2
+      }
     }
 
     // Only include if both values are available
@@ -146,55 +162,161 @@ function alignSeries(
 }
 
 /**
+ * Normalize date to YYYY-MM-DD format (UTC, no time)
+ * Handles various date formats and timezones
+ */
+function normalizeDate(dateStr: string): string {
+  return dateStr.length >= 10 ? dateStr.slice(0, 10) : dateStr
+}
+
+/**
+ * Normalize and clean a price series
+ */
+function normalizeSeries(series: PricePoint[]): PricePoint[] {
+  return series
+    .map(p => ({ date: normalizeDate(p.date), value: p.value }))
+    .filter(p => p.date && Number.isFinite(p.value))
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/**
  * Calculate correlation between two price series
  * @param assetPrices Asset price series (daily)
  * @param basePrices Base price series (DXY, daily)
  * @param windowDays Number of trading days (252 for 12m, 63 for 3m)
- * @returns Correlation value or null if insufficient data
+ * @returns Correlation value or null if insufficient data, with diagnostic info
  */
 export function calculateCorrelation(
   assetPrices: PricePoint[],
   basePrices: PricePoint[],
   windowDays: number,
   minObs?: number
-): {
-  correlation: number | null
-  n_obs: number
-  last_asset_date: string | null
-  last_base_date: string | null
-} {
-  // Align series by date with forward-fill
-  const aligned = alignSeries(assetPrices, basePrices)
+): CorrelationResult {
+  // Normalize series (fechas a YYYY-MM-DD, filtrar inválidos, ordenar)
+  const asset = normalizeSeries(assetPrices)
+  const base = normalizeSeries(basePrices)
 
-  const requiredObs = minObs ?? (windowDays >= 200 ? 150 : 40)
+  // Diagnostic info
+  const assetLastDate = asset.length > 0 ? asset[asset.length - 1].date : null
+  const dxyLastDate = base.length > 0 ? base[base.length - 1].date : null
 
-  if (aligned.length < windowDays) {
-    return {
-      correlation: null,
-      n_obs: aligned.length,
-      last_asset_date: assetPrices.length > 0 ? assetPrices[assetPrices.length - 1].date : null,
-      last_base_date: basePrices.length > 0 ? basePrices[basePrices.length - 1].date : null,
+  // Check for stale data (30 calendar days threshold)
+  const today = new Date().toISOString().slice(0, 10)
+  const staleThresholdDays = 30 // Calendar days, not business days
+  
+  if (assetLastDate) {
+    const daysDiff = Math.floor(
+      (new Date(today).getTime() - new Date(assetLastDate).getTime()) / (1000 * 60 * 60 * 24)
+    )
+    if (daysDiff > staleThresholdDays) {
+      return {
+        correlation: null,
+        n_obs: 0,
+        last_asset_date: assetLastDate,
+        last_base_date: dxyLastDate,
+        reasonNull: 'STALE_ASSET',
+        diagnostic: {
+          assetPoints: asset.length,
+          dxyPoints: base.length,
+          alignedPoints: 0,
+          overlapPoints12m: 0,
+          overlapPoints3m: 0,
+          assetLastDate,
+          dxyLastDate,
+        },
+      }
     }
   }
 
-  // Get last windowDays observations (más recientes)
-  const window = aligned.slice(-windowDays)
-  
-  // Verificar que la última fecha sea reciente (dentro de los últimos 20 días hábiles)
-  // Aumentado a 20 días para ser más permisivo con datos de fin de semana/vacaciones y activos menos líquidos
-  const lastDate = window[window.length - 1]?.date
-  if (lastDate) {
-    const lastDateObj = new Date(lastDate)
-    const today = new Date()
-    const daysDiff = Math.floor((today.getTime() - lastDateObj.getTime()) / (1000 * 60 * 60 * 24))
-    if (daysDiff > 20) {
-      // Datos demasiado antiguos, no calcular correlación
+  if (dxyLastDate) {
+    const daysDiff = Math.floor(
+      (new Date(today).getTime() - new Date(dxyLastDate).getTime()) / (1000 * 60 * 60 * 24)
+    )
+    if (daysDiff > staleThresholdDays) {
       return {
         correlation: null,
-        n_obs: window.length,
-        last_asset_date: assetPrices.length > 0 ? assetPrices[assetPrices.length - 1].date : null,
-        last_base_date: basePrices.length > 0 ? basePrices[basePrices.length - 1].date : null,
+        n_obs: 0,
+        last_asset_date: assetLastDate,
+        last_base_date: dxyLastDate,
+        reasonNull: 'STALE_DXY',
+        diagnostic: {
+          assetPoints: asset.length,
+          dxyPoints: base.length,
+          alignedPoints: 0,
+          overlapPoints12m: 0,
+          overlapPoints3m: 0,
+          assetLastDate,
+          dxyLastDate,
+        },
       }
+    }
+  }
+
+  // Check for no data
+  if (asset.length === 0) {
+    return {
+      correlation: null,
+      n_obs: 0,
+      last_asset_date: assetLastDate,
+      last_base_date: dxyLastDate,
+      reasonNull: 'NO_DATA',
+      diagnostic: {
+        assetPoints: 0,
+        dxyPoints: base.length,
+        alignedPoints: 0,
+        overlapPoints12m: 0,
+        overlapPoints3m: 0,
+        assetLastDate,
+        dxyLastDate,
+      },
+    }
+  }
+
+  if (base.length === 0) {
+    return {
+      correlation: null,
+      n_obs: 0,
+      last_asset_date: assetLastDate,
+      last_base_date: dxyLastDate,
+      reasonNull: 'NO_DATA',
+      diagnostic: {
+        assetPoints: asset.length,
+        dxyPoints: 0,
+        alignedPoints: 0,
+        overlapPoints12m: 0,
+        overlapPoints3m: 0,
+        assetLastDate,
+        dxyLastDate,
+      },
+    }
+  }
+
+  // Align series by date with forward-fill
+  const aligned = alignSeries(asset, base)
+
+  // FIX BUG 1: Quitar el "gate" de aligned.length < windowDays
+  // Tomar window (si hay menos que windowDays, coge lo que haya)
+  const window = aligned.slice(-windowDays)
+
+  // Exigir solo min_obs después del slice
+  const requiredObs = minObs ?? (windowDays >= 200 ? 150 : 40)
+  
+  if (window.length < requiredObs) {
+    return {
+      correlation: null,
+      n_obs: window.length,
+      last_asset_date: asset.length > 0 ? asset[asset.length - 1].date : null,
+      last_base_date: base.length > 0 ? base[base.length - 1].date : null,
+      reasonNull: 'TOO_FEW_POINTS',
+      diagnostic: {
+        assetPoints: asset.length,
+        dxyPoints: base.length,
+        alignedPoints: aligned.length,
+        overlapPoints12m: window.length,
+        overlapPoints3m: window.length,
+        assetLastDate,
+        dxyLastDate,
+      },
     }
   }
 
@@ -206,29 +328,105 @@ export function calculateCorrelation(
     window.map(p => ({ date: p.date, value: p.value2 }))
   )
 
-  // Align returns by date
-  const returnMap1 = new Map(assetReturns.map(r => [r.date, r.return]))
-  const returnMap2 = new Map(baseReturns.map(r => [r.date, r.return]))
-  const commonDates = Array.from(returnMap1.keys()).filter(d => returnMap2.has(d)).sort()
+  // Align returns by date (normalized dates)
+  const returnMap1 = new Map(assetReturns.map(r => [normalizeDate(r.date), r.return]))
+  const returnMap2 = new Map(baseReturns.map(r => [normalizeDate(r.date), r.return]))
+  const commonDates = Array.from(returnMap1.keys())
+    .filter(d => returnMap2.has(d))
+    .sort()
+
+  // Calculate overlap points for 12m and 3m windows (for diagnostic)
+  // Use the actual window size, not hardcoded values
+  const window12m = aligned.slice(-Math.min(252, aligned.length)) // 12 months (252 trading days)
+  const window3m = aligned.slice(-Math.min(63, aligned.length))  // 3 months (63 trading days)
+  
+  const returns12m = calculateLogReturns(window12m.map(p => ({ date: p.date, value: p.value1 })))
+  const returns3m = calculateLogReturns(window3m.map(p => ({ date: p.date, value: p.value1 })))
+  const baseReturns12m = calculateLogReturns(window12m.map(p => ({ date: p.date, value: p.value2 })))
+  const baseReturns3m = calculateLogReturns(window3m.map(p => ({ date: p.date, value: p.value2 })))
+  
+  // Count common dates in returns (after log returns calculation)
+  const returns12mDates = new Set(returns12m.map(r => normalizeDate(r.date)))
+  const baseReturns12mDates = new Set(baseReturns12m.map(r => normalizeDate(r.date)))
+  const overlap12m = Array.from(returns12mDates).filter(d => baseReturns12mDates.has(d)).length
+
+  const returns3mDates = new Set(returns3m.map(r => normalizeDate(r.date)))
+  const baseReturns3mDates = new Set(baseReturns3m.map(r => normalizeDate(r.date)))
+  const overlap3m = Array.from(returns3mDates).filter(d => baseReturns3mDates.has(d)).length
 
   if (commonDates.length < requiredObs) {
     return {
       correlation: null,
       n_obs: commonDates.length,
-      last_asset_date: assetPrices.length > 0 ? assetPrices[assetPrices.length - 1].date : null,
-      last_base_date: basePrices.length > 0 ? basePrices[basePrices.length - 1].date : null,
+      last_asset_date: assetLastDate,
+      last_base_date: dxyLastDate,
+      reasonNull: 'TOO_FEW_POINTS',
+      diagnostic: {
+        assetPoints: asset.length,
+        dxyPoints: base.length,
+        alignedPoints: aligned.length,
+        overlapPoints12m: overlap12m,
+        overlapPoints3m: overlap3m,
+        assetLastDate,
+        dxyLastDate,
+      },
     }
   }
 
   const x = commonDates.map(d => returnMap1.get(d)!)
   const y = commonDates.map(d => returnMap2.get(d)!)
 
+  // Check for NaN/Infinity after join
+  const xValid = x.filter(v => Number.isFinite(v))
+  const yValid = y.filter((v, i) => Number.isFinite(v) && Number.isFinite(x[i]))
+  const xFiltered = x.filter((v, i) => Number.isFinite(v) && Number.isFinite(y[i]))
+  const yFiltered = y.filter((v, i) => Number.isFinite(v) && Number.isFinite(x[i]))
+
+  if (xFiltered.length < requiredObs || xFiltered.length !== yFiltered.length) {
+    return {
+      correlation: null,
+      n_obs: xFiltered.length,
+      last_asset_date: assetLastDate,
+      last_base_date: dxyLastDate,
+      reasonNull: 'NAN_AFTER_JOIN',
+      diagnostic: {
+        assetPoints: asset.length,
+        dxyPoints: base.length,
+        alignedPoints: aligned.length,
+        overlapPoints12m: overlap12m,
+        overlapPoints3m: overlap3m,
+        assetLastDate,
+        dxyLastDate,
+      },
+    }
+  }
+
   // Winsorize to remove outliers
-  const xWinsorized = winsorize(x)
-  const yWinsorized = winsorize(y)
+  const xWinsorized = winsorize(xFiltered)
+  const yWinsorized = winsorize(yFiltered)
 
   // Calculate Pearson correlation
-  const corr = pearson(xWinsorized, yWinsorized)
+  let corr: number | null
+  try {
+    corr = pearson(xWinsorized, yWinsorized)
+  } catch (error) {
+    return {
+      correlation: null,
+      n_obs: xFiltered.length,
+      last_asset_date: assetLastDate,
+      last_base_date: dxyLastDate,
+      reasonNull: 'EXCEPTION',
+      diagnostic: {
+        assetPoints: asset.length,
+        dxyPoints: base.length,
+        alignedPoints: aligned.length,
+        overlapPoints12m: overlap12m,
+        overlapPoints3m: overlap3m,
+        assetLastDate,
+        dxyLastDate,
+      },
+    }
+  }
 
   // Sanitize correlation value: ensure it's a valid number
   // Return null if NaN, Infinity, or not a finite number
@@ -236,9 +434,19 @@ export function calculateCorrelation(
 
   return {
     correlation: safeCorr,
-    n_obs: commonDates.length,
-    last_asset_date: assetPrices.length > 0 ? assetPrices[assetPrices.length - 1].date : null,
-    last_base_date: basePrices.length > 0 ? basePrices[basePrices.length - 1].date : null,
+    n_obs: xFiltered.length,
+    last_asset_date: assetLastDate,
+    last_base_date: dxyLastDate,
+    reasonNull: safeCorr === null ? 'NAN_AFTER_JOIN' : undefined,
+    diagnostic: {
+      assetPoints: asset.length,
+      dxyPoints: base.length,
+      alignedPoints: aligned.length,
+      overlapPoints12m: overlap12m,
+      overlapPoints3m: overlap3m,
+      assetLastDate,
+      dxyLastDate,
+    },
   }
 }
 

@@ -51,9 +51,7 @@ async function getYahooSymbol(symbol: string): Promise<string | string[] | null>
     SX5E: '^STOXX50E', // Euro Stoxx 50
     NIKKEI: '^N225', // Nikkei 225
     // Crypto
-    BTCUSDT: 'BTC-USD',
     BTCUSD: 'BTC-USD',
-    ETHUSDT: 'ETH-USD',
     ETHUSD: 'ETH-USD',
   }
   
