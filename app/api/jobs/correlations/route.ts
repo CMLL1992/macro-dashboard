@@ -66,39 +66,86 @@ export async function POST(request: NextRequest) {
     }
 
     const activeSymbols = await getActiveSymbols()
+    
+    // Guardrail: Double-check allowlist (defensive programming)
+    const { isAllowedPair } = await import('@/config/tactical-pairs')
+    const filteredSymbols = activeSymbols.filter(s => isAllowedPair(s))
+    
+    if (filteredSymbols.length !== activeSymbols.length) {
+      logger.warn('Some symbols from getActiveSymbols() were filtered by allowlist', {
+        job: jobId,
+        originalCount: activeSymbols.length,
+        filteredCount: filteredSymbols.length,
+      })
+    }
+    
     let processed = 0
     let errors = 0
+    let noDataCount = 0
     const correlationsForAlerts: Array<{ symbol: string; corr12m: number | null; corr3m: number | null }> = []
+    const nullCorrelations: Array<{
+      symbol: string
+      assetPoints: number
+      assetLastDate: string | null
+      corr12m_reasonNull?: string
+      corr3m_reasonNull?: string
+    }> = []
 
-    for (const symbol of activeSymbols) {
+    for (const symbol of filteredSymbols) {
       try {
         // Normalize symbol to uppercase (consistent with DB storage)
         const normalizedSymbol = symbol.toUpperCase()
         
+        // Get Yahoo symbol for logging
+        const { getYahooSymbol } = await import('@/lib/correlations/fetch')
+        const yahooSymbol = await getYahooSymbol(normalizedSymbol)
+        
         const assetPrices = await fetchAssetDaily(normalizedSymbol)
-        if (assetPrices.length === 0) {
-          logger.warn(`No asset data for ${normalizedSymbol}, skipping correlation calculation`, { job: jobId, symbol: normalizedSymbol })
-          errors++
+        const assetPoints = assetPrices.length
+        const dxyPoints = dxyPrices.length
+        const assetLastDate = assetPoints > 0 ? assetPrices[assetPoints - 1].date : null
+        const dxyLastDate = dxyPoints > 0 ? dxyPrices[dxyPoints - 1].date : null
+
+        if (assetPoints === 0) {
+          logger.warn(`No asset data for ${normalizedSymbol}`, {
+            job: jobId,
+            symbol: normalizedSymbol,
+            yahoo_symbol: yahooSymbol || 'NOT_FOUND',
+            assetPoints: 0,
+            dxyPoints,
+            assetLastDate: null,
+            dxyLastDate,
+            reasonNull: 'NO_DATA',
+          })
+          noDataCount++
           // Store null correlations if no data
+          // Note: base is stored as 'DXY' for backward compatibility, but it's actually DTWEXBGS (FRED)
           await upsertCorrelation({
             symbol: normalizedSymbol,
-            base: 'DXY',
+            base: 'DXY', // Stored as 'DXY' for backward compatibility (actually DTWEXBGS from FRED)
             window: '12m',
             value: null,
             asof: today,
             n_obs: 0,
             last_asset_date: null,
-            last_base_date: dxyPrices.length > 0 ? dxyPrices[dxyPrices.length - 1].date : null,
+            last_base_date: dxyLastDate,
           })
           await upsertCorrelation({
             symbol: normalizedSymbol,
-            base: 'DXY',
+            base: 'DXY', // Stored as 'DXY' for backward compatibility (actually DTWEXBGS from FRED)
             window: '3m',
             value: null,
             asof: today,
             n_obs: 0,
             last_asset_date: null,
-            last_base_date: dxyPrices.length > 0 ? dxyPrices[dxyPrices.length - 1].date : null,
+            last_base_date: dxyLastDate,
+          })
+          nullCorrelations.push({
+            symbol: normalizedSymbol,
+            assetPoints: 0,
+            assetLastDate: null,
+            corr12m_reasonNull: 'NO_DATA',
+            corr3m_reasonNull: 'NO_DATA',
           })
           continue
         }
@@ -106,9 +153,34 @@ export async function POST(request: NextRequest) {
         // Calculate 12m correlation
         const w12m = CORR_CONFIG.windows.w12m
         const corr12m = calculateCorrelation(assetPrices, dxyPrices, w12m.trading_days, w12m.min_obs)
+        
+        // Calculate 3m correlation
+        const w3m = CORR_CONFIG.windows.w3m
+        const corr3m = calculateCorrelation(assetPrices, dxyPrices, w3m.trading_days, w3m.min_obs)
+
+        // Log diagnostic info for each symbol
+        logger.info(`Correlation calculation for ${normalizedSymbol}`, {
+          job: jobId,
+          symbol: normalizedSymbol,
+          yahoo_symbol: yahooSymbol || 'NOT_FOUND',
+          assetPoints,
+          dxyPoints,
+          assetLastDate,
+          dxyLastDate,
+          corr12m: corr12m.correlation,
+          corr12m_n_obs: corr12m.n_obs,
+          corr12m_reasonNull: corr12m.reasonNull,
+          corr12m_diagnostic: corr12m.diagnostic,
+          corr3m: corr3m.correlation,
+          corr3m_n_obs: corr3m.n_obs,
+          corr3m_reasonNull: corr3m.reasonNull,
+          corr3m_diagnostic: corr3m.diagnostic,
+        })
+
+        // Note: base is stored as 'DXY' for backward compatibility, but it's actually DTWEXBGS (FRED)
         await upsertCorrelation({
           symbol: normalizedSymbol,
-          base: 'DXY',
+          base: 'DXY', // Stored as 'DXY' for backward compatibility (actually DTWEXBGS from FRED)
           window: '12m',
           value: corr12m.correlation,
           asof: today,
@@ -117,12 +189,9 @@ export async function POST(request: NextRequest) {
           last_base_date: corr12m.last_base_date,
         })
 
-        // Calculate 3m correlation
-        const w3m = CORR_CONFIG.windows.w3m
-        const corr3m = calculateCorrelation(assetPrices, dxyPrices, w3m.trading_days, w3m.min_obs)
         await upsertCorrelation({
           symbol: normalizedSymbol,
-          base: 'DXY',
+          base: 'DXY', // Stored as 'DXY' for backward compatibility (actually DTWEXBGS from FRED)
           window: '3m',
           value: corr3m.correlation,
           asof: today,
@@ -130,6 +199,17 @@ export async function POST(request: NextRequest) {
           last_asset_date: corr3m.last_asset_date,
           last_base_date: corr3m.last_base_date,
         })
+
+        // Track null correlations for reporting
+        if (corr12m.correlation === null || corr3m.correlation === null) {
+          nullCorrelations.push({
+            symbol: normalizedSymbol,
+            assetPoints,
+            assetLastDate,
+            corr12m_reasonNull: corr12m.reasonNull,
+            corr3m_reasonNull: corr3m.reasonNull,
+          })
+        }
 
         processed++
         
@@ -139,32 +219,42 @@ export async function POST(request: NextRequest) {
           corr12m: corr12m.correlation,
           corr3m: corr3m.correlation,
         })
-        
-        logger.info(`Correlations calculated for ${normalizedSymbol}`, {
-          job: jobId,
-          symbol: normalizedSymbol,
-          corr12m: corr12m.correlation,
-          n_obs12m: corr12m.n_obs,
-          corr3m: corr3m.correlation,
-          n_obs3m: corr3m.n_obs,
-        })
       } catch (error) {
         errors++
         logger.error(`Failed to calculate correlations for ${symbol}`, {
           job: jobId,
           symbol,
           error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
         })
       }
     }
 
     const finishedAt = new Date().toISOString()
+    const durationMs = new Date(finishedAt).getTime() - new Date(startedAt).getTime()
+    
     logger.info('Correlations calculation completed', {
       job: jobId,
       processed,
       errors,
-      duration_ms: new Date(finishedAt).getTime() - new Date(startedAt).getTime(),
+      noDataCount,
+      nullCorrelationsCount: nullCorrelations.length,
+      duration_ms: durationMs,
     })
+
+    // Log null correlations for debugging
+    if (nullCorrelations.length > 0) {
+      logger.info('Null correlations summary', {
+        job: jobId,
+        nullCorrelations: nullCorrelations.map(n => ({
+          symbol: n.symbol,
+          assetPoints: n.assetPoints,
+          assetLastDate: n.assetLastDate,
+          corr12m_reasonNull: n.corr12m_reasonNull,
+          corr3m_reasonNull: n.corr3m_reasonNull,
+        })),
+      })
+    }
 
     // Check correlation threshold crosses (Trigger B)
     try {
@@ -184,7 +274,16 @@ export async function POST(request: NextRequest) {
       success: true,
       processed,
       errors,
-      duration_ms: new Date(finishedAt).getTime() - new Date(startedAt).getTime(),
+      noDataCount,
+      nullCorrelationsCount: nullCorrelations.length,
+      duration_ms: durationMs,
+      nullCorrelations: nullCorrelations.length > 0 ? nullCorrelations.map(n => ({
+        symbol: n.symbol,
+        assetPoints: n.assetPoints,
+        assetLastDate: n.assetLastDate,
+        corr12m_reasonNull: n.corr12m_reasonNull,
+        corr3m_reasonNull: n.corr3m_reasonNull,
+      })) : undefined,
     })
   } catch (error) {
     const finishedAt = new Date().toISOString()

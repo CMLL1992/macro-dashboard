@@ -63,18 +63,17 @@ const YAHOO_MAP: Record<string, string | string[]> = {
   SX5E: '^STOXX50E', // Euro Stoxx 50
   NIKKEI: '^N225', // Nikkei 225
   // Crypto
-  BTCUSDT: 'BTC-USD',
   BTCUSD: 'BTC-USD',
-  ETHUSDT: 'ETH-USD',
   ETHUSD: 'ETH-USD',
 }
 
 /**
- * Fetch daily DXY data from FRED (DTWEXBGS)
+ * Fetch daily DTWEXBGS data from FRED (Trade Weighted U.S. Dollar Index: Broad)
+ * Note: This is NOT the classic DXY (ICE), but serves as a proxy for USD strength
  */
 export async function fetchDXYDaily(): Promise<PricePoint[]> {
   try {
-    // Obtener datos diarios de DXY (5 años de histórico para correlaciones)
+    // Obtener datos diarios de DTWEXBGS (5 años de histórico para correlaciones)
     // Usar fetchFredSeries directamente con parámetros específicos para obtener datos históricos completos
     const { fetchFredSeries } = await import('@/lib/fred')
     const apiKey = process.env.FRED_API_KEY
@@ -89,12 +88,12 @@ export async function fetchDXYDaily(): Promise<PricePoint[]> {
     
     const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) {
-      throw new Error(`FRED API error for DXY: ${res.status}`)
+      throw new Error(`FRED API error for DTWEXBGS: ${res.status}`)
     }
     
     const json = await res.json()
     if (!json || !Array.isArray(json.observations)) {
-      throw new Error('Invalid FRED response for DXY')
+      throw new Error('Invalid FRED response for DTWEXBGS')
     }
     
     const series = json.observations
@@ -124,7 +123,7 @@ export async function fetchDXYDaily(): Promise<PricePoint[]> {
     
     return result
   } catch (error) {
-    console.error('Error fetching DXY:', error)
+    console.error('Error fetching DTWEXBGS:', error)
     return []
   }
 }
@@ -132,7 +131,7 @@ export async function fetchDXYDaily(): Promise<PricePoint[]> {
 /**
  * Get Yahoo Finance symbol from database or config
  */
-async function getYahooSymbol(symbol: string): Promise<string | string[] | null> {
+export async function getYahooSymbol(symbol: string): Promise<string | string[] | null> {
   const normalized = symbol.toUpperCase()
   
   // First try database (most up-to-date)
@@ -223,7 +222,19 @@ export async function fetchAssetDaily(symbol: string): Promise<PricePoint[]> {
     
     if (rows.length >= 30) {
       // We have enough data from DB, use it
-      return rows.map(r => ({ date: r.date, value: r.close }))
+      const points = rows.map(r => ({ date: r.date, value: r.close }))
+      console.log(`[fetchAssetDaily] ${symbol}`, {
+        source: 'db',
+        points: points.length,
+      })
+      return points
+    } else {
+      // DB has data but <30 rows, log and fall through to Yahoo
+      console.log(`[fetchAssetDaily] ${symbol}`, {
+        source: 'db',
+        points: rows.length,
+        note: 'falling back to Yahoo (DB has <30 rows)',
+      })
     }
   } catch (dbError) {
     console.warn(`[fetchAssetDaily] Could not read ${symbol} from DB, falling back to Yahoo:`, dbError)
@@ -233,14 +244,35 @@ export async function fetchAssetDaily(symbol: string): Promise<PricePoint[]> {
   const yahooSymbol = await getYahooSymbol(normalized)
 
   if (!yahooSymbol) {
-    // Try to construct Yahoo symbol from symbol pattern
+    console.warn(`[fetchAssetDaily] No Yahoo symbol mapping found for ${symbol}`, {
+      symbol: normalized,
+      tried_db: true,
+      tried_tactical_pairs: true,
+      tried_assets_config: true,
+      tried_hardcoded_map: true,
+    })
+    
+    // Try to construct Yahoo symbol from symbol pattern (last resort)
     // Forex: EURUSD -> EURUSD=X
     if (normalized.length === 6 && /^[A-Z]{6}$/.test(normalized)) {
       const trySymbol = `${normalized}=X`
       try {
         const data = await fetchYahooDaily(trySymbol, '5y')
-        if (data.length >= 30) return data
-      } catch {}
+        if (data.length >= 30) {
+          console.log(`[fetchAssetDaily] Auto-constructed Yahoo symbol worked for ${symbol}`, {
+            symbol: normalized,
+            yahoo_symbol: trySymbol,
+            points: data.length,
+          })
+          return data
+        }
+      } catch (err) {
+        console.warn(`[fetchAssetDaily] Auto-construction failed for ${symbol}`, {
+          symbol: normalized,
+          tried_yahoo: trySymbol,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
     }
     // Crypto: BTCUSDT -> BTC-USD (try common patterns)
     if (normalized.endsWith('USDT')) {
@@ -248,29 +280,66 @@ export async function fetchAssetDaily(symbol: string): Promise<PricePoint[]> {
       const trySymbol = `${base}-USD`
       try {
         const data = await fetchYahooDaily(trySymbol, '5y')
-        if (data.length >= 30) return data
-      } catch {}
+        if (data.length >= 30) {
+          console.log(`[fetchAssetDaily] Auto-constructed Yahoo symbol worked for ${symbol}`, {
+            symbol: normalized,
+            yahoo_symbol: trySymbol,
+            points: data.length,
+          })
+          return data
+        }
+      } catch (err) {
+        console.warn(`[fetchAssetDaily] Auto-construction failed for ${symbol}`, {
+          symbol: normalized,
+          tried_yahoo: trySymbol,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
     }
-    // Indices: SPX -> ^GSPC (already in map)
-    console.warn(`No Yahoo mapping found for ${symbol}, tried auto-construction`)
     return []
   }
 
   try {
     if (Array.isArray(yahooSymbol)) {
       // Try multiple symbols
+      const errors: string[] = []
       for (const sym of yahooSymbol) {
         try {
           const data = await fetchYahooDaily(sym, '2y')
-          if (data.length >= 30) return data
-        } catch {}
+          if (data.length >= 30) {
+            console.log(`[fetchAssetDaily] ${symbol}`, {
+              source: 'yahoo',
+              points: data.length,
+              yahoo_symbol: sym,
+            })
+            return data
+          }
+        } catch (err) {
+          errors.push(`${sym}: ${err instanceof Error ? err.message : String(err)}`)
+        }
       }
+      console.warn(`[fetchAssetDaily] All Yahoo symbols failed for ${symbol}`, {
+        symbol,
+        yahoo_symbols: yahooSymbol,
+        errors,
+      })
       return []
     } else {
-      return await fetchYahooDaily(yahooSymbol, '5y')
+      const data = await fetchYahooDaily(yahooSymbol, '5y')
+      console.log(`[fetchAssetDaily] ${symbol}`, {
+        source: 'yahoo',
+        points: data.length,
+        yahoo_symbol: yahooSymbol,
+      })
+      return data
     }
   } catch (error) {
-    console.error(`Error fetching ${symbol}:`, error)
+    console.error(`[fetchAssetDaily] Error fetching ${symbol} (yahoo: ${yahooSymbol})`, {
+      symbol,
+      yahoo_symbol: yahooSymbol,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     return []
   }
 }
