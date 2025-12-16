@@ -59,6 +59,10 @@ export async function POST(request: NextRequest) {
   const startedAt = new Date().toISOString()
 
   try {
+    // Initialize schema to ensure observation_period column exists
+    const { initializeSchemaUnified } = await import('@/lib/db/unified-db')
+    await initializeSchemaUnified()
+    
     logger.info('Starting European indicators ingestion', { job: jobId })
 
     let ingested = 0

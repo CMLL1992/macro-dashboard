@@ -517,6 +517,7 @@ export async function initializeSchemaUnified(): Promise<void> {
   const migrations = [
     `ALTER TABLE economic_events ADD COLUMN notified_at TEXT NULL`,
     `ALTER TABLE economic_events ADD COLUMN notify_lead_minutes INTEGER DEFAULT 30`,
+    `ALTER TABLE macro_observations ADD COLUMN observation_period TEXT`,
   ]
   
   for (const migration of migrations) {
@@ -524,7 +525,9 @@ export async function initializeSchemaUnified(): Promise<void> {
       await db.exec(migration)
     } catch (error: any) {
       // Column already exists, ignore
-      if (!error.message?.includes('duplicate column') && !error.message?.includes('already exists')) {
+      if (!error.message?.includes('duplicate column') && 
+          !error.message?.includes('already exists') &&
+          !error.message?.includes('no such column')) {
         console.warn('[db] Migration error (may already be applied):', error.message)
       }
     }
