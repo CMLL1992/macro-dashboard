@@ -8,7 +8,7 @@
   { "symbol": "AUDUSD", "type": "fx", "yahoo_symbol": "AUDUSD=X" },
   { "symbol": "NZDUSD", "type": "fx", "yahoo_symbol": "NZDUSD=X" },
   { "symbol": "USDCAD", "type": "fx", "yahoo_symbol": "USDCAD=X" },
-  { "symbol": "USDCNH", "type": "fx", "yahoo_symbol": "CNH=X" },
+  { "symbol": "USDCNH", "type": "fx", "yahoo_symbol": ["CNH=X", "CNY=X", "USDCNH=X"] },
   { "symbol": "USDBRL", "type": "fx", "yahoo_symbol": "BRL=X" },
   { "symbol": "USDMXN", "type": "fx", "yahoo_symbol": "MXN=X" },
   { "symbol": "SPX", "type": "index", "yahoo_symbol": "^GSPC" },

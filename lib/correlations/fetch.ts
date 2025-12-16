@@ -50,7 +50,7 @@ const YAHOO_MAP: Record<string, string | string[]> = {
   USDCHF: 'USDCHF=X',
   NZDUSD: 'NZDUSD=X',
   // FX EM
-  USDCNH: 'CNH=X',
+  USDCNH: ['CNH=X', 'CNY=X', 'USDCNH=X'], // USD/CNH with fallback options
   USDBRL: 'BRL=X',
   USDMXN: 'MXN=X',
   // Commodities
