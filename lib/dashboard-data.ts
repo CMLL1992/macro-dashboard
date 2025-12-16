@@ -123,6 +123,12 @@ export type DashboardData = {
     riskScore: number | null
   }
   
+  // Coverage metrics (percentage of indicators with data per region)
+  coverage?: {
+    EU: { total: number; withData: number; percentage: number }
+    US: { total: number; withData: number; percentage: number }
+  }
+  
   // Datos principales
   indicators: IndicatorRow[]
   tacticalRows: TacticalRowSafe[]
@@ -677,6 +683,33 @@ export async function getDashboardData(): Promise<DashboardData> {
       bias_updated_at: updatedAtIso,
       last_event_applied_at: lastEventAppliedAt,
     },
+  }
+  
+  // Calculate coverage metrics (percentage of indicators with data per region)
+  const EU_TOTAL_INDICATORS = 14 // From config/european-indicators.json
+  const euWithData = europeanIndicators.filter(eu => eu.value != null && !isNaN(Number(eu.value))).length
+  const euCoverage = {
+    total: EU_TOTAL_INDICATORS,
+    withData: euWithData,
+    percentage: Math.round((euWithData / EU_TOTAL_INDICATORS) * 100),
+  }
+  
+  // US indicators: count from biasState.table (excluding tactical pairs)
+  const usIndicators = finalIndicatorRows.filter(row => 
+    row.section !== 'EUROZONA' && 
+    row.value != null && 
+    !isNaN(Number(row.value))
+  )
+  const usTotal = finalIndicatorRows.filter(row => row.section !== 'EUROZONA').length
+  const usCoverage = {
+    total: usTotal,
+    withData: usIndicators.length,
+    percentage: usTotal > 0 ? Math.round((usIndicators.length / usTotal) * 100) : 0,
+  }
+  
+  dashboardData.coverage = {
+    EU: euCoverage,
+    US: usCoverage,
   }
   
   // Dashboard data ready

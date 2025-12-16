@@ -293,7 +293,16 @@ export async function POST(request: NextRequest) {
         }
 
         if (!macroSeries || macroSeries.data.length === 0) {
-          logger.warn(`No observations for ${indicator.id} from ${indicator.source}`, { job: jobId })
+          // Alert: Zero observations detected
+          logger.warn(`[${jobId}] ⚠️ ZERO OBSERVATIONS for ${indicator.id} from ${indicator.source}`, {
+            job: jobId,
+            indicatorId: indicator.id,
+            source: indicator.source,
+            dataset: (indicator as any).dataset,
+            geo: (indicator as any).geo,
+            filters: (indicator as any).filters,
+            url: macroSeries?.meta?.url,
+          })
           errors++
           ingestErrors.push({ indicatorId: indicator.id, error: 'No data returned from source' })
           continue
