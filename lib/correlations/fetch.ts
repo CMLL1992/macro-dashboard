@@ -301,7 +301,7 @@ export async function fetchAssetDaily(symbol: string): Promise<PricePoint[]> {
 
   try {
     if (Array.isArray(yahooSymbol)) {
-      // Try multiple symbols
+      // Try multiple symbols (fallback)
       const errors: string[] = []
       for (const sym of yahooSymbol) {
         try {
@@ -312,6 +312,22 @@ export async function fetchAssetDaily(symbol: string): Promise<PricePoint[]> {
               points: data.length,
               yahoo_symbol: sym,
             })
+            
+            // Persistir el ticker ganador en asset_metadata para futuras consultas
+            try {
+              const { upsertAssetMetadata } = await import('@/lib/db/upsert')
+              await upsertAssetMetadata({
+                symbol: normalized,
+                name: normalized,
+                category: 'forex',
+                source: 'YAHOO',
+                yahoo_symbol: sym, // Guardar el ticker que funcionó
+              })
+            } catch (metadataError) {
+              // No fallar si no se puede guardar metadata
+              console.warn(`[fetchAssetDaily] Could not persist yahoo_symbol for ${symbol}:`, metadataError)
+            }
+            
             return data
           }
         } catch (err) {
@@ -331,6 +347,24 @@ export async function fetchAssetDaily(symbol: string): Promise<PricePoint[]> {
         points: data.length,
         yahoo_symbol: yahooSymbol,
       })
+      
+      // Persistir el ticker en asset_metadata si hay datos
+      if (data.length >= 30) {
+        try {
+          const { upsertAssetMetadata } = await import('@/lib/db/upsert')
+          await upsertAssetMetadata({
+            symbol: normalized,
+            name: normalized,
+            category: 'forex',
+            source: 'YAHOO',
+            yahoo_symbol: yahooSymbol,
+          })
+        } catch (metadataError) {
+          // No fallar si no se puede guardar metadata
+          console.warn(`[fetchAssetDaily] Could not persist yahoo_symbol for ${symbol}:`, metadataError)
+        }
+      }
+      
       return data
     }
   } catch (error) {
