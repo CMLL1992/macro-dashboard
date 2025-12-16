@@ -105,7 +105,9 @@ export async function POST(request: NextRequest) {
     const seriesTimings: Array<{ seriesId: string; durationMs: number; success: boolean }> = []
 
     // Forzar reingesta completa temporalmente para rellenar histórico y "dato anterior"
+    // ESPECIAL: Forzar reingesta de RSAFS para cambiar de YoY a nivel crudo
     const FORCE_FULL_REINGEST = true
+    const FORCE_REINGEST_RSAFS = true // Force re-ingest RSAFS to get raw level data
 
     // Find starting index from cursor
     // IMPORTANT: If cursor exists, start AFTER it (cursorIndex + 1), not at it
@@ -253,8 +255,26 @@ export async function POST(request: NextRequest) {
 
         // Get last date in DB for this series (from pre-fetched map)
         const lastDateInDb = lastDatesMap.get(series.id) || null
+        
+        // Force re-ingest RSAFS to replace YoY values with raw level data
+        const forceReingest = FORCE_FULL_REINGEST || (FORCE_REINGEST_RSAFS && series.id === 'RSAFS')
+        
+        // If forcing re-ingest of RSAFS, delete old data first to replace YoY with raw level
+        if (FORCE_REINGEST_RSAFS && series.id === 'RSAFS' && !fredTransform) {
+          try {
+            const db = getUnifiedDB()
+            if (isUsingTurso()) {
+              await db.prepare('DELETE FROM macro_observations WHERE series_id = ?').run(series.id)
+            } else {
+              await db.prepare('DELETE FROM macro_observations WHERE series_id = ?').run(series.id)
+            }
+            logger.info(`[${series.id}] Deleted old data to force re-ingest as raw level`, { job: jobId })
+          } catch (error) {
+            logger.warn(`[${series.id}] Failed to delete old data, will upsert anyway`, { job: jobId, error: String(error) })
+          }
+        }
 
-        const newPoints = (FORCE_FULL_REINGEST || !lastDateInDb)
+        const newPoints = (forceReingest || !lastDateInDb)
           ? macroSeries.data
           : macroSeries.data.filter((p: { date: string; value: number }) => p.date > lastDateInDb)
 
