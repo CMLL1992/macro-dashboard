@@ -32,9 +32,9 @@ export async function fetchAlphaVantagePMI(
 ): Promise<Observation[]> {
   try {
     // Alpha Vantage Economic Data endpoint
-    // Note: Alpha Vantage may use different function names - try multiple formats
-    // Order: Most specific first, then fallbacks
-    const functions = ['ISM_MANUFACTURING_PMI', 'MANUFACTURING_PMI', 'PMI']
+    // Note: Alpha Vantage uses function=ISM_MANUFACTURING (not ISM_MANUFACTURING_PMI)
+    // Try multiple formats as fallback
+    const functions = ['ISM_MANUFACTURING', 'ISM_MANUFACTURING_PMI', 'MANUFACTURING_PMI', 'PMI']
     
     for (const func of functions) {
       try {
