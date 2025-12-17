@@ -516,9 +516,11 @@ export async function getDashboardData(): Promise<DashboardData> {
     : []
   
   // Load allowed pairs from tactical-pairs.json and filter
+  // IMPORTANT: For Forex pairs, also apply FOREX_WHITELIST filter
   try {
     const fs = await import('node:fs/promises')
     const path = await import('node:path')
+    const { FOREX_WHITELIST, isForexWhitelisted } = await import('@/config/forex-whitelist')
     const tacticalPath = path.join(process.cwd(), 'config', 'tactical-pairs.json')
     const tacticalRaw = await fs.readFile(tacticalPath, 'utf8')
     const tacticalPairs = JSON.parse(tacticalRaw) as Array<{ symbol: string; type?: string }>
@@ -527,9 +529,18 @@ export async function getDashboardData(): Promise<DashboardData> {
     )
     
     // Filter tactical rows to only include allowed pairs
+    // For Forex pairs (type='fx'), also check FOREX_WHITELIST
     tacticalRows = tacticalRows.filter((row: any) => {
       const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
-      return allowedSymbols.has(symbol)
+      const isAllowed = allowedSymbols.has(symbol)
+      
+      // If it's a Forex pair, also check FOREX_WHITELIST
+      const pairConfig = tacticalPairs.find(p => p.symbol.toUpperCase().replace('/', '') === symbol)
+      if (pairConfig?.type === 'fx') {
+        return isAllowed && isForexWhitelisted(symbol)
+      }
+      
+      return isAllowed
     })
     
     if (process.env.NODE_ENV === 'development') {
@@ -537,6 +548,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         originalCount: biasState.tableTactical?.length || 0,
         filteredCount: tacticalRows.length,
         allowedSymbols: Array.from(allowedSymbols),
+        forexWhitelist: FOREX_WHITELIST,
       })
     }
   } catch (error) {

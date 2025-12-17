@@ -16,6 +16,7 @@ import {
 } from '@/lib/db/read'
 import { logger } from '@/lib/obs/logger'
 import { isAllowedPair, TACTICAL_PAIR_SET } from '@/config/tactical-pairs'
+import { isForexWhitelisted } from '@/config/forex-whitelist'
 
 /**
  * DEBUG helper to inspect what pairs appear before/after filtering
@@ -235,11 +236,21 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
   let tacticalRows = getBiasTableTactical(legacyRows)
   
   // FILTER: Only keep pairs from tactical-pairs.json (before enriching with correlations)
+  // IMPORTANT: For Forex pairs, also apply FOREX_WHITELIST filter
   logTacticalPairsDebug('getBiasRaw.tableTactical.beforeFilter', tacticalRows)
   
   tacticalRows = tacticalRows.filter((row: any) => {
     const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
-    return isAllowedPair(symbol)
+    const isAllowed = isAllowedPair(symbol)
+    
+    // If it's a Forex pair, also check FOREX_WHITELIST
+    // We check if symbol matches common Forex patterns (6 chars, all uppercase letters)
+    const isForexPattern = /^[A-Z]{6}$/.test(symbol)
+    if (isForexPattern) {
+      return isAllowed && isForexWhitelisted(symbol)
+    }
+    
+    return isAllowed
   })
   
   logTacticalPairsDebug('getBiasRaw.tableTactical.afterFilter', tacticalRows)
@@ -302,8 +313,17 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
     const cached = await getMacroTacticalBias()
     if (cached.length) {
       // FILTER: Only use pairs from tactical-pairs.json (getMacroTacticalBias already filters, but double-check)
+      // IMPORTANT: For Forex pairs, also apply FOREX_WHITELIST filter
       tacticalRows = cached
-        .filter((row) => isAllowedPair(row.symbol))
+        .filter((row) => {
+          const symbol = row.symbol.replace('/', '').toUpperCase()
+          const isAllowed = isAllowedPair(symbol)
+          const isForexPattern = /^[A-Z]{6}$/.test(symbol)
+          if (isForexPattern) {
+            return isAllowed && isForexWhitelisted(symbol)
+          }
+          return isAllowed
+        })
         .map((row) => {
           const direction = row.direction ?? 'neutral'
           return {
@@ -470,11 +490,17 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
   } : undefined
 
   // FINAL FILTER: Ensure only allowed pairs are returned (already filtered above, but double-check)
+  // IMPORTANT: For Forex pairs, also apply FOREX_WHITELIST filter
   logTacticalPairsDebug('getBiasRaw.final.beforeReturn', tacticalRows)
   
   const filteredTactical = tacticalRows.filter((row: any) => {
     const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
-    return isAllowedPair(symbol)
+    const isAllowed = isAllowedPair(symbol)
+    const isForexPattern = /^[A-Z]{6}$/.test(symbol)
+    if (isForexPattern) {
+      return isAllowed && isForexWhitelisted(symbol)
+    }
+    return isAllowed
   })
   
   logTacticalPairsDebug('getBiasRaw.final.afterFilter', filteredTactical)
