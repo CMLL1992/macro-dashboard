@@ -66,8 +66,10 @@ export class HTMLProvider implements CalendarProvider {
       try {
         const events = await this.fetchHTMLFeed(feed, from, to)
         allEvents.push(...events)
+        console.log(`[HTMLProvider] ✅ ${feed.name}: ${events.length} eventos`)
       } catch (error) {
-        console.error(`[HTMLProvider] Error fetching ${feed.name}:`, error)
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        console.warn(`[HTMLProvider] ⚠️  ${feed.name}: ${errorMsg}`)
         // Continuar con otros feeds aunque uno falle
       }
     }

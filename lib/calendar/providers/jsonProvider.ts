@@ -90,6 +90,7 @@ export class JSONProvider implements CalendarProvider {
 
   /**
    * Parsea respuesta JSON según la estructura del feed
+   * BEA API estructura: { BEAAPI: { Results: { ... } } }
    */
   private parseJSON(
     data: any,
@@ -99,12 +100,42 @@ export class JSONProvider implements CalendarProvider {
   ): ProviderCalendarEvent[] {
     const events: ProviderCalendarEvent[] = []
     
-    // Estructura genérica: array de eventos
-    const items = Array.isArray(data) ? data : (data.results || data.data || [])
+    // BEA API tiene estructura específica: BEAAPI.Results
+    let items: any[] = []
+    
+    if (data.BEAAPI?.Results) {
+      // BEA API structure
+      const results = data.BEAAPI.Results
+      // Puede ser array o objeto con array dentro
+      if (Array.isArray(results)) {
+        items = results
+      } else if (results.Release || results.Releases) {
+        items = results.Release || results.Releases || []
+      } else if (Array.isArray(results.Data)) {
+        items = results.Data
+      } else {
+        // Intentar encontrar cualquier array en Results
+        for (const key in results) {
+          if (Array.isArray(results[key])) {
+            items = results[key]
+            break
+          }
+        }
+      }
+    } else if (Array.isArray(data)) {
+      // Array directo
+      items = data
+    } else if (data.results || data.data) {
+      // Estructura genérica
+      items = data.results || data.data || []
+    }
+    
+    console.log(`[JSONProvider] Parsed ${items.length} items from JSON structure`)
     
     for (const item of items) {
-      const title = item[feed.titleField] || item.title || item.name || ''
-      const dateStr = item[feed.dateField] || item.date || item.releaseDate || ''
+      // BEA puede tener ReleaseName, ReleaseDate, etc.
+      const title = item.ReleaseName || item[feed.titleField] || item.title || item.name || ''
+      const dateStr = item.ReleaseDate || item[feed.dateField] || item.date || item.releaseDate || ''
       
       if (!title || !dateStr) {
         continue
@@ -120,7 +151,7 @@ export class JSONProvider implements CalendarProvider {
         if (whitelistMatch) {
           // Solo incluir eventos de alta importancia
           const event: ProviderCalendarEvent = {
-            externalId: `${feed.name}-${item.id || Date.now()}-${Math.random()}`,
+            externalId: `${feed.name}-${item.id || item.ReleaseId || Date.now()}-${Math.random()}`,
             country: feed.country,
             currency: feed.currency,
             name: whitelistMatch.canonicalEventName || title,

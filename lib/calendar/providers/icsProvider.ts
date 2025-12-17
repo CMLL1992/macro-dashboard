@@ -82,8 +82,10 @@ export class ICSProvider implements CalendarProvider {
       try {
         const events = await this.fetchICSFeed(feed, from, to)
         allEvents.push(...events)
+        console.log(`[ICSProvider] ✅ ${feed.name}: ${events.length} eventos`)
       } catch (error) {
-        console.error(`[ICSProvider] Error fetching ${feed.name}:`, error)
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        console.warn(`[ICSProvider] ⚠️  ${feed.name}: ${errorMsg}`)
         // Continuar con otros feeds aunque uno falle
       }
     }
@@ -134,7 +136,7 @@ export class ICSProvider implements CalendarProvider {
     
     try {
       // Usar ical.js para parsear
-      const ical = require('ical.js')
+      const ical = await import('ical.js')
       const jcalData = ical.parse(icsText)
       const comp = new ical.Component(jcalData)
       const vevents = comp.getAllSubcomponents('vevent')
