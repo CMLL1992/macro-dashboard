@@ -39,6 +39,12 @@ function normalizeMonth(dateStr: string): string {
  * @param apiKey Trading Economics API key (format: "key" or "user:password")
  * @returns Array of observations with normalized dates (YYYY-MM-01) and values
  */
+/**
+ * Fetch US ISM Manufacturing PMI from Trading Economics
+ * 
+ * @param apiKey Trading Economics API key
+ * @returns Array of observations with normalized dates (YYYY-MM-01) and values
+ */
 export async function fetchUSPMIFromTradingEconomics(
   apiKey: string
 ): Promise<TradingEconomicsObservation[]> {
@@ -195,3 +201,6 @@ export async function fetchUSPMIFromTradingEconomics(
     throw error;
   }
 }
+
+// Alias de export para compatibilidad con imports existentes
+export { fetchUSPMIFromTradingEconomics as fetchTradingEconomics };
