@@ -71,12 +71,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // TEMPORARY: ENV CHECK for Trading Economics API key (replaced Alpha Vantage)
-  logger.info("ENV CHECK", {
-    hasTradingEconomicsKey: !!process.env.TRADING_ECONOMICS_API_KEY,
-    tradingEconomicsKeyPrefix: process.env.TRADING_ECONOMICS_API_KEY?.slice(0, 4) ?? null,
-  })
-
   const jobId = 'ingest_fred'
   const startedAt = Date.now()
   const HARD_LIMIT_MS = 240_000 // 4 minutes (leave margin before 300s timeout)
