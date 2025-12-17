@@ -35,7 +35,8 @@
     "test:db": "NODE_OPTIONS=\"--conditions=react-server\" tsx scripts/test-db.ts",
     "verify:data": "NODE_OPTIONS=\"--conditions=react-server\" tsx scripts/verify-data.ts",
     "verify:local": "NODE_OPTIONS=\"--conditions=react-server\" tsx scripts/verificar-local-completo.ts",
-    "db:migrate:turso": "tsx scripts/migrate-turso.ts"
+    "db:migrate:turso": "tsx scripts/migrate-turso.ts",
+    "test:calendar": "tsx scripts/test-calendar-providers.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",
