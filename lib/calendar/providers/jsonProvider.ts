@@ -20,17 +20,13 @@ interface JSONFeedConfig {
   titleField: string // Campo que contiene el título
 }
 
-// Configuración de feeds JSON oficiales (URLs verificadas)
-// BEA Release Schedule - Machine-Readable Format JSON
+// Configuración de feeds JSON oficiales
+// Nota: BEA no proporciona release schedule en JSON directo
+// El release schedule está en HTML/ICS, no en JSON machine-readable
+// Por ahora, dejamos este provider vacío o para futuras fuentes JSON
 const JSON_FEEDS: JSONFeedConfig[] = [
-  {
-    name: 'BEA Release Dates',
-    url: 'https://www.bea.gov/news/schedule/json/release-dates.json', // URL oficial desde Release Schedule
-    country: 'United States',
-    currency: 'USD',
-    dateField: 'releaseDate', // Verificar estructura real del JSON
-    titleField: 'title', // Verificar estructura real del JSON
-  },
+  // BEA Release Schedule no tiene JSON directo
+  // Usar BEA ICS en su lugar (ver ICSProvider)
 ]
 
 export class JSONProvider implements CalendarProvider {

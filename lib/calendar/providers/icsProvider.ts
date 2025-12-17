@@ -137,7 +137,8 @@ export class ICSProvider implements CalendarProvider {
     
     try {
       // Usar node-ical para parsear (mejor compatibilidad ESM)
-      const parsed = ical.parseICS(icsText)
+      // node-ical.parseFile acepta string directamente
+      const parsed = ical.parseFile(icsText)
       
       for (const key in parsed) {
         const event = parsed[key]

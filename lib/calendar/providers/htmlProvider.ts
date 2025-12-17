@@ -134,19 +134,24 @@ export class HTMLProvider implements CalendarProvider {
       // Estrategia de parsing según el feed
       if (feed.name === 'Eurostat Release Calendar') {
         // Eurostat: buscar items de publicaciones en el release calendar
-        $('table tbody tr, .release-item, .calendar-item').each((_, element) => {
+        // Buscar en todas las tablas y elementos con fechas
+        $('table tr, .release-item, .calendar-item, [class*="release"], [class*="calendar"]').each((_, element) => {
           const $row = $(element)
-          const text = $row.text()
+          const text = $row.text().trim()
           
-          // Buscar fecha en formato común (DD Month YYYY o DD/MM/YYYY)
+          // Buscar fecha en formato común (DD Month YYYY, DD/MM/YYYY, YYYY-MM-DD)
           const dateMatch = text.match(/(\d{1,2}\s+\w+\s+\d{4})|(\d{2}\/\d{2}\/\d{4})|(\d{4}-\d{2}-\d{2})/i)
-          if (!dateMatch) return
+          if (!dateMatch || text.length < 20) return // Filtrar elementos muy cortos
           
           const dateStr = dateMatch[0]
-          const title = $row.find('td:first-child, .title, a, strong').first().text().trim() || 
-                       text.split(dateStr)[0].trim()
+          // Buscar título: puede estar en td, a, strong, span, o al inicio del texto
+          let title = $row.find('td:first-child, td:nth-child(2), a, strong, .title, [class*="title"]').first().text().trim()
+          if (!title || title.length < 5) {
+            // Fallback: usar texto antes de la fecha
+            title = text.split(dateStr)[0].trim().split('\n')[0].trim()
+          }
           
-          if (!title) return
+          if (!title || title.length < 5) return
           
           const eventDate = this.parseDate(dateStr, 'Europe/Brussels') // Eurostat usa hora de Bruselas
           
@@ -173,19 +178,23 @@ export class HTMLProvider implements CalendarProvider {
         })
       } else if (feed.name === 'INE Calendar') {
         // INE: buscar items en la tabla de calendario
-        $('table tbody tr, .calendar-row, .release-row').each((_, element) => {
+        // Buscar en todas las tablas y elementos con fechas
+        $('table tr, .calendar-row, .release-row, [class*="calendario"], [class*="fecha"]').each((_, element) => {
           const $row = $(element)
-          const text = $row.text()
+          const text = $row.text().trim()
           
-          // Buscar fecha (formato español: DD/MM/YYYY)
-          const dateMatch = text.match(/(\d{2}\/\d{2}\/\d{4})|(\d{1,2}\s+\w+\s+\d{4})/i)
-          if (!dateMatch) return
+          // Buscar fecha (formato español: DD/MM/YYYY o DD Month YYYY)
+          const dateMatch = text.match(/(\d{2}\/\d{2}\/\d{4})|(\d{1,2}\s+\w+\s+\d{4})|(\d{4}-\d{2}-\d{2})/i)
+          if (!dateMatch || text.length < 20) return
           
           const dateStr = dateMatch[0]
-          const title = $row.find('td:first-child, .title, a').first().text().trim() || 
-                       text.split(dateStr)[0].trim()
+          // Buscar título en múltiples lugares
+          let title = $row.find('td:first-child, td:nth-child(2), a, strong, .title, [class*="titulo"]').first().text().trim()
+          if (!title || title.length < 5) {
+            title = text.split(dateStr)[0].trim().split('\n')[0].trim()
+          }
           
-          if (!title) return
+          if (!title || title.length < 5) return
           
           const eventDate = this.parseDate(dateStr, 'Europe/Madrid') // INE usa hora de Madrid
           
@@ -285,19 +294,22 @@ export class HTMLProvider implements CalendarProvider {
         })
       } else if (feed.name === 'Bundesbank Release Calendar') {
         // Bundesbank: buscar items en el calendario estadístico
-        $('table tbody tr, .calendar-item, .release-item').each((_, element) => {
+        $('table tr, .calendar-item, .release-item, [class*="release"], [class*="calendar"]').each((_, element) => {
           const $row = $(element)
-          const text = $row.text()
+          const text = $row.text().trim()
           
-          // Buscar fecha en formato alemán (DD.MM.YYYY) o ISO
+          // Buscar fecha en formato alemán (DD.MM.YYYY) o ISO o texto
           const dateMatch = text.match(/(\d{2}\.\d{2}\.\d{4})|(\d{4}-\d{2}-\d{2})|(\d{1,2}\s+\w+\s+\d{4})/i)
-          if (!dateMatch) return
+          if (!dateMatch || text.length < 20) return
           
           const dateStr = dateMatch[0]
-          const title = $row.find('td:first-child, .title, a, strong').first().text().trim() || 
-                       text.split(dateStr)[0].trim()
+          // Buscar título en múltiples lugares
+          let title = $row.find('td:first-child, td:nth-child(2), a, strong, .title, [class*="title"]').first().text().trim()
+          if (!title || title.length < 5) {
+            title = text.split(dateStr)[0].trim().split('\n')[0].trim()
+          }
           
-          if (!title) return
+          if (!title || title.length < 5) return
           
           const eventDate = this.parseDate(dateStr, 'Europe/Berlin') // Bundesbank usa hora de Berlín
           
