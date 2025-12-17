@@ -122,8 +122,28 @@ export const ASSET_CATEGORIES: Record<string, 'forex' | 'crypto' | 'metal' | 'in
 }
 
 // Helper function that uses the map first, then the pattern matcher
+// IMPORTANT: Only returns 'forex' for symbols in FOREX_WHITELIST
 export function getAssetCategorySafe(symbol: string): 'forex' | 'crypto' | 'metal' | 'index' {
   const s = symbol.toUpperCase().replace('/', '')
-  return ASSET_CATEGORIES[s] || getAssetCategory(symbol) || 'forex' // Default to forex if unknown
+  
+  // Check explicit map first
+  if (ASSET_CATEGORIES[s]) {
+    return ASSET_CATEGORIES[s]
+  }
+  
+  // Use pattern matcher
+  const category = getAssetCategory(symbol)
+  if (category) {
+    return category
+  }
+  
+  // Default: check if it's a known index/commodity, otherwise don't default to forex
+  // This prevents misclassification
+  if (['SX5E', 'WTI', 'COPPER', 'NIKKEI'].includes(s)) {
+    return 'index'
+  }
+  
+  // Last resort: return 'index' instead of 'forex' to prevent misclassification
+  return 'index'
 }
 
