@@ -2,19 +2,20 @@
  * Provider para calendarios económicos en formato ICS/iCalendar
  * 
  * Soporta:
- * - Eurostat (Euro Area) - Release calendar oficial
  * - BLS (United States) - Calendario de releases oficial
- * - BEA (United States) - ICS subscription oficial
- * - INE (España) - Calendario en formato ICS
+ * - BEA (United States) - ICS subscription oficial (Release Schedule)
+ * - ONS (United Kingdom) - ICS oficial con headers correctos
  * - Banco de España - Calendario completo en ICS
  * 
- * Usa la librería ical.js para parsear archivos ICS
- * URLs verificadas y oficiales
+ * Nota: Eurostat e INE ahora usan HTML Provider (ver htmlProvider.ts)
+ * 
+ * Usa node-ical para parsear archivos ICS (mejor compatibilidad ESM)
  */
 
 import { CalendarProvider } from '../provider'
 import { ProviderCalendarEvent, ProviderRelease } from '../types'
 import { isHighImpactEvent } from '@/config/calendar-whitelist'
+import * as ical from 'node-ical'
 
 interface ICSConfig {
   name: string
@@ -26,13 +27,6 @@ interface ICSConfig {
 
 // Configuración de feeds ICS oficiales (URLs verificadas)
 const ICS_FEEDS: ICSConfig[] = [
-  {
-    name: 'Eurostat',
-    url: 'https://ec.europa.eu/eurostat/cache/RELEASE_CALENDAR/calendar_EN.ics',
-    country: 'Euro Area',
-    currency: 'EUR',
-    timezone: 'Europe/Brussels', // Eurostat usa hora de Bruselas
-  },
   {
     name: 'BLS',
     url: 'https://www.bls.gov/schedule/news_release/bls.ics',
@@ -48,11 +42,11 @@ const ICS_FEEDS: ICSConfig[] = [
     timezone: 'America/New_York', // BEA usa hora del este de EEUU
   },
   {
-    name: 'INE Spain',
-    url: 'https://www.ine.es/calendario/calendario.ics', // URL oficial desde página "Formato ICS"
-    country: 'Spain',
-    currency: 'EUR',
-    timezone: 'Europe/Madrid', // INE usa hora de Madrid
+    name: 'ONS ICS',
+    url: 'https://www.ons.gov.uk/calendar/releasecalendar',
+    country: 'United Kingdom',
+    currency: 'GBP',
+    timezone: 'Europe/London', // ONS usa hora UK
   },
   {
     name: 'Banco de España',
@@ -99,12 +93,19 @@ export class ICSProvider implements CalendarProvider {
     to: Date
   ): Promise<ProviderCalendarEvent[]> {
     try {
-      const response = await fetch(feed.url, {
-        headers: {
-          'Accept': 'text/calendar, application/ics',
-          'User-Agent': 'Mozilla/5.0 (compatible; MacroDashboard/1.0)',
-        },
-      })
+      // Headers especiales para ONS (requiere headers específicos)
+      const headers: HeadersInit = {
+        'Accept': feed.name === 'ONS ICS' 
+          ? 'text/calendar,*/*' 
+          : 'text/calendar, application/ics',
+        'User-Agent': 'Mozilla/5.0 (compatible; MacroDashboard/1.0)',
+      }
+      
+      if (feed.name === 'ONS ICS') {
+        headers['Accept-Language'] = 'en-GB,en;q=0.9'
+      }
+      
+      const response = await fetch(feed.url, { headers })
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -135,27 +136,28 @@ export class ICSProvider implements CalendarProvider {
     const events: ProviderCalendarEvent[] = []
     
     try {
-      // Usar ical.js para parsear
-      const ical = await import('ical.js')
-      const jcalData = ical.parse(icsText)
-      const comp = new ical.Component(jcalData)
-      const vevents = comp.getAllSubcomponents('vevent')
+      // Usar node-ical para parsear (mejor compatibilidad ESM)
+      const parsed = ical.parseICS(icsText)
       
-      for (let i = 0; i < vevents.length; i++) {
-        const vevent = vevents[i]
-        const event = new ical.Event(vevent)
+      for (const key in parsed) {
+        const event = parsed[key]
+        
+        // node-ical devuelve objetos con propiedades específicas
+        if (event.type !== 'VEVENT') {
+          continue
+        }
         
         const summary = event.summary || ''
-        const dtstart = event.startDate
+        const dtstart = event.start
         
         if (!summary || !dtstart) {
           continue
         }
         
-        // ical.js ya maneja timezone, pero asegurar UTC
-        const eventDate = dtstart.toJSDate()
+        // dtstart puede ser Date o string, normalizar
+        const eventDate = dtstart instanceof Date ? dtstart : new Date(dtstart)
         
-        // Normalizar a UTC (ical.js ya debería hacerlo, pero asegurar)
+        // Asegurar UTC
         const utcDate = new Date(eventDate.getTime() - eventDate.getTimezoneOffset() * 60000)
         
         // Filtrar por rango de fechas
@@ -165,7 +167,7 @@ export class ICSProvider implements CalendarProvider {
           
           if (whitelistMatch) {
             // Solo incluir eventos de alta importancia
-            const uid = event.uid || `${feed.name}-${Date.now()}-${i}`
+            const uid = event.uid || `${feed.name}-${Date.now()}-${key}`
             const eventData: ProviderCalendarEvent = {
               externalId: `${feed.name}-${uid}`,
               country: feed.country,
@@ -186,8 +188,8 @@ export class ICSProvider implements CalendarProvider {
         }
       }
     } catch (error) {
-      console.error(`[ICSProvider] Error parsing ICS with ical.js, falling back to basic parser:`, error)
-      // Fallback a parser básico si ical.js falla
+      console.error(`[ICSProvider] Error parsing ICS with node-ical, falling back to basic parser:`, error)
+      // Fallback a parser básico si node-ical falla
       return this.parseICSBasic(icsText, feed, from, to)
     }
     

@@ -21,10 +21,11 @@ interface JSONFeedConfig {
 }
 
 // Configuración de feeds JSON oficiales (URLs verificadas)
+// BEA Release Schedule - Machine-Readable Format JSON
 const JSON_FEEDS: JSONFeedConfig[] = [
   {
     name: 'BEA Release Dates',
-    url: 'https://apps.bea.gov/API/signup/release_dates.json',
+    url: 'https://www.bea.gov/news/schedule/json/release-dates.json', // URL oficial desde Release Schedule
     country: 'United States',
     currency: 'USD',
     dateField: 'releaseDate', // Verificar estructura real del JSON
