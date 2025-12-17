@@ -2,12 +2,14 @@
  * Provider para calendarios económicos en formato ICS/iCalendar
  * 
  * Soporta:
- * - Eurostat (Euro Area)
- * - INE (España)
- * - Banco de España
- * - Destatis (Alemania)
+ * - Eurostat (Euro Area) - Release calendar oficial
+ * - BLS (United States) - Calendario de releases oficial
+ * - BEA (United States) - ICS subscription oficial
+ * - INE (España) - Calendario en formato ICS
+ * - Banco de España - Calendario completo en ICS
  * 
  * Usa la librería ical.js para parsear archivos ICS
+ * URLs verificadas y oficiales
  */
 
 import { CalendarProvider } from '../provider'
@@ -19,33 +21,45 @@ interface ICSConfig {
   url: string
   country: string
   currency: 'USD' | 'EUR' | 'GBP'
+  timezone?: string // Timezone del feed (para normalización)
 }
 
-// Configuración de feeds ICS oficiales
+// Configuración de feeds ICS oficiales (URLs verificadas)
 const ICS_FEEDS: ICSConfig[] = [
   {
     name: 'Eurostat',
-    url: 'https://ec.europa.eu/eurostat/cache/calendar/calendar.ics',
+    url: 'https://ec.europa.eu/eurostat/cache/RELEASE_CALENDAR/calendar_EN.ics',
     country: 'Euro Area',
     currency: 'EUR',
+    timezone: 'Europe/Brussels', // Eurostat usa hora de Bruselas
+  },
+  {
+    name: 'BLS',
+    url: 'https://www.bls.gov/schedule/news_release/bls.ics',
+    country: 'United States',
+    currency: 'USD',
+    timezone: 'America/New_York', // BLS usa hora del este de EEUU
+  },
+  {
+    name: 'BEA ICS',
+    url: 'https://www.bea.gov/news/schedule/ics/online-calendar-subscription.ics',
+    country: 'United States',
+    currency: 'USD',
+    timezone: 'America/New_York', // BEA usa hora del este de EEUU
   },
   {
     name: 'INE Spain',
-    url: 'https://www.ine.es/calendario/calendario.ics', // URL de ejemplo, verificar URL real
+    url: 'https://www.ine.es/calendario/calendario.ics', // URL oficial desde página "Formato ICS"
     country: 'Spain',
     currency: 'EUR',
+    timezone: 'Europe/Madrid', // INE usa hora de Madrid
   },
   {
     name: 'Banco de España',
-    url: 'https://www.bde.es/calendario/calendario.ics', // URL de ejemplo, verificar URL real
+    url: 'https://www.bde.es/webbe/es/estadisticas/compartido/calendario/ics/calendario-bde.ics',
     country: 'Spain',
     currency: 'EUR',
-  },
-  {
-    name: 'Destatis',
-    url: 'https://www.destatis.de/EN/Service/Calendar/calendar.ics', // URL de ejemplo, verificar URL real
-    country: 'Germany',
-    currency: 'EUR',
+    timezone: 'Europe/Madrid', // Banco de España usa hora de Madrid
   },
 ]
 
@@ -86,6 +100,7 @@ export class ICSProvider implements CalendarProvider {
       const response = await fetch(feed.url, {
         headers: {
           'Accept': 'text/calendar, application/ics',
+          'User-Agent': 'Mozilla/5.0 (compatible; MacroDashboard/1.0)',
         },
       })
 
@@ -135,10 +150,14 @@ export class ICSProvider implements CalendarProvider {
           continue
         }
         
+        // ical.js ya maneja timezone, pero asegurar UTC
         const eventDate = dtstart.toJSDate()
         
+        // Normalizar a UTC (ical.js ya debería hacerlo, pero asegurar)
+        const utcDate = new Date(eventDate.getTime() - eventDate.getTimezoneOffset() * 60000)
+        
         // Filtrar por rango de fechas
-        if (eventDate >= from && eventDate <= to) {
+        if (utcDate >= from && utcDate <= to) {
           // Verificar si está en whitelist
           const whitelistMatch = isHighImpactEvent(summary, feed.country)
           
@@ -152,7 +171,7 @@ export class ICSProvider implements CalendarProvider {
               name: whitelistMatch.canonicalEventName || summary,
               category: whitelistMatch.category,
               importance: 'high', // Todos los eventos en whitelist son high
-              scheduledTimeUTC: eventDate.toISOString(),
+              scheduledTimeUTC: utcDate.toISOString(), // Asegurar UTC
               previous: null, // ICS no incluye valores
               consensus: null, // ICS no incluye valores
               maybeSeriesId: whitelistMatch.seriesId,

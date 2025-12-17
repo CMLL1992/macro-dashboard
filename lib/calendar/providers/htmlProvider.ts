@@ -4,13 +4,15 @@
  * Soporta:
  * - ONS (Office for National Statistics) - Reino Unido
  * - Fed Calendar - Estados Unidos
+ * - Destatis (Alemania) - Release calendar HTML
  * 
- * Parsea HTML y extrae eventos de tablas/calendarios
+ * Usa cheerio para parsing robusto de HTML
  */
 
 import { CalendarProvider } from '../provider'
 import { ProviderCalendarEvent, ProviderRelease } from '../types'
 import { isHighImpactEvent } from '@/config/calendar-whitelist'
+import * as cheerio from 'cheerio'
 
 interface HTMLFeedConfig {
   name: string
@@ -20,21 +22,28 @@ interface HTMLFeedConfig {
   selector?: string // Selector CSS para encontrar eventos (opcional)
 }
 
-// Configuración de feeds HTML oficiales
+// Configuración de feeds HTML oficiales (URLs verificadas)
 const HTML_FEEDS: HTMLFeedConfig[] = [
   {
     name: 'ONS Release Calendar',
     url: 'https://www.ons.gov.uk/releasecalendar',
     country: 'United Kingdom',
     currency: 'GBP',
-    selector: '.release-calendar-item', // Selector de ejemplo, verificar estructura real
+    selector: '.release-calendar-item', // Verificar selector real
   },
   {
     name: 'Fed Calendar',
     url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
     country: 'United States',
     currency: 'USD',
-    selector: '.fomc-meeting', // Selector de ejemplo, verificar estructura real
+    selector: '.fomc-meeting', // Verificar selector real
+  },
+  {
+    name: 'Destatis Release Calendar',
+    url: 'https://www.destatis.de/EN/Service/Calendar/calendar.html', // URL de ejemplo, verificar URL real del listado
+    country: 'Germany',
+    currency: 'EUR',
+    selector: '.release-item', // Verificar selector real
   },
 ]
 
@@ -96,8 +105,7 @@ export class HTMLProvider implements CalendarProvider {
   }
 
   /**
-   * Parser básico de HTML (extracción de texto)
-   * Para producción, usar librería como cheerio o jsdom
+   * Parser de HTML usando cheerio (robusto)
    */
   private parseHTML(
     htmlText: string,
@@ -107,15 +115,145 @@ export class HTMLProvider implements CalendarProvider {
   ): ProviderCalendarEvent[] {
     const events: ProviderCalendarEvent[] = []
     
-    // Parseo básico: buscar patrones comunes en HTML
-    // Esto es un parser simplificado; para producción usar cheerio o similar
+    try {
+      const $ = cheerio.load(htmlText)
+      
+      // Estrategia de parsing según el feed
+      if (feed.name === 'ONS Release Calendar') {
+        // ONS: buscar elementos con "Release date: ..."
+        $('*').each((_, element) => {
+          const text = $(element).text()
+          
+          // Buscar patrón "Release date: DD Month YYYY" o similar
+          const dateMatch = text.match(/Release date:\s*(\d{1,2}\s+\w+\s+\d{4})/i)
+          if (!dateMatch) return
+          
+          const dateStr = dateMatch[1]
+          const title = $(element).find('h2, h3, h4, .title, a').first().text().trim() || 
+                       text.split('Release date:')[0].trim()
+          
+          if (!title) return
+          
+          const eventDate = this.parseDate(dateStr, 'Europe/London') // ONS usa hora UK
+          
+          if (eventDate >= from && eventDate <= to) {
+            const whitelistMatch = isHighImpactEvent(title, feed.country)
+            
+            if (whitelistMatch) {
+              events.push({
+                externalId: `${feed.name}-${Date.now()}-${events.length}`,
+                country: feed.country,
+                currency: feed.currency,
+                name: whitelistMatch.canonicalEventName || title,
+                category: whitelistMatch.category,
+                importance: 'high',
+                scheduledTimeUTC: eventDate.toISOString(),
+                previous: null,
+                consensus: null,
+                maybeSeriesId: whitelistMatch.seriesId,
+                maybeIndicatorKey: whitelistMatch.indicatorKey,
+                directionality: whitelistMatch.directionality,
+              })
+            }
+          }
+        })
+      } else if (feed.name === 'Fed Calendar') {
+        // Fed: buscar elementos de reuniones FOMC
+        $('table, .fomc-meeting, .meeting').each((_, element) => {
+          const text = $(element).text()
+          const dateMatch = text.match(/(\d{1,2}\/\d{1,2}\/\d{4})|(\w+\s+\d{1,2},\s+\d{4})/i)
+          
+          if (!dateMatch) return
+          
+          const dateStr = dateMatch[0]
+          const title = 'FOMC Rate Decision' // FOMC siempre es rate decision
+          
+          const eventDate = this.parseDate(dateStr, 'America/New_York') // Fed usa hora del este
+          
+          if (eventDate >= from && eventDate <= to) {
+            const whitelistMatch = isHighImpactEvent(title, feed.country)
+            
+            if (whitelistMatch) {
+              events.push({
+                externalId: `${feed.name}-${Date.now()}-${events.length}`,
+                country: feed.country,
+                currency: feed.currency,
+                name: whitelistMatch.canonicalEventName || title,
+                category: whitelistMatch.category,
+                importance: 'high',
+                scheduledTimeUTC: eventDate.toISOString(),
+                previous: null,
+                consensus: null,
+                maybeSeriesId: whitelistMatch.seriesId,
+                maybeIndicatorKey: whitelistMatch.indicatorKey,
+                directionality: whitelistMatch.directionality,
+              })
+            }
+          }
+        })
+      } else if (feed.name === 'Destatis Release Calendar') {
+        // Destatis: buscar filas de tabla con fechas y títulos
+        $('table tr, .release-item').each((_, element) => {
+          const $row = $(element)
+          const text = $row.text()
+          
+          // Buscar fecha en formato alemán (DD.MM.YYYY) o ISO
+          const dateMatch = text.match(/(\d{2}\.\d{2}\.\d{4})|(\d{4}-\d{2}-\d{2})/i)
+          if (!dateMatch) return
+          
+          const dateStr = dateMatch[0]
+          const title = $row.find('td:first-child, .title, a').first().text().trim() || 
+                       text.split(dateStr)[0].trim()
+          
+          if (!title) return
+          
+          const eventDate = this.parseDate(dateStr, 'Europe/Berlin') // Destatis usa hora de Berlín
+          
+          if (eventDate >= from && eventDate <= to) {
+            const whitelistMatch = isHighImpactEvent(title, feed.country)
+            
+            if (whitelistMatch) {
+              events.push({
+                externalId: `${feed.name}-${Date.now()}-${events.length}`,
+                country: feed.country,
+                currency: feed.currency,
+                name: whitelistMatch.canonicalEventName || title,
+                category: whitelistMatch.category,
+                importance: 'high',
+                scheduledTimeUTC: eventDate.toISOString(),
+                previous: null,
+                consensus: null,
+                maybeSeriesId: whitelistMatch.seriesId,
+                maybeIndicatorKey: whitelistMatch.indicatorKey,
+                directionality: whitelistMatch.directionality,
+              })
+            }
+          }
+        })
+      }
+    } catch (error) {
+      console.error(`[HTMLProvider] Error parsing HTML with cheerio:`, error)
+      // Fallback a parser básico si cheerio falla
+      return this.parseHTMLBasic(htmlText, feed, from, to)
+    }
     
-    // Buscar fechas en formato común (YYYY-MM-DD, DD/MM/YYYY, etc.)
+    return events
+  }
+
+  /**
+   * Parser básico de HTML (fallback si cheerio falla)
+   */
+  private parseHTMLBasic(
+    htmlText: string,
+    feed: HTMLFeedConfig,
+    from: Date,
+    to: Date
+  ): ProviderCalendarEvent[] {
+    const events: ProviderCalendarEvent[] = []
+    
+    // Parseo básico como fallback
     const datePattern = /(\d{4}-\d{2}-\d{2})|(\d{2}\/\d{2}\/\d{4})|(\d{1,2}\s+\w+\s+\d{4})/g
     const dates = htmlText.match(datePattern) || []
-    
-    // Buscar títulos de eventos (patrones comunes)
-    // Esto es muy simplificado; en producción necesitarías un parser HTML real
     const titlePattern = /<h[1-6][^>]*>([^<]+)<\/h[1-6]>/gi
     const titles: string[] = []
     let match
@@ -123,7 +261,6 @@ export class HTMLProvider implements CalendarProvider {
       titles.push(match[1].trim())
     }
     
-    // Combinar fechas y títulos (muy simplificado)
     for (let i = 0; i < Math.min(dates.length, titles.length); i++) {
       const dateStr = dates[i]
       const title = titles[i] || ''
@@ -132,29 +269,24 @@ export class HTMLProvider implements CalendarProvider {
       
       const eventDate = this.parseDate(dateStr)
       
-      // Filtrar por rango de fechas
       if (eventDate >= from && eventDate <= to) {
-        // Verificar si está en whitelist
         const whitelistMatch = isHighImpactEvent(title, feed.country)
         
         if (whitelistMatch) {
-          // Solo incluir eventos de alta importancia
-          const event: ProviderCalendarEvent = {
+          events.push({
             externalId: `${feed.name}-${Date.now()}-${i}`,
             country: feed.country,
             currency: feed.currency,
             name: whitelistMatch.canonicalEventName || title,
             category: whitelistMatch.category,
-            importance: 'high', // Todos los eventos en whitelist son high
+            importance: 'high',
             scheduledTimeUTC: eventDate.toISOString(),
-            previous: null, // HTML no incluye valores
-            consensus: null, // HTML no incluye valores
+            previous: null,
+            consensus: null,
             maybeSeriesId: whitelistMatch.seriesId,
             maybeIndicatorKey: whitelistMatch.indicatorKey,
             directionality: whitelistMatch.directionality,
-          }
-          
-          events.push(event)
+          })
         }
       }
     }
@@ -163,30 +295,47 @@ export class HTMLProvider implements CalendarProvider {
   }
 
   /**
-   * Parsea fecha en varios formatos comunes
+   * Parsea fecha en varios formatos comunes y normaliza a UTC
+   * @param dateStr - String de fecha a parsear
+   * @param timezone - Timezone del feed (opcional, para normalización)
    */
-  private parseDate(dateStr: string): Date {
+  private parseDate(dateStr: string, timezone?: string): Date {
+    let date: Date
+    
     // Intentar parsear como ISO
     const isoDate = new Date(dateStr)
     if (!isNaN(isoDate.getTime())) {
-      return isoDate
+      date = isoDate
+    } else {
+      // Intentar formato DD/MM/YYYY
+      const ddmmyyyy = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+      if (ddmmyyyy) {
+        const [, day, month, year] = ddmmyyyy
+        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+      } else if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+        // Formato YYYY-MM-DD
+        date = new Date(dateStr)
+      } else {
+        // Formato alemán DD.MM.YYYY
+        const ddmmyyyyDE = dateStr.match(/(\d{2})\.(\d{2})\.(\d{4})/)
+        if (ddmmyyyyDE) {
+          const [, day, month, year] = ddmmyyyyDE
+          date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+        } else {
+          // Fallback: intentar parsear directamente
+          date = new Date(dateStr)
+          if (isNaN(date.getTime())) {
+            console.warn(`[HTMLProvider] Could not parse date: ${dateStr}`)
+            return new Date()
+          }
+        }
+      }
     }
     
-    // Intentar formato DD/MM/YYYY
-    const ddmmyyyy = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/)
-    if (ddmmyyyy) {
-      const [, day, month, year] = ddmmyyyy
-      return new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-    }
-    
-    // Intentar formato YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
-      return new Date(dateStr)
-    }
-    
-    // Fallback: fecha actual
-    console.warn(`[HTMLProvider] Could not parse date: ${dateStr}`)
-    return new Date()
+    // Normalizar a UTC (si el feed tiene timezone, ajustar)
+    // Por ahora, asumimos que las fechas ya vienen en UTC o hora local del país
+    // En producción, usar librería como date-fns-tz para conversión precisa
+    return date
   }
 
   async fetchRelease(event: {

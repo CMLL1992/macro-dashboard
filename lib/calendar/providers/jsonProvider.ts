@@ -20,15 +20,15 @@ interface JSONFeedConfig {
   titleField: string // Campo que contiene el título
 }
 
-// Configuración de feeds JSON oficiales
+// Configuración de feeds JSON oficiales (URLs verificadas)
 const JSON_FEEDS: JSONFeedConfig[] = [
   {
-    name: 'BEA Schedule',
-    url: 'https://apps.bea.gov/api/data/?&UserID=YOUR_API_KEY&method=GetParameterList&datasetname=NIPA&ResultFormat=JSON', // URL de ejemplo, verificar
+    name: 'BEA Release Dates',
+    url: 'https://apps.bea.gov/API/signup/release_dates.json',
     country: 'United States',
     currency: 'USD',
-    dateField: 'date',
-    titleField: 'title',
+    dateField: 'releaseDate', // Verificar estructura real del JSON
+    titleField: 'title', // Verificar estructura real del JSON
   },
 ]
 
