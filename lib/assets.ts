@@ -8,9 +8,9 @@ export function getAssetCategory(symbol: string): 'forex' | 'crypto' | 'metal' |
   const indices = ['SPX', 'NDX', 'SX5E', 'NIKKEI', 'DJI', 'RUT', 'VIX', 'DAX', 'FTSE', 'CAC', 'IBEX', 'N225', 'HSI', 'ASX']
   if (indices.includes(s)) return 'index'
   
-  // Known commodities (WTI, COPPER)
+  // Known commodities (WTI, COPPER) - use 'index' category for display compatibility
   const commodities = ['WTI', 'COPPER']
-  if (commodities.includes(s)) return 'index' // Use 'index' category for display (or 'commodity' if component supports it)
+  if (commodities.includes(s)) return 'index'
   
   // Known metals (XAU, XAG, XPD, XPT)
   if (s.startsWith('XAU') || s.startsWith('XAG') || s.startsWith('XPD') || s.startsWith('XPT')) return 'metal'
@@ -92,6 +92,7 @@ export const ASSET_CATEGORIES: Record<string, 'forex' | 'crypto' | 'metal' | 'in
     ALGOUSDT: 'crypto',
     FILUSDT: 'crypto',
     BTCUSD: 'crypto',
+    ETHUSD: 'crypto',
     // Metals
     XAUUSD: 'metal',
     XAGUSD: 'metal',
@@ -105,6 +106,9 @@ export const ASSET_CATEGORIES: Record<string, 'forex' | 'crypto' | 'metal' | 'in
     NDX: 'index',
     SX5E: 'index', // IMPORTANT: SX5E is an index, not forex
     NIKKEI: 'index',
+    // Commodities (using 'index' category for display compatibility)
+    WTI: 'index', // WTI is a commodity, using 'index' for display
+    COPPER: 'index', // COPPER is a commodity, using 'index' for display
     DJI: 'index',
     RUT: 'index',
     VIX: 'index',
