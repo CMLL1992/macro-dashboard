@@ -6,14 +6,20 @@ import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 
-// Allowlist defensiva: solo estos 19 símbolos pueden aparecer en el dashboard
+// Allowlist defensiva: solo estos símbolos pueden aparecer en el dashboard
 // Esta es la última línea de defensa en caso de que el backend no filtre correctamente
+// IMPORTANT: Actualizado para reflejar la whitelist de Forex (12 pares) + otros activos permitidos
 const ALLOWED_SYMBOLS = new Set([
-  'BTCUSD', 'ETHUSD', // Crypto
-  'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD', // G10 FX
-  'USDCNH', 'USDBRL', 'USDMXN', // EM FX
-  'SPX', 'NDX', 'SX5E', 'NIKKEI', // Indices
-  'XAUUSD', 'WTI', 'COPPER', // Commodities
+  // Crypto
+  'BTCUSD', 'ETHUSD',
+  // Forex - Majors (7)
+  'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD',
+  // Forex - Crosses (5)
+  'EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'AUDJPY',
+  // Indices
+  'SPX', 'NDX', 'SX5E', 'NIKKEI',
+  // Commodities/Metals
+  'XAUUSD', 'WTI', 'COPPER',
 ])
 
 // Normalizar símbolo para comparación (uppercase, sin slashes)

@@ -1,22 +1,27 @@
 // Helper function to determine asset category from symbol
 // Works on both client and server without requiring fs
+// IMPORTANT: Only Forex pairs in FOREX_WHITELIST should return 'forex'
 export function getAssetCategory(symbol: string): 'forex' | 'crypto' | 'metal' | 'index' | null {
   const s = symbol.toUpperCase().replace('/', '')
   
-  // Known indices
-  const indices = ['SPX', 'NDX', 'DJI', 'RUT', 'VIX', 'DAX', 'FTSE', 'CAC', 'IBEX', 'N225', 'HSI', 'ASX']
+  // Known indices (including SX5E and NIKKEI)
+  const indices = ['SPX', 'NDX', 'SX5E', 'NIKKEI', 'DJI', 'RUT', 'VIX', 'DAX', 'FTSE', 'CAC', 'IBEX', 'N225', 'HSI', 'ASX']
   if (indices.includes(s)) return 'index'
+  
+  // Known commodities (WTI, COPPER)
+  const commodities = ['WTI', 'COPPER']
+  if (commodities.includes(s)) return 'index' // Use 'index' category for display (or 'commodity' if component supports it)
   
   // Known metals (XAU, XAG, XPD, XPT)
   if (s.startsWith('XAU') || s.startsWith('XAG') || s.startsWith('XPD') || s.startsWith('XPT')) return 'metal'
   
   // Known crypto (ends with USDT or common crypto symbols)
-  if (s.endsWith('USDT') || s === 'BTCUSD' || ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'ADA', 'DOGE', 'TRX', 'AVAX', 'SHIB', 'TON', 'DOT', 'MATIC', 'LINK', 'BCH', 'NEAR', 'LTC', 'UNI', 'ATOM', 'APT', 'ARB', 'ALGO', 'FIL'].some(c => s.startsWith(c))) return 'crypto'
+  if (s.endsWith('USDT') || s === 'BTCUSD' || s === 'ETHUSD' || ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'ADA', 'DOGE', 'TRX', 'AVAX', 'SHIB', 'TON', 'DOT', 'MATIC', 'LINK', 'BCH', 'NEAR', 'LTC', 'UNI', 'ATOM', 'APT', 'ARB', 'ALGO', 'FIL'].some(c => s.startsWith(c))) return 'crypto'
   
-  // Forex pairs (typically 6 characters, or contains common forex currencies)
-  const forexCurrencies = ['EUR', 'GBP', 'USD', 'JPY', 'AUD', 'CAD', 'CHF', 'NZD', 'MXN', 'ZAR', 'SEK', 'NOK', 'DKK', 'PLN', 'TRY', 'RUB', 'CNH', 'HKD', 'SGD', 'INR', 'BRL']
-  if (s.length === 6 && forexCurrencies.some(c => s.includes(c))) return 'forex'
-  if (forexCurrencies.some(c => s.includes(c) && s.length <= 8)) return 'forex'
+  // Forex pairs - ONLY check FOREX_WHITELIST
+  // Forex whitelist: EURUSD, GBPUSD, USDJPY, USDCHF, AUDUSD, USDCAD, NZDUSD, EURGBP, EURJPY, GBPJPY, EURCHF, AUDJPY
+  const forexWhitelist = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD', 'EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'AUDJPY']
+  if (forexWhitelist.includes(s)) return 'forex'
   
   return null
 }
@@ -92,9 +97,14 @@ export const ASSET_CATEGORIES: Record<string, 'forex' | 'crypto' | 'metal' | 'in
     XAGUSD: 'metal',
     XPDUSD: 'metal',
     XPTUSD: 'metal',
+    // Commodities
+    WTI: 'index', // WTI is a commodity, but we'll use 'index' category for display (or create 'commodity' if needed)
+    COPPER: 'index', // COPPER is a commodity
     // Indices
     SPX: 'index',
     NDX: 'index',
+    SX5E: 'index', // IMPORTANT: SX5E is an index, not forex
+    NIKKEI: 'index',
     DJI: 'index',
     RUT: 'index',
     VIX: 'index',

@@ -239,18 +239,44 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
   // IMPORTANT: For Forex pairs, also apply FOREX_WHITELIST filter
   logTacticalPairsDebug('getBiasRaw.tableTactical.beforeFilter', tacticalRows)
   
+  // Load tactical pairs config to check types
+  let tacticalPairsConfig: Array<{ symbol: string; type?: string }> = []
+  try {
+    const fs = await import('node:fs/promises')
+    const path = await import('node:path')
+    const tacticalPath = path.join(process.cwd(), 'config', 'tactical-pairs.json')
+    const tacticalRaw = await fs.readFile(tacticalPath, 'utf8')
+    tacticalPairsConfig = JSON.parse(tacticalRaw) as Array<{ symbol: string; type?: string }>
+  } catch (error) {
+    // If we can't load config, fall back to pattern matching
+  }
+  
   tacticalRows = tacticalRows.filter((row: any) => {
     const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
     const isAllowed = isAllowedPair(symbol)
     
-    // If it's a Forex pair, also check FOREX_WHITELIST
-    // We check if symbol matches common Forex patterns (6 chars, all uppercase letters)
-    const isForexPattern = /^[A-Z]{6}$/.test(symbol)
-    if (isForexPattern) {
-      return isAllowed && isForexWhitelisted(symbol)
+    if (!isAllowed) {
+      return false
     }
     
-    return isAllowed
+    // Check if it's a Forex pair by looking at tactical-pairs.json config
+    const pairConfig = tacticalPairsConfig.find(p => p.symbol.toUpperCase().replace('/', '') === symbol)
+    
+    // If it's explicitly marked as type='fx', apply FOREX_WHITELIST
+    if (pairConfig?.type === 'fx') {
+      return isForexWhitelisted(symbol)
+    }
+    
+    // For other types (crypto, commodity, index) or if config not available, use pattern matching
+    // Only apply FOREX_WHITELIST if it matches Forex pattern AND is not explicitly another type
+    const isForexPattern = /^[A-Z]{6}$/.test(symbol)
+    if (isForexPattern && !pairConfig) {
+      // Pattern matches Forex but no config - apply whitelist to be safe
+      return isForexWhitelisted(symbol)
+    }
+    
+    // Non-Forex pairs or pairs with explicit non-forex type pass through
+    return true
   })
   
   logTacticalPairsDebug('getBiasRaw.tableTactical.afterFilter', tacticalRows)
@@ -313,16 +339,36 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
     const cached = await getMacroTacticalBias()
     if (cached.length) {
       // FILTER: Only use pairs from tactical-pairs.json (getMacroTacticalBias already filters, but double-check)
-      // IMPORTANT: For Forex pairs, also apply FOREX_WHITELIST filter
+      // IMPORTANT: FOREX_WHITELIST only applies to Forex pairs (type='fx')
+      let tacticalPairsConfig: Array<{ symbol: string; type?: string }> = []
+      try {
+        const fs = await import('node:fs/promises')
+        const path = await import('node:path')
+        const tacticalPath = path.join(process.cwd(), 'config', 'tactical-pairs.json')
+        const tacticalRaw = await fs.readFile(tacticalPath, 'utf8')
+        tacticalPairsConfig = JSON.parse(tacticalRaw) as Array<{ symbol: string; type?: string }>
+      } catch (error) {
+        // If we can't load config, fall back to pattern matching
+      }
+      
       tacticalRows = cached
         .filter((row) => {
           const symbol = row.symbol.replace('/', '').toUpperCase()
           const isAllowed = isAllowedPair(symbol)
-          const isForexPattern = /^[A-Z]{6}$/.test(symbol)
-          if (isForexPattern) {
-            return isAllowed && isForexWhitelisted(symbol)
+          
+          if (!isAllowed) {
+            return false
           }
-          return isAllowed
+          
+          const pairConfig = tacticalPairsConfig.find(p => p.symbol.toUpperCase().replace('/', '') === symbol)
+          
+          // If it's explicitly marked as type='fx', apply FOREX_WHITELIST
+          if (pairConfig?.type === 'fx') {
+            return isForexWhitelisted(symbol)
+          }
+          
+          // Non-Forex pairs pass through
+          return true
         })
         .map((row) => {
           const direction = row.direction ?? 'neutral'
@@ -493,14 +539,35 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
   // IMPORTANT: For Forex pairs, also apply FOREX_WHITELIST filter
   logTacticalPairsDebug('getBiasRaw.final.beforeReturn', tacticalRows)
   
+  // Final filter with proper type checking
+  let finalTacticalPairsConfig: Array<{ symbol: string; type?: string }> = []
+  try {
+    const fs = await import('node:fs/promises')
+    const path = await import('node:path')
+    const tacticalPath = path.join(process.cwd(), 'config', 'tactical-pairs.json')
+    const tacticalRaw = await fs.readFile(tacticalPath, 'utf8')
+    finalTacticalPairsConfig = JSON.parse(tacticalRaw) as Array<{ symbol: string; type?: string }>
+  } catch (error) {
+    // If we can't load config, fall back to pattern matching
+  }
+  
   const filteredTactical = tacticalRows.filter((row: any) => {
     const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
     const isAllowed = isAllowedPair(symbol)
-    const isForexPattern = /^[A-Z]{6}$/.test(symbol)
-    if (isForexPattern) {
-      return isAllowed && isForexWhitelisted(symbol)
+    
+    if (!isAllowed) {
+      return false
     }
-    return isAllowed
+    
+    const pairConfig = finalTacticalPairsConfig.find(p => p.symbol.toUpperCase().replace('/', '') === symbol)
+    
+    // If it's explicitly marked as type='fx', apply FOREX_WHITELIST
+    if (pairConfig?.type === 'fx') {
+      return isForexWhitelisted(symbol)
+    }
+    
+    // Non-Forex pairs pass through
+    return true
   })
   
   logTacticalPairsDebug('getBiasRaw.final.afterFilter', filteredTactical)

@@ -529,18 +529,25 @@ export async function getDashboardData(): Promise<DashboardData> {
     )
     
     // Filter tactical rows to only include allowed pairs
-    // For Forex pairs (type='fx'), also check FOREX_WHITELIST
+    // IMPORTANT: FOREX_WHITELIST only applies to Forex pairs (type='fx')
+    // Other pairs (crypto, commodity, index) should pass through if in tactical-pairs.json
     tacticalRows = tacticalRows.filter((row: any) => {
       const symbol = (row.pair ?? row.symbol ?? '').replace('/', '').toUpperCase()
       const isAllowed = allowedSymbols.has(symbol)
       
-      // If it's a Forex pair, also check FOREX_WHITELIST
-      const pairConfig = tacticalPairs.find(p => p.symbol.toUpperCase().replace('/', '') === symbol)
-      if (pairConfig?.type === 'fx') {
-        return isAllowed && isForexWhitelisted(symbol)
+      if (!isAllowed) {
+        return false
       }
       
-      return isAllowed
+      // If it's a Forex pair (type='fx'), also check FOREX_WHITELIST
+      const pairConfig = tacticalPairs.find(p => p.symbol.toUpperCase().replace('/', '') === symbol)
+      if (pairConfig?.type === 'fx') {
+        // Forex pairs MUST be in FOREX_WHITELIST
+        return isForexWhitelisted(symbol)
+      }
+      
+      // Non-Forex pairs (crypto, commodity, index) pass through if in tactical-pairs.json
+      return true
     })
     
     if (process.env.NODE_ENV === 'development') {
