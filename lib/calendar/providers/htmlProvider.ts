@@ -24,29 +24,41 @@ interface HTMLFeedConfig {
   selector?: string // Selector CSS para encontrar eventos (opcional)
 }
 
-// Configuración de feeds HTML oficiales (URLs verificadas)
+// Configuración de feeds HTML oficiales (URLs verificadas y mejoradas)
 const HTML_FEEDS: HTMLFeedConfig[] = [
   {
-    name: 'Eurostat Release Calendar',
-    url: 'https://ec.europa.eu/eurostat/news/release-calendar',
+    name: 'ECB Statistical Calendar - HICP',
+    url: 'https://www.ecb.europa.eu/stats/ecb_statistical_calendar/html/index.en.html#hicp',
     country: 'Euro Area',
     currency: 'EUR',
   },
   {
-    name: 'INE Calendar',
-    url: 'https://www.ine.es/dyngs/INEbase/es/operacion.htm?c=Estadistica_C&cid=1254736176918&menu=resultados&idp=1254735572981',
+    name: 'ECB Statistical Calendar - QSA',
+    url: 'https://www.ecb.europa.eu/stats/ecb_statistical_calendar/html/index.en.html#qsa',
+    country: 'Euro Area',
+    currency: 'EUR',
+  },
+  {
+    name: 'ECB Statistical Calendar - BoP',
+    url: 'https://www.ecb.europa.eu/stats/ecb_statistical_calendar/html/index.en.html#bop',
+    country: 'Euro Area',
+    currency: 'EUR',
+  },
+  {
+    name: 'INE Calendar HTML',
+    url: 'https://www.ine.es/dynt3/Calendario/calenHTML.htm',
     country: 'Spain',
     currency: 'EUR',
   },
   {
-    name: 'Fed Calendar',
-    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+    name: 'Fed Upcoming Dates',
+    url: 'https://www.federalreserve.gov/monetarypolicy.htm',
     country: 'United States',
     currency: 'USD',
   },
   {
-    name: 'ONS Release Calendar (HTML Fallback)',
-    url: 'https://www.ons.gov.uk/releasecalendar?release-type=type-upcoming',
+    name: 'ONS Release Calendar',
+    url: 'https://www.ons.gov.uk/releasecalendar',
     country: 'United Kingdom',
     currency: 'GBP',
   },
@@ -94,12 +106,23 @@ export class HTMLProvider implements CalendarProvider {
     to: Date
   ): Promise<ProviderCalendarEvent[]> {
     try {
-      const response = await fetch(feed.url, {
-        headers: {
-          'Accept': 'text/html',
-          'User-Agent': 'Mozilla/5.0 (compatible; MacroDashboard/1.0)',
-        },
-      })
+      // Headers estándar para todos los fetch HTML
+      const headers: HeadersInit = {
+        'Accept': 'text/html,*/*',
+        'User-Agent': 'Mozilla/5.0 (compatible; MacroDashboard/1.0)',
+        'Accept-Language': 'en-US,en;q=0.9,es;q=0.8',
+      }
+      
+      // Headers específicos por feed
+      if (feed.name.includes('ONS')) {
+        headers['Accept-Language'] = 'en-GB,en;q=0.9'
+      } else if (feed.name.includes('INE') || feed.name.includes('Bundesbank')) {
+        headers['Accept-Language'] = 'es-ES,es;q=0.9,en;q=0.8'
+      } else if (feed.name.includes('ECB')) {
+        headers['Accept-Language'] = 'en-GB,en;q=0.9'
+      }
+      
+      const response = await fetch(feed.url, { headers })
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -120,47 +143,62 @@ export class HTMLProvider implements CalendarProvider {
   /**
    * Parser de HTML usando cheerio (robusto)
    */
-  private parseHTML(
+  private async parseHTML(
     htmlText: string,
     feed: HTMLFeedConfig,
     from: Date,
     to: Date
-  ): ProviderCalendarEvent[] {
+  ): Promise<ProviderCalendarEvent[]> {
     const events: ProviderCalendarEvent[] = []
     
     try {
       const $ = cheerio.load(htmlText)
       
       // Estrategia de parsing según el feed
-      if (feed.name === 'Eurostat Release Calendar') {
-        // Eurostat: buscar items de publicaciones en el release calendar
-        // Buscar en todas las tablas y elementos con fechas
-        $('table tr, .release-item, .calendar-item, [class*="release"], [class*="calendar"]').each((_, element) => {
-          const $row = $(element)
-          const text = $row.text().trim()
+      if (feed.name.startsWith('ECB Statistical Calendar')) {
+        // ECB: Parsear calendarios estadísticos (HICP, QSA, BoP)
+        // Formato: dd/mm/yyyy hh:mm CET + título
+        const text = $.text()
+        const dateTimeRegex = /(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2})\s+CET/gi
+        let match
+        
+        while ((match = dateTimeRegex.exec(text)) !== null) {
+          const dateStr = match[1] // DD/MM/YYYY
+          const timeStr = match[2] // HH:MM
+          const matchIndex = match.index
           
-          // Buscar fecha en formato común (DD Month YYYY, DD/MM/YYYY, YYYY-MM-DD)
-          const dateMatch = text.match(/(\d{1,2}\s+\w+\s+\d{4})|(\d{2}\/\d{2}\/\d{4})|(\d{4}-\d{2}-\d{2})/i)
-          if (!dateMatch || text.length < 20) return // Filtrar elementos muy cortos
+          // Buscar título: texto antes o después de la fecha/hora
+          const contextStart = Math.max(0, matchIndex - 200)
+          const contextEnd = Math.min(text.length, matchIndex + 200)
+          const context = text.substring(contextStart, contextEnd)
           
-          const dateStr = dateMatch[0]
-          // Buscar título: puede estar en td, a, strong, span, o al inicio del texto
-          let title = $row.find('td:first-child, td:nth-child(2), a, strong, .title, [class*="title"]').first().text().trim()
-          if (!title || title.length < 5) {
-            // Fallback: usar texto antes de la fecha
-            title = text.split(dateStr)[0].trim().split('\n')[0].trim()
+          // Buscar título (puede estar antes o después)
+          let title = context.split(dateStr)[0].trim()
+          if (title.length < 5) {
+            title = context.split(dateStr)[1]?.split('CET')[1]?.trim() || ''
           }
           
-          if (!title || title.length < 5) return
+          // Limpiar título (remover "Reference period" y similares)
+          title = title.replace(/Reference period.*$/i, '').trim()
+          if (!title || title.length < 5) continue
           
-          const eventDate = this.parseDate(dateStr, 'Europe/Brussels') // Eurostat usa hora de Bruselas
+          // Construir fecha completa: DD/MM/YYYY HH:MM
+          const [day, month, year] = dateStr.split('/')
+          const [hours, minutes] = timeStr.split(':')
+          const eventDate = new Date(Date.UTC(
+            parseInt(year),
+            parseInt(month) - 1,
+            parseInt(day),
+            parseInt(hours) - 1, // CET es UTC+1, ajustar
+            parseInt(minutes)
+          ))
           
           if (eventDate >= from && eventDate <= to) {
             const whitelistMatch = isHighImpactEvent(title, feed.country)
             
             if (whitelistMatch) {
               events.push({
-                externalId: `Eurostat-${Date.now()}-${events.length}`,
+                externalId: `ECB-${feed.name}-${Date.now()}-${events.length}`,
                 country: feed.country,
                 currency: feed.currency,
                 name: whitelistMatch.canonicalEventName || title,
@@ -175,35 +213,64 @@ export class HTMLProvider implements CalendarProvider {
               })
             }
           }
-        })
-      } else if (feed.name === 'INE Calendar') {
-        // INE: buscar items en la tabla de calendario
-        // Buscar en todas las tablas y elementos con fechas
-        $('table tr, .calendar-row, .release-row, [class*="calendario"], [class*="fecha"]').each((_, element) => {
+        }
+      } else if (feed.name === 'INE Calendar HTML') {
+        // INE: Descubrir link ICS desde la página HTML dinámicamente
+        // Buscar <a> cuyo texto incluya "Formato ICS" o "ICS format"
+        const icsLink = $('a').filter((_, el) => {
+          const text = $(el).text().toLowerCase()
+          return text.includes('formato ics') || text.includes('ics format') || text.includes('.ics')
+        }).first()
+        
+        if (icsLink.length > 0) {
+          let icsUrl = icsLink.attr('href') || ''
+          
+          // Resolver URL absoluta si es relativa
+          if (icsUrl && !icsUrl.startsWith('http')) {
+            const baseUrl = new URL(feed.url)
+            icsUrl = new URL(icsUrl, baseUrl).href
+          }
+          
+          if (icsUrl) {
+            // Fetch y parsear ICS
+            try {
+              const icsResponse = await fetch(icsUrl, { headers })
+              if (icsResponse.ok) {
+                const icsText = await icsResponse.text()
+                const icsEvents = await this.parseINEICS(icsText, feed, from, to)
+                events.push(...icsEvents)
+                console.log(`[HTMLProvider] INE: Found ${icsEvents.length} events from ICS`)
+              }
+            } catch (icsError) {
+              console.warn(`[HTMLProvider] Failed to fetch INE ICS from ${icsUrl}:`, icsError)
+            }
+          }
+        }
+        
+        // También parsear HTML directamente como fallback
+        $('table tr, .calendar-row, [class*="calendario"]').each((_, element) => {
           const $row = $(element)
           const text = $row.text().trim()
           
-          // Buscar fecha (formato español: DD/MM/YYYY o DD Month YYYY)
-          const dateMatch = text.match(/(\d{2}\/\d{2}\/\d{4})|(\d{1,2}\s+\w+\s+\d{4})|(\d{4}-\d{2}-\d{2})/i)
+          const dateMatch = text.match(/(\d{2}\/\d{2}\/\d{4})|(\d{1,2}\s+\w+\s+\d{4})/i)
           if (!dateMatch || text.length < 20) return
           
           const dateStr = dateMatch[0]
-          // Buscar título en múltiples lugares
-          let title = $row.find('td:first-child, td:nth-child(2), a, strong, .title, [class*="titulo"]').first().text().trim()
+          let title = $row.find('a, td:first-child').first().text().trim()
           if (!title || title.length < 5) {
-            title = text.split(dateStr)[0].trim().split('\n')[0].trim()
+            title = text.split(dateStr)[0].trim()
           }
           
           if (!title || title.length < 5) return
           
-          const eventDate = this.parseDate(dateStr, 'Europe/Madrid') // INE usa hora de Madrid
+          const eventDate = this.parseDate(dateStr, 'Europe/Madrid')
           
           if (eventDate >= from && eventDate <= to) {
             const whitelistMatch = isHighImpactEvent(title, feed.country)
             
             if (whitelistMatch) {
               events.push({
-                externalId: `INE-${Date.now()}-${events.length}`,
+                externalId: `INE-HTML-${Date.now()}-${events.length}`,
                 country: feed.country,
                 currency: feed.currency,
                 name: whitelistMatch.canonicalEventName || title,
@@ -219,106 +286,47 @@ export class HTMLProvider implements CalendarProvider {
             }
           }
         })
-      } else if (feed.name === 'ONS Release Calendar (HTML Fallback)') {
-        // ONS: buscar elementos con "Release date: ..." o en tabla
-        $('table tbody tr, .release-item, *').each((_, element) => {
+      } else if (feed.name === 'ONS Release Calendar') {
+        // ONS: Estrategia robusta - buscar "Release date:" con regex
+        // Extraer título desde <a> del item y fecha desde texto
+        $('*').each((_, element) => {
           const $el = $(element)
           const text = $el.text()
           
-          // Buscar patrón "Release date: DD Month YYYY" o fecha en tabla
-          const dateMatch = text.match(/Release date:\s*(\d{1,2}\s+\w+\s+\d{4})|(\d{1,2}\s+\w+\s+\d{4})/i)
+          // Buscar patrón: "Release date: DD Month YYYY HH:MM(am|pm)"
+          const dateMatch = text.match(/Release date:\s*(\d{1,2}\s+\w+\s+\d{4})\s+(\d{1,2}:\d{2}(?:am|pm)?)/i)
           if (!dateMatch) return
           
-          const dateStr = dateMatch[1] || dateMatch[2]
-          const title = $el.find('h2, h3, h4, .title, a, td:first-child').first().text().trim() || 
-                       text.split(/Release date:|date:/i)[0].trim()
+          const dateStr = dateMatch[1] // "DD Month YYYY"
+          const timeStr = dateMatch[2] || '09:30' // "HH:MM" o default
           
-          if (!title || title.length < 5) return
-          
-          const eventDate = this.parseDate(dateStr, 'Europe/London') // ONS usa hora UK
-          
-          if (eventDate >= from && eventDate <= to) {
-            const whitelistMatch = isHighImpactEvent(title, feed.country)
-            
-            if (whitelistMatch) {
-              events.push({
-                externalId: `ONS-HTML-${Date.now()}-${events.length}`,
-                country: feed.country,
-                currency: feed.currency,
-                name: whitelistMatch.canonicalEventName || title,
-                category: whitelistMatch.category,
-                importance: 'high',
-                scheduledTimeUTC: eventDate.toISOString(),
-                previous: null,
-                consensus: null,
-                maybeSeriesId: whitelistMatch.seriesId,
-                maybeIndicatorKey: whitelistMatch.indicatorKey,
-                directionality: whitelistMatch.directionality,
-              })
-            }
-          }
-        })
-      } else if (feed.name === 'Fed Calendar') {
-        // Fed: buscar elementos de reuniones FOMC
-        $('table, .fomc-meeting, .meeting').each((_, element) => {
-          const text = $(element).text()
-          const dateMatch = text.match(/(\d{1,2}\/\d{1,2}\/\d{4})|(\w+\s+\d{1,2},\s+\d{4})/i)
-          
-          if (!dateMatch) return
-          
-          const dateStr = dateMatch[0]
-          const title = 'FOMC Rate Decision' // FOMC siempre es rate decision
-          
-          const eventDate = this.parseDate(dateStr, 'America/New_York') // Fed usa hora del este
-          
-          if (eventDate >= from && eventDate <= to) {
-            const whitelistMatch = isHighImpactEvent(title, feed.country)
-            
-            if (whitelistMatch) {
-              events.push({
-                externalId: `${feed.name}-${Date.now()}-${events.length}`,
-                country: feed.country,
-                currency: feed.currency,
-                name: whitelistMatch.canonicalEventName || title,
-                category: whitelistMatch.category,
-                importance: 'high',
-                scheduledTimeUTC: eventDate.toISOString(),
-                previous: null,
-                consensus: null,
-                maybeSeriesId: whitelistMatch.seriesId,
-                maybeIndicatorKey: whitelistMatch.indicatorKey,
-                directionality: whitelistMatch.directionality,
-              })
-            }
-          }
-        })
-      } else if (feed.name === 'Bundesbank Release Calendar') {
-        // Bundesbank: buscar items en el calendario estadístico
-        $('table tr, .calendar-item, .release-item, [class*="release"], [class*="calendar"]').each((_, element) => {
-          const $row = $(element)
-          const text = $row.text().trim()
-          
-          // Buscar fecha en formato alemán (DD.MM.YYYY) o ISO o texto
-          const dateMatch = text.match(/(\d{2}\.\d{2}\.\d{4})|(\d{4}-\d{2}-\d{2})|(\d{1,2}\s+\w+\s+\d{4})/i)
-          if (!dateMatch || text.length < 20) return
-          
-          const dateStr = dateMatch[0]
-          // Buscar título en múltiples lugares
-          let title = $row.find('td:first-child, td:nth-child(2), a, strong, .title, [class*="title"]').first().text().trim()
+          // Extraer título desde <a> del contenedor o elemento padre
+          let title = $el.find('a').first().text().trim()
           if (!title || title.length < 5) {
-            title = text.split(dateStr)[0].trim().split('\n')[0].trim()
+            // Buscar en elemento padre
+            title = $el.parent().find('a').first().text().trim()
+          }
+          if (!title || title.length < 5) {
+            // Fallback: texto antes de "Release date:"
+            title = text.split(/Release date:/i)[0].trim()
           }
           
           if (!title || title.length < 5) return
           
-          const eventDate = this.parseDate(dateStr, 'Europe/Berlin') // Bundesbank usa hora de Berlín
+          // Parsear fecha y hora
+          const [hours, minutes] = timeStr.replace(/[ap]m/i, '').split(':').map(Number)
+          let hour24 = hours
+          if (timeStr.toLowerCase().includes('pm') && hours < 12) hour24 = hours + 12
+          if (timeStr.toLowerCase().includes('am') && hours === 12) hour24 = 0
+          
+          const eventDate = this.parseDateWithTime(dateStr, hour24, minutes || 0, 'Europe/London')
           
           if (eventDate >= from && eventDate <= to) {
             const whitelistMatch = isHighImpactEvent(title, feed.country)
             
             if (whitelistMatch) {
               events.push({
-                externalId: `Bundesbank-${Date.now()}-${events.length}`,
+                externalId: `ONS-${Date.now()}-${events.length}`,
                 country: feed.country,
                 currency: feed.currency,
                 name: whitelistMatch.canonicalEventName || title,
@@ -334,6 +342,122 @@ export class HTMLProvider implements CalendarProvider {
             }
           }
         })
+      } else if (feed.name === 'Fed Upcoming Dates') {
+        // Fed: Buscar bloque "Upcoming Dates" y extraer eventos FOMC
+        const text = $.text()
+        const upcomingIndex = text.toLowerCase().indexOf('upcoming dates')
+        if (upcomingIndex === -1) return
+        
+        // Buscar en el contexto después de "Upcoming Dates"
+        const context = text.substring(upcomingIndex, upcomingIndex + 2000)
+        
+        // Buscar fechas en formato "Jan. 27-28" o "January 27-28, 2026"
+        const datePattern = /(\w+\.?\s+\d{1,2}(?:-\d{1,2})?(?:,\s+\d{4})?)/gi
+        let match
+        
+        while ((match = datePattern.exec(context)) !== null) {
+          const dateStr = match[1]
+          
+          // Buscar título en el contexto cercano (FOMC Meeting, FOMC Minutes, Press Conference)
+          const contextStart = Math.max(0, match.index - 100)
+          const contextEnd = Math.min(context.length, match.index + 100)
+          const localContext = context.substring(contextStart, contextEnd)
+          
+          let title = ''
+          if (localContext.toLowerCase().includes('fomc meeting')) {
+            title = 'FOMC Rate Decision'
+          } else if (localContext.toLowerCase().includes('fomc minutes')) {
+            title = 'FOMC Minutes'
+          } else if (localContext.toLowerCase().includes('press conference')) {
+            title = 'FOMC Press Conference'
+          } else {
+            continue // Solo eventos FOMC relevantes
+          }
+          
+          const eventDate = this.parseDate(dateStr, 'America/New_York')
+          
+          if (eventDate >= from && eventDate <= to) {
+            const whitelistMatch = isHighImpactEvent(title, feed.country)
+            
+            if (whitelistMatch) {
+              events.push({
+                externalId: `Fed-${Date.now()}-${events.length}`,
+                country: feed.country,
+                currency: feed.currency,
+                name: whitelistMatch.canonicalEventName || title,
+                category: whitelistMatch.category,
+                importance: 'high',
+                scheduledTimeUTC: eventDate.toISOString(),
+                previous: null,
+                consensus: null,
+                maybeSeriesId: whitelistMatch.seriesId,
+                maybeIndicatorKey: whitelistMatch.indicatorKey,
+                directionality: whitelistMatch.directionality,
+              })
+            }
+          }
+        }
+      } else if (feed.name === 'Bundesbank Release Calendar') {
+        // Bundesbank: Extraer links a subpáginas y parsear cada una
+        const subpageLinks: string[] = []
+        
+        $('a[href*="/en/statistics/statistical-release-calendar/"]').each((_, element) => {
+          const href = $(element).attr('href')
+          if (href && /-\d+$/.test(href)) {
+            // Link termina con -número (ej: banks-900524)
+            const fullUrl = href.startsWith('http') ? href : new URL(href, feed.url).href
+            if (!subpageLinks.includes(fullUrl)) {
+              subpageLinks.push(fullUrl)
+            }
+          }
+        })
+        
+        // Parsear cada subpágina
+        for (const subpageUrl of subpageLinks.slice(0, 50)) { // Limitar a 50 para no sobrecargar
+          try {
+            const subpageResponse = await fetch(subpageUrl, { headers })
+            if (!subpageResponse.ok) continue
+            
+            const subpageHtml = await subpageResponse.text()
+            const $sub = cheerio.load(subpageHtml)
+            
+            // Extraer título del h1
+            const title = $sub('h1').first().text().trim()
+            if (!title || title.length < 5) continue
+            
+            // Buscar fecha en formato dd.mm.yyyy en el primer bullet
+            const text = $sub('body').text()
+            const dateMatch = text.match(/(\d{2}\.\d{2}\.\d{4})/)
+            if (!dateMatch) continue
+            
+            const dateStr = dateMatch[1]
+            const eventDate = this.parseDate(dateStr, 'Europe/Berlin')
+            
+            if (eventDate >= from && eventDate <= to) {
+              const whitelistMatch = isHighImpactEvent(title, feed.country)
+              
+              if (whitelistMatch) {
+                events.push({
+                  externalId: `Bundesbank-${subpageUrl.split('-').pop()}-${events.length}`,
+                  country: feed.country,
+                  currency: feed.currency,
+                  name: whitelistMatch.canonicalEventName || title,
+                  category: whitelistMatch.category,
+                  importance: 'high',
+                  scheduledTimeUTC: eventDate.toISOString(),
+                  previous: null,
+                  consensus: null,
+                  maybeSeriesId: whitelistMatch.seriesId,
+                  maybeIndicatorKey: whitelistMatch.indicatorKey,
+                  directionality: whitelistMatch.directionality,
+                })
+              }
+            }
+          } catch (subpageError) {
+            console.warn(`[HTMLProvider] Error fetching Bundesbank subpage ${subpageUrl}:`, subpageError)
+            // Continuar con siguiente subpágina
+          }
+        }
       }
     } catch (error) {
       console.error(`[HTMLProvider] Error parsing HTML with cheerio:`, error)
@@ -426,20 +550,117 @@ export class HTMLProvider implements CalendarProvider {
           const [, day, month, year] = ddmmyyyyDE
           date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
         } else {
-          // Fallback: intentar parsear directamente
-          date = new Date(dateStr)
-          if (isNaN(date.getTime())) {
-            console.warn(`[HTMLProvider] Could not parse date: ${dateStr}`)
-            return new Date()
+          // Formato "DD Month YYYY" (ej: "18 December 2025")
+          const ddmmyyyyText = dateStr.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/i)
+          if (ddmmyyyyText) {
+            const [, day, monthName, year] = ddmmyyyyText
+            const monthNames = ['january', 'february', 'march', 'april', 'may', 'june',
+              'july', 'august', 'september', 'october', 'november', 'december']
+            const monthIndex = monthNames.findIndex(m => monthName.toLowerCase().startsWith(m.toLowerCase()))
+            if (monthIndex >= 0) {
+              date = new Date(parseInt(year), monthIndex, parseInt(day))
+            } else {
+              date = new Date(dateStr)
+            }
+          } else {
+            // Formato "Month DD, YYYY" (ej: "Jan. 27-28, 2026")
+            const monthDDYYYY = dateStr.match(/(\w+\.?)\s+(\d{1,2})(?:-(\d{1,2}))?(?:,\s+(\d{4}))?/i)
+            if (monthDDYYYY) {
+              const [, monthAbbr, day1, day2, year] = monthDDYYYY
+              const monthAbbrs: Record<string, number> = {
+                'jan': 0, 'feb': 1, 'mar': 2, 'apr': 2, 'may': 4, 'jun': 5,
+                'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11
+              }
+              const monthIndex = monthAbbrs[monthAbbr.toLowerCase().replace('.', '')]
+              if (monthIndex !== undefined) {
+                const eventYear = year ? parseInt(year) : new Date().getFullYear()
+                const eventDay = day2 ? parseInt(day2) : parseInt(day1) // Usar último día si hay rango
+                date = new Date(eventYear, monthIndex, eventDay)
+              } else {
+                date = new Date(dateStr)
+              }
+            } else {
+              // Fallback: intentar parsear directamente
+              date = new Date(dateStr)
+            }
           }
         }
       }
     }
     
-    // Normalizar a UTC (si el feed tiene timezone, ajustar)
-    // Por ahora, asumimos que las fechas ya vienen en UTC o hora local del país
+    if (isNaN(date.getTime())) {
+      console.warn(`[HTMLProvider] Could not parse date: ${dateStr}`)
+      return new Date()
+    }
+    
+    // Normalizar a UTC (asumimos que las fechas vienen en hora local del país)
     // En producción, usar librería como date-fns-tz para conversión precisa
     return date
+  }
+
+  /**
+   * Parsea fecha con hora específica
+   */
+  private parseDateWithTime(dateStr: string, hours: number, minutes: number, timezone?: string): Date {
+    const baseDate = this.parseDate(dateStr, timezone)
+    baseDate.setHours(hours, minutes, 0, 0)
+    return baseDate
+  }
+
+  /**
+   * Parsea ICS de INE (helper para descubrimiento dinámico)
+   */
+  private async parseINEICS(
+    icsText: string,
+    feed: HTMLFeedConfig,
+    from: Date,
+    to: Date
+  ): Promise<ProviderCalendarEvent[]> {
+    const events: ProviderCalendarEvent[] = []
+    
+    try {
+      // Usar node-ical para parsear
+      const ical = await import('node-ical')
+      const parsed = ical.parseICS(icsText)
+      
+      for (const key in parsed) {
+        const event = parsed[key]
+        if (event.type !== 'VEVENT') continue
+        
+        const summary = event.summary || ''
+        const dtstart = event.start
+        
+        if (!summary || !dtstart) continue
+        
+        const eventDate = dtstart instanceof Date ? dtstart : new Date(dtstart)
+        const utcDate = new Date(eventDate.getTime() - eventDate.getTimezoneOffset() * 60000)
+        
+        if (utcDate >= from && utcDate <= to) {
+          const whitelistMatch = isHighImpactEvent(summary, feed.country)
+          
+          if (whitelistMatch) {
+            events.push({
+              externalId: `INE-ICS-${event.uid || key}`,
+              country: feed.country,
+              currency: feed.currency,
+              name: whitelistMatch.canonicalEventName || summary,
+              category: whitelistMatch.category,
+              importance: 'high',
+              scheduledTimeUTC: utcDate.toISOString(),
+              previous: null,
+              consensus: null,
+              maybeSeriesId: whitelistMatch.seriesId,
+              maybeIndicatorKey: whitelistMatch.indicatorKey,
+              directionality: whitelistMatch.directionality,
+            })
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`[HTMLProvider] Error parsing INE ICS:`, error)
+    }
+    
+    return events
   }
 
   async fetchRelease(event: {
