@@ -293,62 +293,143 @@ export async function upsertEconomicRelease(params: {
 
   if (isUsingTurso()) {
     const db = getUnifiedDB()
-    const stmt = db.prepare(`
-      INSERT INTO economic_releases (
-        event_id, release_time_utc, release_time_local,
-        actual_value, previous_value, consensus_value,
-        surprise_raw, surprise_pct, surprise_score, surprise_direction,
-        revision_flag, notes, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      RETURNING *
-    `)
-    const result = await stmt.get(
-      event_id,
-      release_time_utc,
-      release_time_local || null,
-      actual_value,
-      previous_value || null,
-      consensus_value,
-      surprise.surprise_raw,
-      surprise.surprise_pct,
-      surprise.surprise_score,
-      surprise.surprise_direction,
-      revision_flag,
-      notes || null,
-      new Date().toISOString()
-    ) as EconomicRelease
-    return result
+    // Verificar si ya existe un release para este event_id
+    const existing = await db.prepare('SELECT id FROM economic_releases WHERE event_id = ?').get(event_id) as { id: number } | undefined
+    
+    if (existing) {
+      // Actualizar release existente
+      const stmt = db.prepare(`
+        UPDATE economic_releases SET
+          release_time_utc = ?,
+          release_time_local = ?,
+          actual_value = ?,
+          previous_value = ?,
+          consensus_value = ?,
+          surprise_raw = ?,
+          surprise_pct = ?,
+          surprise_score = ?,
+          surprise_direction = ?,
+          revision_flag = ?,
+          notes = ?
+        WHERE event_id = ?
+        RETURNING *
+      `)
+      const result = await stmt.get(
+        release_time_utc,
+        release_time_local || null,
+        actual_value,
+        previous_value || null,
+        consensus_value,
+        surprise.surprise_raw,
+        surprise.surprise_pct,
+        surprise.surprise_score,
+        surprise.surprise_direction,
+        revision_flag,
+        notes || null,
+        event_id
+      ) as EconomicRelease
+      return result
+    } else {
+      // Insertar nuevo release
+      const stmt = db.prepare(`
+        INSERT INTO economic_releases (
+          event_id, release_time_utc, release_time_local,
+          actual_value, previous_value, consensus_value,
+          surprise_raw, surprise_pct, surprise_score, surprise_direction,
+          revision_flag, notes, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING *
+      `)
+      const result = await stmt.get(
+        event_id,
+        release_time_utc,
+        release_time_local || null,
+        actual_value,
+        previous_value || null,
+        consensus_value,
+        surprise.surprise_raw,
+        surprise.surprise_pct,
+        surprise.surprise_score,
+        surprise.surprise_direction,
+        revision_flag,
+        notes || null,
+        new Date().toISOString()
+      ) as EconomicRelease
+      return result
+    }
   } else {
     const db = getDB()
-    const stmt = db.prepare(`
-      INSERT INTO economic_releases (
-        event_id, release_time_utc, release_time_local,
-        actual_value, previous_value, consensus_value,
-        surprise_raw, surprise_pct, surprise_score, surprise_direction,
-        revision_flag, notes, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-    stmt.run(
-      event_id,
-      release_time_utc,
-      release_time_local || null,
-      actual_value,
-      previous_value || null,
-      consensus_value,
-      surprise.surprise_raw,
-      surprise.surprise_pct,
-      surprise.surprise_score,
-      surprise.surprise_direction,
-      revision_flag,
-      notes || null,
-      new Date().toISOString()
-    )
-    const lastId = db.prepare('SELECT last_insert_rowid() as id').get() as { id: number }
-    const result = await getEconomicReleaseById(lastId.id)
-    if (!result) {
-      throw new Error(`Failed to retrieve economic release with id ${lastId.id}`)
+    // Verificar si ya existe un release para este event_id
+    const existing = db.prepare('SELECT id FROM economic_releases WHERE event_id = ?').get(event_id) as { id: number } | undefined
+    
+    if (existing) {
+      // Actualizar release existente
+      const stmt = db.prepare(`
+        UPDATE economic_releases SET
+          release_time_utc = ?,
+          release_time_local = ?,
+          actual_value = ?,
+          previous_value = ?,
+          consensus_value = ?,
+          surprise_raw = ?,
+          surprise_pct = ?,
+          surprise_score = ?,
+          surprise_direction = ?,
+          revision_flag = ?,
+          notes = ?
+        WHERE event_id = ?
+      `)
+      stmt.run(
+        release_time_utc,
+        release_time_local || null,
+        actual_value,
+        previous_value || null,
+        consensus_value,
+        surprise.surprise_raw,
+        surprise.surprise_pct,
+        surprise.surprise_score,
+        surprise.surprise_direction,
+        revision_flag,
+        notes || null,
+        event_id
+      )
+      const result = await getEconomicReleaseById(existing.id)
+      if (!result) {
+        throw new Error(`Failed to retrieve economic release with id ${existing.id}`)
+      }
+      return result
+    } else {
+      // Insertar nuevo release
+      const stmt = db.prepare(`
+        INSERT INTO economic_releases (
+          event_id, release_time_utc, release_time_local,
+          actual_value, previous_value, consensus_value,
+          surprise_raw, surprise_pct, surprise_score, surprise_direction,
+          revision_flag, notes, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      stmt.run(
+        event_id,
+        release_time_utc,
+        release_time_local || null,
+        actual_value,
+        previous_value || null,
+        consensus_value,
+        surprise.surprise_raw,
+        surprise.surprise_pct,
+        surprise.surprise_score,
+        surprise.surprise_direction,
+        revision_flag,
+        notes || null,
+        new Date().toISOString()
+      )
+      const lastId = db.prepare('SELECT last_insert_rowid() as id').get() as { id: number }
+      const result = await getEconomicReleaseById(lastId.id)
+      if (!result) {
+        throw new Error(`Failed to retrieve economic release with id ${lastId.id}`)
+      }
+      return result
     }
-    return result
   }
 }
 

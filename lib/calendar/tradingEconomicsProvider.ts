@@ -22,49 +22,51 @@ export class TradingEconomicsProvider implements CalendarProvider {
     from: Date
     to: Date
     minImportance?: 'low' | 'medium' | 'high'
+    countries?: readonly string[] // Países específicos a solicitar
+    includeValues?: boolean // Activar values=true para obtener ActualValue, PreviousValue, ForecastValue
   }): Promise<ProviderCalendarEvent[]> {
-    const { from, to, minImportance = 'low' } = params
+    const { from, to, minImportance = 'low', countries, includeValues = false } = params
 
     try {
       // Formatear fechas para la API (YYYY-MM-DD)
       const fromStr = from.toISOString().split('T')[0]
       const toStr = to.toISOString().split('T')[0]
 
-      // TradingEconomics tiene un endpoint específico /calendar/country/ para filtrar por países
-      // Países principales para FX trading (en formato URL: lowercase con espacios como %20 o guiones)
-      const majorCountries = [
-        'united states',      // USD
-        'euro area',          // EUR
-        'united kingdom',     // GBP
-        'japan',              // JPY
-        'australia',          // AUD
-        'canada',             // CAD
-        'new zealand',        // NZD
-        'switzerland',        // CHF
-        'china',              // CNY
-        'mexico',             // MXN
-        'brazil',             // BRL
-        'south korea',        // KRW
-        'india',              // INR
-        'russia',             // RUB
-        'turkey',             // TRY
-        'south africa',       // ZAR
-        'sweden',             // SEK
-        'norway',             // NOK
-        'denmark',            // DKK
-        'poland',             // PLN
-        'czech republic',     // CZK
-        'hungary'             // HUF
-      ]
+      // Usar países específicos si se proporcionan, sino usar lista por defecto
+      const countriesToFetch = countries && countries.length > 0
+        ? countries.map(c => c.toLowerCase().replace(/\s+/g, ' '))
+        : [
+            'united states',
+            'euro area',
+            'united kingdom',
+            'japan',
+            'australia',
+            'canada',
+            'new zealand',
+            'switzerland',
+            'china',
+          ]
       
       // Usar el endpoint /calendar/country/ con múltiples países separados por comas
       // Formato: /calendar/country/united%20states,euro%20area/YYYY-MM-DD/YYYY-MM-DD
-      const countriesParam = majorCountries.map(c => encodeURIComponent(c.toLowerCase())).join(',')
-      const url = `${this.baseUrl}/calendar/country/${countriesParam}/${fromStr}/${toStr}?c=${this.apiKey}`
+      const countriesParam = countriesToFetch.map(c => encodeURIComponent(c.toLowerCase())).join(',')
+      
+      // Construir URL con parámetros
+      const urlParams = new URLSearchParams({
+        c: this.apiKey,
+      })
+      
+      // Activar values=true si se solicita
+      if (includeValues) {
+        urlParams.set('values', 'true')
+      }
+      
+      const url = `${this.baseUrl}/calendar/country/${countriesParam}/${fromStr}/${toStr}?${urlParams.toString()}`
       
       console.log(`[TradingEconomicsProvider] Fetching calendar from ${fromStr} to ${toStr}`)
-      console.log(`[TradingEconomicsProvider] Filtering by ${majorCountries.length} major countries`)
-      console.log(`[TradingEconomicsProvider] API URL: ${this.baseUrl}/calendar/country/***/${fromStr}/${toStr}?c=***`)
+      console.log(`[TradingEconomicsProvider] Filtering by ${countriesToFetch.length} countries: ${countriesToFetch.join(', ')}`)
+      console.log(`[TradingEconomicsProvider] minImportance: ${minImportance}, includeValues: ${includeValues}`)
+      console.log(`[TradingEconomicsProvider] API URL: ${this.baseUrl}/calendar/country/***/${fromStr}/${toStr}?***`)
       
       const response = await fetch(url, {
         headers: {
@@ -148,9 +150,20 @@ export class TradingEconomicsProvider implements CalendarProvider {
         console.warn(`[TradingEconomicsProvider] WARNING: API returned 0 valid events!`)
       }
 
+      // Filtrar por países si se proporcionan
+      let countryFiltered = validEvents
+      if (countries && countries.length > 0) {
+        const allowedCountriesSet = new Set(countries.map(c => c.toLowerCase()))
+        countryFiltered = validEvents.filter((ev: any) => {
+          const evCountry = (ev.Country || '').trim()
+          return evCountry && allowedCountriesSet.has(evCountry.toLowerCase())
+        })
+        console.log(`[TradingEconomicsProvider] Filtered by countries: ${validEvents.length} → ${countryFiltered.length} events`)
+      }
+
       // Mapear respuesta de TradingEconomics a ProviderCalendarEvent
       // Usar solo eventos válidos (filtrados previamente)
-      const events: ProviderCalendarEvent[] = validEvents
+      const events: ProviderCalendarEvent[] = countryFiltered
         .filter((ev: any) => {
           // Filtrar eventos que tengan país (necesario para mapear a moneda)
           // Si no tiene moneda, intentaremos inferirla desde el país
@@ -162,6 +175,7 @@ export class TradingEconomicsProvider implements CalendarProvider {
         })
         .filter((ev: any) => {
           // TradingEconomics usa números: 1=Low, 2=Medium, 3=High
+          // SOLO aceptar importance = 3 (High) cuando minImportance = 'high'
           const evImportance = ev.Importance
           let evLevel = 0
           
@@ -172,9 +186,14 @@ export class TradingEconomicsProvider implements CalendarProvider {
             evLevel = importanceMap[evImportance] || 0
           }
           
-          // Aplicar filtro de importancia DESPUÉS de mapear moneda
-          const minLevel = minImportance === 'high' ? 3 : minImportance === 'medium' ? 2 : 1
-          return evLevel >= minLevel
+          // Aplicar filtro de importancia: si minImportance = 'high', SOLO aceptar 3
+          if (minImportance === 'high') {
+            return evLevel === 3 // SOLO importance = 3
+          } else if (minImportance === 'medium') {
+            return evLevel >= 2 // Medium (2) o High (3)
+          } else {
+            return evLevel >= 1 // Todos
+          }
         })
         .map((ev: any) => {
           // TradingEconomics usa formato: "2024-12-10 13:30:00"
@@ -209,6 +228,10 @@ export class TradingEconomicsProvider implements CalendarProvider {
               'United States': 'USD',
               'Euro Area': 'EUR',
               'European Union': 'EUR',
+              'Germany': 'EUR',
+              'Spain': 'EUR',
+              'France': 'EUR',
+              'Italy': 'EUR',
               'United Kingdom': 'GBP',
               'Japan': 'JPY',
               'Australia': 'AUD',
@@ -238,6 +261,25 @@ export class TradingEconomicsProvider implements CalendarProvider {
             currency = 'USD' // Fallback final
           }
 
+          // Si includeValues=true, usar ActualValue, PreviousValue, ForecastValue
+          // Si no, usar Previous, Forecast (compatibilidad hacia atrás)
+          const previousValue = includeValues && ev.PreviousValue != null
+            ? this.parseValue(ev.PreviousValue)
+            : ev.Previous != null
+            ? this.parseValue(ev.Previous)
+            : null
+            
+          const consensusValue = includeValues && ev.ForecastValue != null
+            ? this.parseValue(ev.ForecastValue)
+            : ev.Forecast != null
+            ? this.parseValue(ev.Forecast)
+            : null
+            
+          // ActualValue solo está disponible cuando includeValues=true y el evento ya se publicó
+          const actualValue = includeValues && ev.ActualValue != null
+            ? this.parseValue(ev.ActualValue)
+            : null
+
           return {
             externalId: String(ev.CalendarId || ev.Id || `${ev.Country || 'Unknown'}-${ev.Event || 'Event'}-${ev.Date}`),
             country: ev.Country || '',
@@ -246,8 +288,9 @@ export class TradingEconomicsProvider implements CalendarProvider {
             category: ev.Category || undefined,
             importance,
             scheduledTimeUTC,
-            previous: ev.Previous != null ? this.parseValue(ev.Previous) : null,
-            consensus: ev.Forecast != null ? this.parseValue(ev.Forecast) : null,
+            previous: previousValue,
+            consensus: consensusValue,
+            actual: actualValue, // Nuevo campo para valores actuales
             consensusRangeMin: ev.ForecastLow != null ? this.parseValue(ev.ForecastLow) : undefined,
             consensusRangeMax: ev.ForecastHigh != null ? this.parseValue(ev.ForecastHigh) : undefined,
             // TradingEconomics no proporciona estos campos directamente

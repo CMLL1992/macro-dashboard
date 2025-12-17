@@ -12,16 +12,30 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 import { assertCronAuth } from '@/lib/security/cron'
-import { MultiProvider } from '@/lib/calendar/multiProvider'
-import { upsertEconomicEvent } from '@/lib/db/economic-events'
+import { TradingEconomicsProvider } from '@/lib/calendar/tradingEconomicsProvider'
+import { upsertEconomicEvent, upsertEconomicRelease } from '@/lib/db/economic-events'
 import { mapProviderEventToInternal } from '@/lib/calendar/mappers'
 import { recordJobSuccess, recordJobError } from '@/lib/db/job-status'
 import { notifyNewCalendarEvents } from '@/lib/notifications/calendar'
 import { getUnifiedDB } from '@/lib/db/unified-db'
+import { calculateSurprise } from '@/lib/db/economic-events'
 
-// Get multi-provider instance (combina TradingEconomics, FRED, ECB)
+// Países exactos a solicitar (solo estos 5)
+const ALLOWED_COUNTRIES = [
+  'United States',
+  'Euro Area',
+  'Spain',
+  'United Kingdom',
+  'Germany',
+] as const
+
+// Get TradingEconomics provider instance (única fuente)
 const getProvider = () => {
-  return new MultiProvider()
+  const apiKey = process.env.TRADING_ECONOMICS_API_KEY
+  if (!apiKey) {
+    throw new Error('TRADING_ECONOMICS_API_KEY is required')
+  }
+  return new TradingEconomicsProvider(apiKey)
 }
 
 export async function POST(req: Request) {
@@ -49,38 +63,38 @@ export async function POST(req: Request) {
   try {
     const provider = getProvider()
     const now = new Date()
-    const from = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000) // Hace 1 día
-    const to = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000) // +14 días (2 semanas) para capturar más eventos importantes
+    // Rango: -14 días (para generar releases) a +45 días (futuro largo)
+    const from = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+    const to = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000)
 
     const startTime = Date.now()
     console.log('[ingest/calendar] ===== Starting calendar ingestion =====')
     console.log('[ingest/calendar] Date range:', {
       from: from.toISOString(),
       to: to.toISOString(),
-      days_ahead: Math.round((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000)),
+      days_back: Math.round((now.getTime() - from.getTime()) / (24 * 60 * 60 * 1000)),
+      days_ahead: Math.round((to.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)),
     })
 
-    // Fetch eventos desde API externa usando provider
-    // Solo eventos de importancia medium y high (excluir low)
+    // Fetch eventos desde TradingEconomics
+    // SOLO eventos de importancia alta (importance = 3)
     const providerEvents = await provider.fetchCalendar({
       from,
       to,
-      minImportance: 'medium', // Solo medium y high, excluir low
+      minImportance: 'high', // SOLO high (importance = 3)
+      countries: ALLOWED_COUNTRIES, // Solo estos 5 países
+      includeValues: true, // Activar values=true para obtener ActualValue, PreviousValue, ForecastValue
     })
 
     console.log(`[ingest/calendar] Provider returned ${providerEvents.length} events`)
     
-    // Filtrar solo eventos de importancia medium y high (ya filtrado por minImportance, pero por si acaso)
-    // Incluir todas las monedas principales y secundarias relevantes
-    const allowedCurrencies = ['USD', 'EUR', 'AUD', 'JPY', 'GBP', 'CAD', 'CHF', 'CNY', 'NZD']
+    // Filtrar solo eventos de los países permitidos
     const filteredEvents = providerEvents.filter(ev => {
-      const currencyUpper = ev.currency.toUpperCase()
-      const isAllowedCurrency = allowedCurrencies.includes(currencyUpper)
-      const isImportant = ev.importance === 'high' || ev.importance === 'medium'
-      return isAllowedCurrency && isImportant
+      const country = ev.country || ''
+      return ALLOWED_COUNTRIES.includes(country as any)
     })
     
-    console.log(`[ingest/calendar] Filtered to ${filteredEvents.length} events (currencies: ${allowedCurrencies.join(', ')}, importance: medium/high only)`)
+    console.log(`[ingest/calendar] Filtered to ${filteredEvents.length} events (countries: ${ALLOWED_COUNTRIES.join(', ')}, importance: high only)`)
     
     // Estadísticas por moneda
     const byCurrency: Record<string, number> = {}
@@ -97,6 +111,7 @@ export async function POST(req: Request) {
     })
 
     let upserted = 0
+    let releasesCreated = 0
     let errors = 0
     const errorDetails: Array<{ eventId: string; error: string }> = []
     const newEvents: Array<{
@@ -113,26 +128,34 @@ export async function POST(req: Request) {
     // All methods are async now, so always use await
     const db = getUnifiedDB()
     const existingQuery = `
-      SELECT source_event_id 
+      SELECT source_event_id, id
       FROM economic_events 
       WHERE source_event_id IS NOT NULL
     `
     let existingIds: Set<string> = new Set()
+    let existingEventMap: Map<string, number> = new Map() // source_event_id -> event.id
     try {
       // All methods are async now, so always use await
       const existingRows = await db.prepare(existingQuery).all() as any[]
       existingIds = new Set(existingRows.map(r => r.source_event_id))
+      existingEventMap = new Map(existingRows.map(r => [r.source_event_id, r.id]))
     } catch (error) {
       console.warn('[ingest/calendar] Could not fetch existing events for deduplication:', error)
     }
 
-    // Procesar cada evento (ya filtrado por moneda)
+    // Procesar cada evento (ya filtrado por país e importancia)
     for (const ev of filteredEvents) {
       try {
         const mapping = mapProviderEventToInternal(ev)
         const isNew = !existingIds.has(ev.externalId)
+        
+        // Normalizar valores: null en lugar de "N/A" o strings vacíos
+        const previousValue = ev.previous != null && typeof ev.previous === 'number' ? ev.previous : null
+        const consensusValue = ev.consensus != null && typeof ev.consensus === 'number' ? ev.consensus : null
+        const actualValue = ev.actual != null && typeof ev.actual === 'number' ? ev.actual : null
 
-        await upsertEconomicEvent({
+        // Upsert evento
+        const eventResult = await upsertEconomicEvent({
           source_event_id: ev.externalId,
           country: mapping.country,
           currency: mapping.currency,
@@ -146,22 +169,57 @@ export async function POST(req: Request) {
           scheduled_time_local: new Date(ev.scheduledTimeUTC).toLocaleString('es-ES', {
             timeZone: 'Europe/Madrid',
           }),
-          previous_value: ev.previous ?? null,
-          consensus_value: ev.consensus ?? null,
+          previous_value: previousValue,
+          consensus_value: consensusValue,
           consensus_range_min: ev.consensusRangeMin ?? null,
           consensus_range_max: ev.consensusRangeMax ?? null,
         })
 
+        // Crear release automáticamente si:
+        // 1. El evento ya pasó (scheduled_time_utc <= now)
+        // 2. Tiene valor actual (actual !== null)
+        const eventDate = new Date(ev.scheduledTimeUTC)
+        const isPast = eventDate <= now
+        
+        if (isPast && actualValue !== null) {
+          try {
+            // Verificar si ya existe un release para este evento
+            const existingRelease = await db.prepare(`
+              SELECT id FROM economic_releases WHERE event_id = ?
+            `).get(eventResult.id) as { id: number } | undefined
+            
+            if (!existingRelease) {
+              // Crear release solo si no existe
+              await upsertEconomicRelease({
+                event_id: eventResult.id,
+                release_time_utc: ev.scheduledTimeUTC,
+                release_time_local: new Date(ev.scheduledTimeUTC).toLocaleString('es-ES', {
+                  timeZone: 'Europe/Madrid',
+                }),
+                actual_value: actualValue,
+                previous_value: previousValue,
+                consensus_value: consensusValue,
+                directionality: mapping.directionality,
+              })
+              releasesCreated++
+              console.log(`[ingest/calendar] ✅ Created release for event ${ev.externalId} (${mapping.name})`)
+            }
+          } catch (releaseError) {
+            console.warn(`[ingest/calendar] Failed to create release for event ${ev.externalId}:`, releaseError)
+            // No incrementar errors, es opcional
+          }
+        }
+
         // Si es nuevo evento, agregarlo a la lista para notificar
-        if (isNew && mapping.importance !== 'low') {
+        if (isNew && mapping.importance === 'high') {
           newEvents.push({
             name: mapping.name,
             currency: mapping.currency,
             country: mapping.country,
             importance: mapping.importance,
             scheduled_time_utc: ev.scheduledTimeUTC,
-            consensus_value: ev.consensus ?? null,
-            previous_value: ev.previous ?? null,
+            consensus_value: consensusValue,
+            previous_value: previousValue,
           })
         }
 
@@ -187,7 +245,7 @@ export async function POST(req: Request) {
 
     const duration = Date.now() - startTime
     console.log(`[ingest/calendar] ===== Completed in ${duration}ms =====`)
-    console.log(`[ingest/calendar] Summary: ${upserted} upserted, ${errors} errors`)
+    console.log(`[ingest/calendar] Summary: ${upserted} events upserted, ${releasesCreated} releases created, ${errors} errors`)
     
     if (errors > 0) {
       console.warn(`[ingest/calendar] Error details:`, errorDetails.slice(0, 5)) // Primeros 5 errores
@@ -204,10 +262,12 @@ export async function POST(req: Request) {
       status: 'ok',
       count: filteredEvents.length,
       upserted,
+      releasesCreated,
       errors,
       from: from.toISOString(),
       to: to.toISOString(),
-      currencies: allowedCurrencies,
+      countries: ALLOWED_COUNTRIES,
+      importance: 'high only',
     })
   } catch (error) {
     console.error('[ingest/calendar] Error:', error)

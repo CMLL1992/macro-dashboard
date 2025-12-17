@@ -14,6 +14,7 @@ export type ProviderCalendarEvent = {
 
   previous?: number | null
   consensus?: number | null
+  actual?: number | null // Valor actual (cuando el evento ya se publicó, solo con values=true)
   consensusRangeMin?: number | null
   consensusRangeMax?: number | null
 

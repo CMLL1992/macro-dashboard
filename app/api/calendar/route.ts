@@ -84,35 +84,35 @@ export async function GET(request: NextRequest) {
       params.push(...impacts)
     }
     
-    // Filtrar por región (necesitamos mapear país a región)
+    // Filtrar por región (mapear región a países)
     if (regions.length > 0 && regions.length < MAIN_REGIONS.length) {
-      // Mapear regiones a países/monedas
-      const regionToCurrency: Record<RegionCode, string[]> = {
-        US: ['USD'],
-        EU: ['EUR'],
-        UK: ['GBP'],
-        JP: ['JPY'],
-        AU: ['AUD'],
-        CA: ['CAD'],
-        CH: ['CHF'],
-        CN: ['CNY'],
-        DE: ['EUR'],
-        FR: ['EUR'],
-        IT: ['EUR'],
-        ES: ['EUR'],
-        NZ: ['NZD'],
+      // Mapeo de regiones a países (según los países permitidos en el job)
+      const regionToCountries: Record<RegionCode, string[]> = {
+        US: ['United States'],
+        EU: ['Euro Area', 'European Union', 'Germany', 'Spain'], // EUR: Euro Area + países europeos
+        UK: ['United Kingdom'],
+        JP: ['Japan'],
+        AU: ['Australia'],
+        CA: ['Canada'],
+        CH: ['Switzerland'],
+        CN: ['China'],
+        DE: ['Germany', 'Euro Area', 'European Union'], // Alemania también es EUR
+        FR: ['France', 'Euro Area', 'European Union'],
+        IT: ['Italy', 'Euro Area', 'European Union'],
+        ES: ['Spain', 'Euro Area', 'European Union'], // España también es EUR
+        NZ: ['New Zealand'],
       }
       
-      const allowedCurrencies = new Set<string>()
+      const allowedCountries = new Set<string>()
       regions.forEach(region => {
-        const currencies = regionToCurrency[region] || []
-        currencies.forEach(c => allowedCurrencies.add(c))
+        const countries = regionToCountries[region] || []
+        countries.forEach(c => allowedCountries.add(c))
       })
       
-      if (allowedCurrencies.size > 0) {
-        const currencyPlaceholders = Array.from(allowedCurrencies).map(() => '?').join(',')
-        sql += ` AND currency IN (${currencyPlaceholders})`
-        params.push(...Array.from(allowedCurrencies))
+      if (allowedCountries.size > 0) {
+        const countryPlaceholders = Array.from(allowedCountries).map(() => '?').join(',')
+        sql += ` AND country IN (${countryPlaceholders})`
+        params.push(...Array.from(allowedCountries))
       }
     }
     
