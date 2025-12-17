@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
             }
 
             logger.info('Attempting USPMI ingestion from Trading Economics', { job: jobId })
-            const { fetchUSPMIFromTradingEconomics } = await import('@/packages/ingestors/tradingEconomics')
+            const { fetchUSPMIFromTradingEconomics } = await import('@/packages/ingestors/tradingeconomics')
             
             const pmiObservations = await fetchUSPMIFromTradingEconomics(process.env.TRADING_ECONOMICS_API_KEY)
             
