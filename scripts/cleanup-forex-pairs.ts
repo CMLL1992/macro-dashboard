@@ -22,33 +22,70 @@ async function main() {
   console.log('')
   
   // Step 1: Find all Forex pairs in asset_metadata
-  const allForex = await db.execute({
-    sql: `SELECT symbol, name, category FROM asset_metadata WHERE category = 'forex' ORDER BY symbol`
-  })
+  // IMPORTANT: Only consider symbols that match Forex pattern (6 uppercase letters)
+  // and are actually Forex pairs, not crypto/commodity/index misclassified
+  const allForex = await db.prepare(
+    `SELECT symbol, name, category FROM asset_metadata WHERE category = 'forex' ORDER BY symbol`
+  ).all() as Array<{ symbol: string; name: string; category: string }>
   
-  console.log(`📊 Found ${allForex.rows.length} Forex pairs in asset_metadata`)
+  console.log(`📊 Found ${allForex.length} items with category='forex' in asset_metadata`)
   
   const toDelete: string[] = []
   const toKeep: string[] = []
+  const toRecategorize: Array<{ symbol: string; newCategory: string }> = []
   
-  for (const row of allForex.rows) {
-    const symbol = (row.symbol as string).toUpperCase().replace('/', '')
+  for (const row of allForex) {
+    const symbol = row.symbol.toUpperCase().replace('/', '')
+    const isForexPattern = /^[A-Z]{6}$/.test(symbol)
+    
+    // Check if it's actually a Forex pair (6 letters pattern)
+    if (!isForexPattern) {
+      // Not a Forex pair - recategorize instead of delete
+      let newCategory = 'forex'
+      if (symbol.includes('BTC') || symbol.includes('ETH')) {
+        newCategory = 'crypto'
+      } else if (symbol === 'COPPER' || symbol === 'WTI' || symbol === 'XAUUSD') {
+        newCategory = 'commodity'
+      } else if (symbol === 'SPX' || symbol === 'NDX' || symbol === 'SX5E' || symbol === 'NIKKEI') {
+        newCategory = 'index'
+      }
+      toRecategorize.push({ symbol: row.symbol, newCategory })
+      continue
+    }
+    
+    // It's a Forex pattern - check whitelist
     if (whitelistSet.has(symbol)) {
-      toKeep.push(row.symbol as string)
+      toKeep.push(row.symbol)
     } else {
-      toDelete.push(row.symbol as string)
+      toDelete.push(row.symbol)
     }
   }
   
   console.log(`\n✅ To keep (${toKeep.length}):`)
   toKeep.forEach(s => console.log(`   - ${s}`))
   
+  if (toRecategorize.length > 0) {
+    console.log(`\n🔄 To recategorize (${toRecategorize.length}):`)
+    toRecategorize.forEach(item => console.log(`   - ${item.symbol} → ${item.newCategory}`))
+  }
+  
   console.log(`\n❌ To delete (${toDelete.length}):`)
   toDelete.forEach(s => console.log(`   - ${s}`))
   
-  if (toDelete.length === 0) {
-    console.log('\n✨ No Forex pairs to delete. Database is already clean!')
+  if (toDelete.length === 0 && toRecategorize.length === 0) {
+    console.log('\n✨ No Forex pairs to delete or recategorize. Database is already clean!')
     return
+  }
+  
+  // Step 1.5: Recategorize non-Forex items
+  if (toRecategorize.length > 0) {
+    console.log('\n🔄 Recategorizing non-Forex items...')
+    for (const item of toRecategorize) {
+      await db.prepare(
+        `UPDATE asset_metadata SET category = ? WHERE symbol = ?`
+      ).run(item.newCategory, item.symbol)
+    }
+    console.log(`   ✅ Recategorized ${toRecategorize.length} items`)
   }
   
   // Step 2: Delete in cascading order
@@ -65,46 +102,40 @@ async function main() {
     const normalizedSymbol = symbol.toUpperCase().replace('/', '')
     
     // Delete asset_prices
-    const pricesResult = await db.execute({
-      sql: `DELETE FROM asset_prices WHERE symbol = ?`,
-      args: [symbol]
-    })
-    deletedPrices += pricesResult.rowsAffected || 0
+    const pricesResult = await db.prepare(
+      `DELETE FROM asset_prices WHERE symbol = ?`
+    ).run(symbol)
+    deletedPrices += Number(pricesResult.changes) || 0
     
     // Delete correlations
-    const corrResult = await db.execute({
-      sql: `DELETE FROM correlations WHERE symbol = ?`,
-      args: [symbol]
-    })
-    deletedCorrelations += corrResult.rowsAffected || 0
+    const corrResult = await db.prepare(
+      `DELETE FROM correlations WHERE symbol = ?`
+    ).run(symbol)
+    deletedCorrelations += Number(corrResult.changes) || 0
     
     // Delete correlations_history
-    const corrHistResult = await db.execute({
-      sql: `DELETE FROM correlations_history WHERE symbol = ?`,
-      args: [symbol]
-    })
-    deletedCorrelationsHistory += corrHistResult.rowsAffected || 0
+    const corrHistResult = await db.prepare(
+      `DELETE FROM correlations_history WHERE symbol = ?`
+    ).run(symbol)
+    deletedCorrelationsHistory += Number(corrHistResult.changes) || 0
     
     // Delete macro_bias
-    const biasResult = await db.execute({
-      sql: `DELETE FROM macro_bias WHERE symbol = ?`,
-      args: [symbol]
-    })
-    deletedBias += biasResult.rowsAffected || 0
+    const biasResult = await db.prepare(
+      `DELETE FROM macro_bias WHERE symbol = ?`
+    ).run(symbol)
+    deletedBias += Number(biasResult.changes) || 0
     
     // Delete pair_signals
-    const signalsResult = await db.execute({
-      sql: `DELETE FROM pair_signals WHERE symbol = ?`,
-      args: [symbol]
-    })
-    deletedSignals += signalsResult.rowsAffected || 0
+    const signalsResult = await db.prepare(
+      `DELETE FROM pair_signals WHERE symbol = ?`
+    ).run(symbol)
+    deletedSignals += Number(signalsResult.changes) || 0
     
     // Delete asset_metadata (last, as it may have foreign keys)
-    const metadataResult = await db.execute({
-      sql: `DELETE FROM asset_metadata WHERE symbol = ?`,
-      args: [symbol]
-    })
-    deletedMetadata += metadataResult.rowsAffected || 0
+    const metadataResult = await db.prepare(
+      `DELETE FROM asset_metadata WHERE symbol = ?`
+    ).run(symbol)
+    deletedMetadata += Number(metadataResult.changes) || 0
   }
   
   console.log('\n📊 Deletion summary:')
@@ -116,18 +147,18 @@ async function main() {
   console.log(`   - asset_metadata: ${deletedMetadata} rows`)
   
   // Step 3: Verify final state
-  const remainingForex = await db.execute({
-    sql: `SELECT symbol FROM asset_metadata WHERE category = 'forex' ORDER BY symbol`
-  })
+  const remainingForex = await db.prepare(
+    `SELECT symbol FROM asset_metadata WHERE category = 'forex' ORDER BY symbol`
+  ).all() as Array<{ symbol: string }>
   
-  console.log(`\n✅ Verification: ${remainingForex.rows.length} Forex pairs remaining`)
-  remainingForex.rows.forEach(row => {
-    const symbol = (row.symbol as string).toUpperCase().replace('/', '')
+  console.log(`\n✅ Verification: ${remainingForex.length} Forex pairs remaining`)
+  remainingForex.forEach(row => {
+    const symbol = row.symbol.toUpperCase().replace('/', '')
     const isWhitelisted = whitelistSet.has(symbol)
     console.log(`   ${isWhitelisted ? '✅' : '❌'} ${row.symbol}`)
   })
   
-  const remainingSymbols = remainingForex.rows.map(r => (r.symbol as string).toUpperCase().replace('/', ''))
+  const remainingSymbols = remainingForex.map(r => r.symbol.toUpperCase().replace('/', ''))
   const allWhitelisted = remainingSymbols.every(s => whitelistSet.has(s))
   const allPresent = FOREX_WHITELIST.every(s => remainingSymbols.includes(s))
   

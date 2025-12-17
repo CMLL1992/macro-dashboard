@@ -42,29 +42,26 @@ async function main() {
     const yahooSymbol = YAHOO_SYMBOLS[symbol] || `${symbol}=X`
     
     // Check if exists
-    const existing = await db.execute({
-      sql: `SELECT symbol FROM asset_metadata WHERE symbol = ? OR symbol = ?`,
-      args: [symbol, displaySymbol]
-    })
+    const existing = await db.prepare(
+      `SELECT symbol FROM asset_metadata WHERE symbol = ? OR symbol = ?`
+    ).all(symbol, displaySymbol) as Array<{ symbol: string }>
     
-    if (existing.rows.length > 0) {
+    if (existing.length > 0) {
       // Update if needed
-      const existingSymbol = existing.rows[0].symbol as string
-      await db.execute({
-        sql: `UPDATE asset_metadata 
-              SET name = ?, category = 'forex', yahoo_symbol = ?, last_updated = datetime('now')
-              WHERE symbol = ?`,
-        args: [displaySymbol, yahooSymbol, existingSymbol]
-      })
+      const existingSymbol = existing[0].symbol
+      await db.prepare(
+        `UPDATE asset_metadata 
+         SET name = ?, category = 'forex', yahoo_symbol = ?, last_updated = datetime('now')
+         WHERE symbol = ?`
+      ).run(displaySymbol, yahooSymbol, existingSymbol)
       updated++
       console.log(`   ✅ Updated: ${displaySymbol}`)
     } else {
       // Create new
-      await db.execute({
-        sql: `INSERT INTO asset_metadata (symbol, name, category, yahoo_symbol, last_updated)
-              VALUES (?, ?, 'forex', ?, datetime('now'))`,
-        args: [symbol, displaySymbol, yahooSymbol]
-      })
+      await db.prepare(
+        `INSERT INTO asset_metadata (symbol, name, category, yahoo_symbol, last_updated)
+         VALUES (?, ?, 'forex', ?, datetime('now'))`
+      ).run(symbol, displaySymbol, yahooSymbol)
       created++
       console.log(`   ➕ Created: ${displaySymbol}`)
     }
@@ -76,12 +73,12 @@ async function main() {
   console.log(`   - Skipped: ${skipped}`)
   
   // Verify all pairs exist
-  const allForex = await db.execute({
-    sql: `SELECT symbol FROM asset_metadata WHERE category = 'forex' ORDER BY symbol`
-  })
+  const allForex = await db.prepare(
+    `SELECT symbol FROM asset_metadata WHERE category = 'forex' ORDER BY symbol`
+  ).all() as Array<{ symbol: string }>
   
   const existingSymbols = new Set(
-    allForex.rows.map(r => (r.symbol as string).toUpperCase().replace('/', ''))
+    allForex.map(r => r.symbol.toUpperCase().replace('/', ''))
   )
   
   const allPresent = FOREX_WHITELIST.every(s => existingSymbols.has(s))
