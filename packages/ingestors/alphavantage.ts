@@ -52,16 +52,23 @@ export async function fetchAlphaVantagePMI(
         
         const data = await response.json();
         
+        // Log raw response for debugging (first 500 chars)
+        console.log(`[alphavantage] Response for ${func}:`, JSON.stringify(data).substring(0, 500))
+        
         // Alpha Vantage puede devolver errores en el JSON
         if (data['Error Message']) {
+          const errorMsg = data['Error Message']
+          console.warn(`[alphavantage] Error for ${func}:`, errorMsg)
           if (func !== functions[functions.length - 1]) {
             // Try next function name
             continue
           }
-          throw new Error(data['Error Message']);
+          throw new Error(errorMsg);
         }
         
         if (data['Note']) {
+          const note = data['Note']
+          console.warn(`[alphavantage] Note for ${func}:`, note)
           throw new Error('Alpha Vantage API rate limit exceeded');
         }
         
@@ -121,9 +128,12 @@ export async function fetchAlphaVantagePMI(
       }
     }
     
-    // Si ninguna función funcionó, retornar array vacío
-    console.warn('[alphavantage] No PMI data found with any function name')
-    return [];
+        // Si ninguna función funcionó, retornar array vacío
+        console.warn('[alphavantage] No PMI data found with any function name', {
+          functionsTried: functions,
+          note: 'Alpha Vantage may not have PMI data available, or function names are incorrect',
+        })
+        return [];
   } catch (error) {
     console.error('[alphavantage] Error fetching PMI:', error);
     throw error;
