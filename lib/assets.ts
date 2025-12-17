@@ -98,9 +98,6 @@ export const ASSET_CATEGORIES: Record<string, 'forex' | 'crypto' | 'metal' | 'in
     XAGUSD: 'metal',
     XPDUSD: 'metal',
     XPTUSD: 'metal',
-    // Commodities
-    WTI: 'index', // WTI is a commodity, but we'll use 'index' category for display (or create 'commodity' if needed)
-    COPPER: 'index', // COPPER is a commodity
     // Indices
     SPX: 'index',
     NDX: 'index',
