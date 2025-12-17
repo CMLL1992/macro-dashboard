@@ -4,7 +4,7 @@
  */
 
 import { config } from 'dotenv'
-import { fetchTradingEconomics } from '../packages/ingestors/tradingeconomics'
+import { fetchTradingEconomics } from '../packages/ingestors/tradingEconomics'
 
 config()
 

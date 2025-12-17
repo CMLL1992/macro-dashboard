@@ -4,7 +4,7 @@
  */
 
 import type { MacroSeries, DataPoint } from '@/lib/types/macro'
-import { fetchTradingEconomics } from '@/packages/ingestors/tradingeconomics'
+import { fetchTradingEconomics } from '@/packages/ingestors/tradingEconomics'
 
 export interface TradingEconomicsConfig {
   endpoint: string
@@ -26,7 +26,7 @@ export async function fetchTradingEconomicsSeries(
   }
 
   try {
-    const observations = await fetchTradingEconomics(endpoint, apiKey, country)
+    const observations = await fetchTradingEconomics(endpoint, apiKey, country || '')
     
     // Convert TradingEconomics observations to DataPoint format
     const data: DataPoint[] = observations.map(obs => ({

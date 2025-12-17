@@ -143,7 +143,6 @@ export const INDICATOR_SOURCES: Record<string, IndicatorSource> = {
     frequency: 'M',
     unit: 'Índice',
     description: 'ISM Manufacturing PMI (Purchasing Managers Index) - Publicado el 1er día hábil de cada mes. Actualizado manualmente vía CSV hasta disponer de API profesional.',
-    update: 'manual', // Indica que requiere actualización manual
   },
   JTSJOL: {
     seriesId: 'JTSJOL',

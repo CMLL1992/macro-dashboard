@@ -195,7 +195,7 @@ export async function fetchFredSeries(
 
       // Build minimal query (only series_id, api_key, file_type, observation_start)
       const fallbackQs = new URLSearchParams({
-        observation_start: observationStart,
+        observation_start: params?.observation_start ?? '2010-01-01',
       })
 
       let fallbackUrl: string

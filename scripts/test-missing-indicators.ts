@@ -4,7 +4,7 @@
  */
 
 import { fetchFredSeries } from "../packages/ingestors/fred";
-import { fetchTradingEconomics } from "../packages/ingestors/tradingeconomics";
+import { fetchTradingEconomics } from "../packages/ingestors/tradingEconomics";
 
 const FRED_API_KEY = process.env.FRED_API_KEY || "ccc90330e6a50afa217fb55ac48c4d28";
 const TE_API_KEY = process.env.TRADING_ECONOMICS_API_KEY || "3EE47420-8691-4DE1-AF46-32283925D96C";
