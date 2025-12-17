@@ -17,9 +17,9 @@ const ALLOWED_SYMBOLS = new Set([
   // Forex - Crosses (5)
   'EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'AUDJPY',
   // Indices
-  'SPX', 'NDX', 'SX5E', 'NIKKEI',
+  'SPX', 'NDX',
   // Commodities/Metals
-  'XAUUSD', 'WTI', 'COPPER',
+  'XAUUSD',
 ])
 
 // Normalizar símbolo para comparación (uppercase, sin slashes)
@@ -107,15 +107,31 @@ export default function TacticalTablesClient({ rows }: Props) {
     )
   }, [rowsWithCategory, search])
 
-  // Función para extraer la moneda base de un par forex
-  const getBaseCurrency = (pair: string | null | undefined): string | null => {
-    if (!pair) return null
-    const match = pair.match(/^([A-Z]{3})\//)
-    return match ? match[1] : null
+  // Forex Majors (7 pares principales)
+  const FOREX_MAJORS = new Set([
+    'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD'
+  ])
+  
+  // Forex Crosses (5 pares cruzados)
+  const FOREX_CROSSES = new Set([
+    'EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'AUDJPY'
+  ])
+  
+  // Función para normalizar símbolo de par
+  const normalizePairSymbol = (pair: string | null | undefined): string => {
+    if (!pair) return ''
+    return pair.toUpperCase().replace('/', '').replace('-', '')
   }
-
-  // Orden de monedas base preferido
-  const currencyOrder = ['EUR', 'USD', 'GBP', 'JPY', 'AUD', 'NZD', 'CAD', 'CHF', 'XAU', 'XAG']
+  
+  // Función para verificar si es un Major
+  const isForexMajor = (pair: string): boolean => {
+    return FOREX_MAJORS.has(normalizePairSymbol(pair))
+  }
+  
+  // Función para verificar si es un Cross
+  const isForexCross = (pair: string): boolean => {
+    return FOREX_CROSSES.has(normalizePairSymbol(pair))
+  }
 
   const byCategory = useMemo(() => {
     const groups: Record<string, TacticalRow[]> = {}
@@ -125,44 +141,53 @@ export default function TacticalTablesClient({ rows }: Props) {
       groups[cat].push(row)
     }
     
-    // Para forex, agrupar y ordenar por moneda base
+    // Para forex, ordenar: primero Majors, luego Crosses
     if (groups['forex']) {
       const forexRows = groups['forex']
-      const byCurrency: Record<string, TacticalRow[]> = {}
       
-      // Agrupar por moneda base
+      // Separar en Majors y Crosses
+      const majors: TacticalRow[] = []
+      const crosses: TacticalRow[] = []
+      const others: TacticalRow[] = []
+      
       for (const row of forexRows) {
-        const base = getBaseCurrency(row.pair)
-        if (base) {
-          if (!byCurrency[base]) byCurrency[base] = []
-          byCurrency[base].push(row)
+        if (isForexMajor(row.pair)) {
+          majors.push(row)
+        } else if (isForexCross(row.pair)) {
+          crosses.push(row)
         } else {
-          // Si no se puede extraer la moneda base, poner en "OTHER"
-          if (!byCurrency['OTHER']) byCurrency['OTHER'] = []
-          byCurrency['OTHER'].push(row)
+          others.push(row)
         }
       }
       
-      // Ordenar cada grupo internamente
-      for (const currency in byCurrency) {
-        byCurrency[currency].sort((a, b) => (a.pair || '').localeCompare(b.pair || ''))
-      }
+      // Ordenar Majors según el orden definido
+      const majorsOrder = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD']
+      majors.sort((a, b) => {
+        const aNorm = normalizePairSymbol(a.pair)
+        const bNorm = normalizePairSymbol(b.pair)
+        const aIndex = majorsOrder.indexOf(aNorm)
+        const bIndex = majorsOrder.indexOf(bNorm)
+        if (aIndex === -1 && bIndex === -1) return 0
+        if (aIndex === -1) return 1
+        if (bIndex === -1) return -1
+        return aIndex - bIndex
+      })
       
-      // Reordenar según el orden preferido
-      const orderedForex: TacticalRow[] = []
-      for (const currency of currencyOrder) {
-        if (byCurrency[currency]) {
-          orderedForex.push(...byCurrency[currency])
-        }
-      }
-      // Añadir los que no están en el orden preferido
-      for (const currency in byCurrency) {
-        if (!currencyOrder.includes(currency)) {
-          orderedForex.push(...byCurrency[currency])
-        }
-      }
+      // Ordenar Crosses según el orden definido
+      const crossesOrder = ['EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'AUDJPY']
+      crosses.sort((a, b) => {
+        const aNorm = normalizePairSymbol(a.pair)
+        const bNorm = normalizePairSymbol(b.pair)
+        const aIndex = crossesOrder.indexOf(aNorm)
+        const bIndex = crossesOrder.indexOf(bNorm)
+        if (aIndex === -1 && bIndex === -1) return 0
+        if (aIndex === -1) return 1
+        if (bIndex === -1) return -1
+        return aIndex - bIndex
+      })
       
-      groups['forex'] = orderedForex
+      // Combinar: primero Majors, luego Crosses, luego otros
+      groups['forex'] = [...majors, ...crosses, ...others]
     }
     
     return groups
@@ -202,10 +227,21 @@ export default function TacticalTablesClient({ rows }: Props) {
         const rowsCat = byCategory[cat]
         if (!rowsCat || rowsCat.length === 0) return null
 
+        // Para Forex, mostrar subtítulos de Majors y Crosses
+        const forexMajorsCount = cat === 'forex' ? rowsCat.filter(r => isForexMajor(r.pair)).length : 0
+        const forexCrossesCount = cat === 'forex' ? rowsCat.filter(r => isForexCross(r.pair)).length : 0
+        
         return (
           <details key={cat} className="rounded-md border bg-muted/30" open>
             <summary className="flex cursor-pointer items-center justify-between px-4 py-3 text-sm font-medium">
-              <span>{categoryLabel(cat)}</span>
+              <span>
+                {categoryLabel(cat)}
+                {cat === 'forex' && forexMajorsCount > 0 && forexCrossesCount > 0 && (
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    ({forexMajorsCount} mayores, {forexCrossesCount} cruzados)
+                  </span>
+                )}
+              </span>
               <span className="text-xs text-muted-foreground">
                 {rowsCat.length} activos
               </span>
@@ -233,16 +269,28 @@ export default function TacticalTablesClient({ rows }: Props) {
                     const hasClearAction = action.includes('compr') || action.includes('venta') || action.includes('buy') || action.includes('sell')
                     const shouldHighlight = hasClearAction && (isHighConfidence || isMediumConfidence)
                     
-                    const baseCurrency = cat === 'forex' ? getBaseCurrency(row.pair) : null
-                    const prevBaseCurrency = index > 0 && cat === 'forex' ? getBaseCurrency(rowsCat[index - 1].pair) : null
-                    const isNewCurrencyGroup = baseCurrency && baseCurrency !== prevBaseCurrency
+                    // Para Forex: mostrar separador entre Majors y Crosses
+                    let showSeparator = false
+                    if (cat === 'forex' && index > 0) {
+                      const currentIsMajor = isForexMajor(row.pair)
+                      const prevIsMajor = isForexMajor(rowsCat[index - 1].pair)
+                      const currentIsCross = isForexCross(row.pair)
+                      const prevIsCross = isForexCross(rowsCat[index - 1].pair)
+                      
+                      // Separador cuando pasamos de Majors a Crosses
+                      if (prevIsMajor && currentIsCross) {
+                        showSeparator = true
+                      }
+                    }
                     
                     const elements = []
                     
-                    if (isNewCurrencyGroup && index > 0) {
+                    if (showSeparator) {
                       elements.push(
                         <tr key={`separator-${row.pair}`} className="border-t-2 border-border">
-                          <td colSpan={6} className="px-4 py-1 bg-muted"></td>
+                          <td colSpan={6} className="px-4 py-2 bg-muted/50">
+                            <span className="text-xs font-medium text-muted-foreground">Pares cruzados</span>
+                          </td>
                         </tr>
                       )
                     }
