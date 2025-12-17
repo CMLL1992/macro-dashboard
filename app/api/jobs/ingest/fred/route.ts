@@ -397,6 +397,8 @@ export async function POST(request: NextRequest) {
             const pmiObservations = await fetchAlphaVantagePMI(process.env.ALPHA_VANTAGE_API_KEY)
             
             if (pmiObservations.length > 0) {
+              // Accept data even if it's 1-2 months old (no strict freshness requirement)
+              // PMI is published monthly, so data from 1-2 months ago is still valid
               const pmiSeries: MacroSeries = {
                 id: 'USPMI',
                 source: 'ALPHA_VANTAGE',
@@ -415,24 +417,45 @@ export async function POST(request: NextRequest) {
               ingested++
               pmiIngested = true
               
+              const lastObs = pmiObservations[pmiObservations.length - 1]
+              const lastDate = lastObs?.date
+              const daysSinceLastObs = lastDate 
+                ? Math.floor((Date.now() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24))
+                : null
+              
               logger.info('Ingested USPMI from Alpha Vantage', {
                 job: jobId,
                 series_id: 'USPMI',
                 points: pmiObservations.length,
-                lastDate: pmiObservations[pmiObservations.length - 1]?.date,
-                lastValue: pmiObservations[pmiObservations.length - 1]?.value,
+                lastDate: lastDate,
+                lastValue: lastObs?.value,
+                daysSinceLastObs: daysSinceLastObs,
+                // Warn if data is >60 days old, but still accept it
+                ...(daysSinceLastObs && daysSinceLastObs > 60 ? { warning: 'Data is older than 60 days' } : {}),
               })
+              
+              // Log warning if data is stale but don't fail
+              if (daysSinceLastObs && daysSinceLastObs > 60) {
+                logger.warn('PMI data is older than 60 days, but accepted', {
+                  job: jobId,
+                  lastDate,
+                  daysSinceLastObs,
+                })
+              }
             } else {
               logger.warn('Alpha Vantage returned no PMI observations', { job: jobId })
               pmiError = 'No observations returned from Alpha Vantage'
             }
           } catch (error) {
             const avError = error instanceof Error ? error.message : String(error)
-            logger.warn('Alpha Vantage PMI ingestion failed', {
+            // Don't abort job if PMI fails - log warning and continue
+            logger.warn('Alpha Vantage PMI ingestion failed (non-fatal)', {
               job: jobId,
               error: avError,
+              note: 'Job continues - PMI can be inserted manually if needed',
             })
             if (!pmiError) pmiError = avError
+            // Don't increment errors - PMI is optional
           }
         } else {
           logger.warn('Skipping PMI ingestion - time limit reached', {
@@ -448,14 +471,15 @@ export async function POST(request: NextRequest) {
     // Log final status (only if last batch)
     if (isLastBatch) {
       if (!pmiIngested) {
-        errors++
+        // Don't increment errors - PMI is optional and doesn't block the job
         const finalError = pmiError || 'No PMI data sources available or all sources failed'
         ingestErrors.push({ seriesId: 'USPMI', error: finalError })
-        logger.warn('PMI ingestion failed from all sources. Manual entry may be required.', {
+        logger.warn('PMI ingestion failed from all sources (non-fatal). Manual entry may be required.', {
           job: jobId,
           series_id: 'USPMI',
           error: finalError,
           hasApiKey: !!process.env.ALPHA_VANTAGE_API_KEY,
+          note: 'Job completed successfully - PMI can be inserted manually via /api/admin/pmi/insert',
         })
       } else {
         logger.info('PMI ingestion completed successfully', {

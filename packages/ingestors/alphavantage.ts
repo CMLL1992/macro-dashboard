@@ -33,7 +33,8 @@ export async function fetchAlphaVantagePMI(
   try {
     // Alpha Vantage Economic Data endpoint
     // Note: Alpha Vantage may use different function names - try multiple formats
-    const functions = ['MANUFACTURING_PMI', 'PMI', 'ISM_MANUFACTURING_PMI']
+    // Order: Most specific first, then fallbacks
+    const functions = ['ISM_MANUFACTURING_PMI', 'MANUFACTURING_PMI', 'PMI']
     
     for (const func of functions) {
       try {
@@ -75,16 +76,35 @@ export async function fetchAlphaVantagePMI(
         // Formato alternativo: Monthly Time Series
         if (data['Monthly Time Series']) {
           const series = data['Monthly Time Series'];
-          const parsed = Object.entries(series).map(([date, value]: [string, any]) => ({
-            indicator_id: 'AV:PMI',
-            date: date,
-            value: parseFloat(value['value'] || value['PMI'] || value['4. close'] || value),
-            source_url: `https://www.alphavantage.co/query?function=${func}`,
-            released_at: date,
-          })).filter(obs => !isNaN(obs.value) && obs.value > 0)
+          const parsed = Object.entries(series).map(([date, value]: [string, any]) => {
+            // Try multiple value keys (Alpha Vantage format can vary)
+            const numValue = parseFloat(
+              value['value'] || 
+              value['PMI'] || 
+              value['Manufacturing PMI'] ||
+              value['4. close'] || 
+              value['close'] ||
+              value
+            )
+            return {
+              indicator_id: 'AV:PMI',
+              date: date,
+              value: numValue,
+              source_url: `https://www.alphavantage.co/query?function=${func}`,
+              released_at: date,
+            }
+          }).filter(obs => !isNaN(obs.value) && obs.value > 0 && obs.value <= 100) // PMI is typically 0-100
           
           if (parsed.length > 0) {
             return parsed.sort((a, b) => a.date.localeCompare(b.date))
+          }
+        }
+        
+        // Formato alternativo: data array directo
+        if (Array.isArray(data)) {
+          const parsed = parseAlphaVantageResponse(data)
+          if (parsed.length > 0) {
+            return parsed
           }
         }
         
@@ -113,19 +133,42 @@ export async function fetchAlphaVantagePMI(
 function parseAlphaVantageResponse(data: any[]): Observation[] {
   return data
     .map((item: any): Observation | null => {
-      const value = parseFloat(item.value || item.PMI || item['Manufacturing PMI']);
-      const dateStr = item.date || item.Date || item.timestamp;
+      // Try multiple value keys (Alpha Vantage format can vary)
+      const value = parseFloat(
+        item.value || 
+        item.PMI || 
+        item['Manufacturing PMI'] ||
+        item['ISM Manufacturing PMI'] ||
+        item.close ||
+        item['4. close']
+      );
+      const dateStr = item.date || item.Date || item.timestamp || item.time;
       
-      if (isNaN(value) || !dateStr) {
+      if (isNaN(value) || !dateStr || value <= 0 || value > 100) {
+        // PMI is typically 0-100, filter invalid values
         return null;
+      }
+      
+      // Normalize date to YYYY-MM-DD format
+      let normalizedDate = dateStr;
+      if (dateStr.includes('T')) {
+        normalizedDate = dateStr.split('T')[0];
+      } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        normalizedDate = dateStr;
+      } else {
+        // Try to parse and reformat
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed.getTime())) {
+          normalizedDate = parsed.toISOString().split('T')[0];
+        }
       }
       
       return {
         indicator_id: 'AV:PMI',
-        date: dateStr,
+        date: normalizedDate,
         value: value,
-        source_url: 'https://www.alphavantage.co/query?function=MANUFACTURING_PMI',
-        released_at: dateStr,
+        source_url: 'https://www.alphavantage.co/query?function=ISM_MANUFACTURING_PMI',
+        released_at: normalizedDate,
       };
     })
     .filter((obs): obs is Observation => obs !== null)
