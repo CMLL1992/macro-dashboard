@@ -130,12 +130,14 @@ export class HTMLProvider implements CalendarProvider {
 
   /**
    * Parser de HTML usando cheerio (robusto)
+   * Ahora es async porque puede hacer fetch de subpáginas (Bundesbank) o ICS (INE)
    */
   private async parseHTML(
     htmlText: string,
     feed: HTMLFeedConfig,
     from: Date,
-    to: Date
+    to: Date,
+    headers?: HeadersInit
   ): Promise<ProviderCalendarEvent[]> {
     const events: ProviderCalendarEvent[] = []
     
