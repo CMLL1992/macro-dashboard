@@ -27,7 +27,7 @@ interface HTMLFeedConfig {
 // Configuración de feeds HTML oficiales (URLs verificadas y mejoradas)
 const HTML_FEEDS: HTMLFeedConfig[] = [
   {
-    name: 'ECB Statistical Calendar - HICP',
+    name: 'ECB Statistical Calendar',
     url: 'https://www.ecb.europa.eu/stats/ecb_statistical_calendar/html/index.en.html',
     country: 'Euro Area',
     currency: 'EUR',
@@ -118,8 +118,8 @@ export class HTMLProvider implements CalendarProvider {
 
       const htmlText = await response.text()
 
-      // Parsear HTML (básico, sin DOM parser)
-      const events = this.parseHTML(htmlText, feed, from, to)
+      // Parsear HTML con cheerio (pasar headers para subpáginas e ICS)
+      const events = await this.parseHTML(htmlText, feed, from, to, headers)
 
       return events
     } catch (error) {
