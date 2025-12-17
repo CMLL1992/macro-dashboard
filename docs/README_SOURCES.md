@@ -2,6 +2,21 @@
 
 Documentación de las fuentes de datos macroeconómicos integradas en el dashboard.
 
+---
+
+## ⚠️ Nota: USPMI (ISM Manufacturing PMI)
+
+**USPMI se mantiene por importación manual hasta disponer de API profesional (Trading Economics).**
+
+- **Fuente actual**: ISM (Institute for Supply Management) - datos oficiales
+- **Método**: Importación manual vía CSV (`data/manual/USPMI.csv`)
+- **Metadata**: `source='MANUAL_ISM'` en `macro_series`
+- **Actualización**: Manual mensual (ver `docs/USPMI-IMPORTACION-MANUAL.md`)
+
+**Ver**: `docs/NOTA-USPMI-MANUAL.md` para detalles completos.
+
+---
+
 ## Política de Fuentes de Datos
 
 **Este proyecto solo integra fuentes gratuitas y públicas, sin API keys ni licencias propietarias.**

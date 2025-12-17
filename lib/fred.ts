@@ -128,32 +128,34 @@ async function rateLimitedFetch(url: string, retries: number = 1): Promise<Respo
 
 export async function fetchFredSeries(
   seriesId: string,
-  params?: { observation_start?: string; observation_end?: string; frequency?: 'd' | 'm' | 'q'; units?: string }
+  params?: {
+    observation_start?: string
+    observation_end?: string
+    frequency?: 'd' | 'm' | 'q'
+    units?: string
+    aggregation_method?: string
+  }
 ): Promise<SeriesPoint[]> {
-  const observationStart = params?.observation_start ?? '2010-01-01'
-  const today = new Date().toISOString().split('T')[0]
-  
   // Construir la query siempre desde cero (sin heredar realtime_*)
   const qs = new URLSearchParams({
     series_id: seriesId,
     api_key: process.env.FRED_API_KEY!,
     file_type: 'json',
   })
-  if (observationStart) qs.set('observation_start', observationStart)
-  if (params?.observation_end) qs.set('observation_end', params.observation_end)
-  if (params?.frequency) qs.set('frequency', params.frequency)
-  if (params?.units) qs.set('units', params.units)
 
-  // Asegurar pares realtime_start/realtime_end solo cuando corresponde
+  // NO forzar realtime_start / realtime_end.
+  // Si algún día queremos "latest vintage only", que sea explícito vía params.
   qs.delete('realtime_start')
   qs.delete('realtime_end')
-  if (params?.units && params.units !== 'lin') {
-    qs.set('realtime_start', today)
-    qs.set('realtime_end', today)
-  } else if (params?.frequency) {
-    qs.set('realtime_start', today)
-    qs.set('realtime_end', today)
-  }
+
+  // observation_start default (histórico)
+  qs.set('observation_start', params?.observation_start ?? '2010-01-01')
+  if (params?.observation_end) qs.set('observation_end', params.observation_end)
+
+  // mantener params normales sin tocar realtime
+  if (params?.units) qs.set('units', params.units)
+  if (params?.frequency) qs.set('frequency', params.frequency)
+  if (params?.aggregation_method) qs.set('aggregation_method', params.aggregation_method)
 
   // URL final (ya incluye series_id; api_key solo en server)
   let url: string
@@ -321,22 +323,16 @@ function parseFredResponse(
       // Para datos de nivel (units='lin' o sin units), usar realtime_start como fecha de publicación
       const isTransformed = params?.units && params.units !== 'lin'
       
-      if (isTransformed) {
-        // Datos transformados: usar observation_date (periodo) como fecha principal
-        return {
-          date: o.date, // Periodo del dato (ej: 2025-09-01)
-          value: numValue,
-          observation_period: o.date, // Mismo que date para datos transformados
-        }
-      } else {
-        // Datos de nivel: usar realtime_start como fecha de publicación
-        const releaseDate = (typeof o.realtime_start === 'string' ? o.realtime_start : null) || o.date
-        const observationPeriod = (typeof o.realtime_start === 'string' && o.realtime_start !== o.date) ? o.date : undefined
-        return {
-          date: releaseDate, // Fecha de publicación
-          value: numValue,
-          observation_period: observationPeriod, // Periodo del dato si difiere
-        }
+      // CRITICAL FIX: Always use observation_date (o.date) as the primary date
+      // This ensures historical data has correct dates (2010-01-01, 2010-02-01, etc.)
+      // instead of all observations having the same realtime_start date
+      // For historical ingestion, we want the observation period, not the publication date
+      return {
+        date: o.date, // observation_date (periodo del dato, ej: 2010-01-01, 2010-02-01, ...)
+        value: numValue,
+        // Store realtime_start as observation_period only if it differs from observation_date
+        // This preserves publication date info without breaking historical date ranges
+        observation_period: (typeof o.realtime_start === 'string' && o.realtime_start !== o.date) ? o.realtime_start : undefined,
       }
     })
     .filter((o): o is SeriesPoint => o !== null)
@@ -346,20 +342,48 @@ function parseFredResponse(
 }
 
 // Helpers numéricos (funciones puras)
+/**
+ * Calculate YoY (Year-over-Year) percentage change
+ * Robust implementation: aligns dates to month for monthly series
+ * to handle cases where dates are not normalized to YYYY-MM-01
+ */
 export function yoy(series: SeriesPoint[]): SeriesPoint[] {
   if (series.length === 0) return []
-  const byDate = new Map(series.map(p => [p.date, p.value]))
-  const out: SeriesPoint[] = []
+  
+  // Build map keyed by month (YYYY-MM-01) instead of exact date
+  // This handles cases where dates are "2025-12-11" instead of "2025-12-01"
+  const byMonth = new Map<string, { date: string; value: number }>()
   for (const p of series) {
-    const year = p.date.slice(0, 4)
-    const monthDay = p.date.slice(5)
-    const prevDate = `${Number(year) - 1}-${monthDay}`
-    const prev = byDate.get(prevDate)
-    if (prev !== undefined && prev !== 0) {
-      out.push({ date: p.date, value: ((p.value - prev) / Math.abs(prev)) * 100 })
+    // Extract year-month and normalize to YYYY-MM-01
+    const yearMonth = p.date.slice(0, 7) // "2025-12"
+    const monthKey = `${yearMonth}-01`
+    
+    // Keep the most recent date for each month (in case of duplicates)
+    const existing = byMonth.get(monthKey)
+    if (!existing || p.date > existing.date) {
+      byMonth.set(monthKey, { date: p.date, value: p.value })
     }
   }
-  return out
+  
+  const out: SeriesPoint[] = []
+  for (const [monthKey, current] of byMonth.entries()) {
+    // Calculate previous year month key
+    const year = parseInt(monthKey.slice(0, 4))
+    const month = monthKey.slice(5, 7)
+    const prevYearMonthKey = `${year - 1}-${month}-01`
+    
+    const prev = byMonth.get(prevYearMonthKey)
+    if (prev && prev.value !== 0 && Number.isFinite(prev.value)) {
+      const yoyValue = ((current.value - prev.value) / Math.abs(prev.value)) * 100
+      if (Number.isFinite(yoyValue)) {
+        // Use original date from current observation, not normalized month key
+        out.push({ date: current.date, value: yoyValue })
+      }
+    }
+  }
+  
+  // Sort by date ascending
+  return out.sort((a, b) => a.date.localeCompare(b.date))
 }
 
 export function mom(series: SeriesPoint[]): SeriesPoint[] {

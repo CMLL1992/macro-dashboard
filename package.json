@@ -16,7 +16,7 @@
   },
   "scripts": {
     "preinstall": "echo 'Skipping interactive approve-builds in CI/Vercel' || true",
-    "postinstall": "cd node_modules/.pnpm/better-sqlite3@12.4.1/node_modules/better-sqlite3 && npm run build-release || true",
+    "postinstall": "echo 'Postinstall: better-sqlite3 will be built automatically by pnpm' || true",
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
@@ -43,6 +43,7 @@
     "better-sqlite3": "^12.4.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "csv-parse": "^6.1.0",
     "date-fns": "^3.6.0",
     "date-fns-tz": "^3.2.0",
     "lucide-react": "^0.460.0",

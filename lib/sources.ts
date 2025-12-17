@@ -138,11 +138,12 @@ export const INDICATOR_SOURCES: Record<string, IndicatorSource> = {
   // Surveys / Activity
   USPMI: {
     seriesId: 'USPMI',
-    source: 'ISM / Trading Economics',
+    source: 'MANUAL_ISM', // Importación manual desde ISM (hasta disponer de Trading Economics)
     sourceUrl: 'https://www.ismworld.org/supply-management-news-and-reports/reports/ism-pmi-reports/',
     frequency: 'M',
     unit: 'Índice',
-    description: 'ISM Manufacturing PMI (Purchasing Managers Index) - Publicado el 1er día hábil de cada mes',
+    description: 'ISM Manufacturing PMI (Purchasing Managers Index) - Publicado el 1er día hábil de cada mes. Actualizado manualmente vía CSV hasta disponer de API profesional.',
+    update: 'manual', // Indica que requiere actualización manual
   },
   JTSJOL: {
     seriesId: 'JTSJOL',

@@ -12,3 +12,8 @@ backups
 *.db-*
 *.tsbuildinfo
 .DS_Store
+
+# Manual data imports (keep examples, ignore real data)
+data/manual/*.csv
+!data/manual/*.example
+!data/manual/README.md

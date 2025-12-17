@@ -71,6 +71,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // TEMPORARY: ENV CHECK for Trading Economics API key (replaced Alpha Vantage)
+  logger.info("ENV CHECK", {
+    hasTradingEconomicsKey: !!process.env.TRADING_ECONOMICS_API_KEY,
+    tradingEconomicsKeyPrefix: process.env.TRADING_ECONOMICS_API_KEY?.slice(0, 4) ?? null,
+  })
+
   const jobId = 'ingest_fred'
   const startedAt = Date.now()
   const HARD_LIMIT_MS = 240_000 // 4 minutes (leave margin before 300s timeout)
@@ -80,6 +86,7 @@ export async function POST(request: NextRequest) {
   const batchSize = parseInt(searchParams.get('batch') || '10', 10)
   const cursorParam = searchParams.get('cursor')
   const resetParam = searchParams.get('reset') === 'true'
+  const onlySeries = searchParams.get('only') || null
 
   try {
     // Get or reset job state
@@ -109,25 +116,38 @@ export async function POST(request: NextRequest) {
     const FORCE_FULL_REINGEST = true
     const FORCE_REINGEST_RSAFS = true // Force re-ingest RSAFS to get raw level data
 
-    // Find starting index from cursor
+    // Determine base series list (support debug mode ?only=SERIES_ID)
+    // Special case: USPMI is not in FRED_SERIES (comes from Trading Economics)
+    let baseSeries = FRED_SERIES
+    if (onlySeries) {
+      if (onlySeries === 'USPMI') {
+        // USPMI is handled separately, create a dummy entry for the loop
+        baseSeries = [{ id: 'USPMI', name: 'ISM Manufacturing: PMI', frequency: 'm' }]
+      } else {
+        baseSeries = FRED_SERIES.filter(s => s.id === onlySeries)
+      }
+    }
+
+    // Find starting index from cursor (ignored when onlySeries is set)
     // IMPORTANT: If cursor exists, start AFTER it (cursorIndex + 1), not at it
     let startIndex = 0
-    if (cursor) {
-      const cursorIndex = FRED_SERIES.findIndex(s => s.id === cursor)
+    if (!onlySeries && cursor) {
+      const cursorIndex = baseSeries.findIndex(s => s.id === cursor)
       if (cursorIndex >= 0) {
         startIndex = cursorIndex + 1 // Start AFTER the cursor, not at it
       } else {
-        logger.warn(`Cursor ${cursor} not found in FRED_SERIES, starting from beginning`, { job: jobId })
+        logger.warn(`Cursor ${cursor} not found in baseSeries, starting from beginning`, { job: jobId })
         startIndex = 0
       }
     }
 
-    const endIndex = Math.min(startIndex + batchSize, FRED_SERIES.length)
-    const seriesToProcess = FRED_SERIES.slice(startIndex, endIndex)
+    const endIndex = Math.min(startIndex + batchSize, baseSeries.length)
+    const seriesToProcess = baseSeries.slice(startIndex, endIndex)
     
     // Calculate nextCursor: should point to the NEXT item after the batch, not the last processed
-    const nextCursor = endIndex < FRED_SERIES.length ? FRED_SERIES[endIndex].id : null
-    const done = endIndex >= FRED_SERIES.length
+    const nextCursor = endIndex < baseSeries.length ? baseSeries[endIndex].id : null
+    // When only=USPMI, baseSeries.length is 1, so done should be true after processing
+    const done = endIndex >= baseSeries.length
 
     logger.info(`Processing batch: ${seriesToProcess.length} series starting from index ${startIndex}`, {
       job: jobId,
@@ -170,9 +190,9 @@ export async function POST(request: NextRequest) {
       const elapsed = Date.now() - startedAt
       if (elapsed > HARD_LIMIT_MS) {
         // If we hit hard limit, nextCursor should be the CURRENT series (we'll continue from here)
-        const currentIndex = FRED_SERIES.findIndex(s => s.id === series.id)
-        if (currentIndex >= 0 && currentIndex + 1 < FRED_SERIES.length) {
-          actualNextCursor = FRED_SERIES[currentIndex].id // Continue from this series next time
+        const currentIndex = baseSeries.findIndex(s => s.id === series.id)
+        if (currentIndex >= 0 && currentIndex + 1 < baseSeries.length) {
+          actualNextCursor = baseSeries[currentIndex].id // Continue from this series next time
         } else {
           actualNextCursor = null // We're at the end
         }
@@ -188,6 +208,101 @@ export async function POST(request: NextRequest) {
 
       processedCount++
       const seriesStartTime = Date.now()
+      
+      // Special handling for USPMI (PMI Manufacturing from Trading Economics, not FRED)
+      if (series.id === 'USPMI') {
+        const seriesStartTime = Date.now()
+        if (!process.env.TRADING_ECONOMICS_API_KEY) {
+          logger.warn('TRADING_ECONOMICS_API_KEY not configured, skipping USPMI ingestion', { job: jobId })
+          ingestErrors.push({ seriesId: 'USPMI', error: 'TRADING_ECONOMICS_API_KEY not configured' })
+          seriesTimings.push({ seriesId: 'USPMI', durationMs: Date.now() - seriesStartTime, success: false })
+        } else {
+          try {
+            // If reset=true, delete existing USPMI observations
+            if (resetParam) {
+              try {
+                await db.prepare('DELETE FROM macro_observations WHERE series_id = ?').run('USPMI')
+                lastDatesMap.set('USPMI', null)
+                logger.info(`[USPMI] Deleted existing observations due to reset=true`, { job: jobId })
+              } catch (error) {
+                logger.warn(`[USPMI] Failed to delete observations on reset`, { job: jobId, error: String(error) })
+              }
+            }
+
+            logger.info('Attempting USPMI ingestion from Trading Economics', { job: jobId })
+            const { fetchUSPMIFromTradingEconomics } = await import('@/packages/ingestors/tradingEconomics')
+            
+            const pmiObservations = await fetchUSPMIFromTradingEconomics(process.env.TRADING_ECONOMICS_API_KEY)
+            
+            if (pmiObservations.length > 0) {
+              const pmiSeries: MacroSeries = {
+                id: 'USPMI',
+                source: 'TRADING_ECONOMICS',
+                indicator: 'USPMI',
+                nativeId: 'ISM_MANUFACTURING_PMI',
+                name: 'ISM Manufacturing: PMI',
+                frequency: 'M', // Monthly - no transformations needed (diffusion index)
+                data: pmiObservations.map(obs => ({
+                  date: obs.date, // Already normalized to YYYY-MM-01
+                  value: obs.value,
+                })),
+                lastUpdated: pmiObservations[pmiObservations.length - 1]?.date || undefined,
+              }
+
+              logger.info(`[USPMI] fetchUSPMIFromTradingEconomics result`, {
+                job: jobId,
+                totalPoints: pmiObservations.length,
+                firstObs: pmiObservations[0] || null,
+                lastObs: pmiObservations[pmiObservations.length - 1] || null,
+              })
+
+              logger.info(`[USPMI] Preparing to upsert observations`, {
+                job: jobId,
+                series_id: 'USPMI',
+                toInsert: pmiObservations.length,
+                firstDate: pmiObservations[0]?.date ?? null,
+                lastDate: pmiObservations[pmiObservations.length - 1]?.date ?? null,
+              })
+
+              await upsertMacroSeries(pmiSeries)
+              ingested++
+              
+              const lastObs = pmiObservations[pmiObservations.length - 1]
+              const lastDate = lastObs?.date
+              const daysSinceLastObs = lastDate 
+                ? Math.floor((Date.now() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24))
+                : null
+              
+              logger.info('Ingested USPMI from Trading Economics', {
+                job: jobId,
+                series_id: 'USPMI',
+                points: pmiObservations.length,
+                lastDate: lastDate,
+                lastValue: lastObs?.value,
+                daysSinceLastObs: daysSinceLastObs,
+              })
+              
+              seriesTimings.push({ seriesId: 'USPMI', durationMs: Date.now() - seriesStartTime, success: true })
+            } else {
+              const errorMsg = 'No observations returned from Trading Economics'
+              logger.warn(`[USPMI] ${errorMsg}`, { job: jobId })
+              ingestErrors.push({ seriesId: 'USPMI', error: errorMsg })
+              seriesTimings.push({ seriesId: 'USPMI', durationMs: Date.now() - seriesStartTime, success: false })
+            }
+          } catch (error) {
+            const teError = error instanceof Error ? error.message : String(error)
+            logger.error('Trading Economics USPMI ingestion failed', {
+              job: jobId,
+              error: teError,
+            })
+            errors++
+            ingestErrors.push({ seriesId: 'USPMI', error: teError })
+            seriesTimings.push({ seriesId: 'USPMI', durationMs: Date.now() - seriesStartTime, success: false })
+          }
+        }
+        continue // Skip FRED processing for USPMI
+      }
+
       try {
         // Get indicator config synchronously (if available) - cache import to avoid repeated imports
         let fredTransform: string | undefined = undefined
@@ -202,6 +317,17 @@ export async function POST(request: NextRequest) {
           // Ignore if config not available
         }
 
+        // If reset=true, delete existing observations for this series BEFORE fetching
+        if (resetParam) {
+          try {
+            await db.prepare('DELETE FROM macro_observations WHERE series_id = ?').run(series.id)
+            lastDatesMap.set(series.id, null)
+            logger.info(`[${series.id}] Deleted existing observations due to reset=true`, { job: jobId })
+          } catch (error) {
+            logger.warn(`[${series.id}] Failed to delete observations on reset`, { job: jobId, error: String(error) })
+          }
+        }
+
         // Try FRED first, then fallback to other sources
         const endDate = new Date().toISOString().slice(0, 10)
         
@@ -213,6 +339,14 @@ export async function POST(request: NextRequest) {
             observation_start: '2010-01-01',
             observation_end: endDate,
             units: fredTransform, // Use FRED transform (pc1 for YoY, pca for QoQ, etc.)
+          })
+          
+          logger.info(`[${series.id}] fetchFredSeries result (direct)`, {
+            job: jobId,
+            transform: fredTransform,
+            observationsLength: observations.length,
+            firstObs: observations[0] || null,
+            lastObs: observations[observations.length - 1] || null,
           })
           
           macroSeries = {
@@ -239,6 +373,14 @@ export async function POST(request: NextRequest) {
             undefined // No units transform
           )
           macroSeries = await fetchWithFallback(series.id, fallbackSources)
+
+          logger.info(`[${series.id}] fetchWithFallback result`, {
+            job: jobId,
+            source: macroSeries?.source,
+            totalPoints: macroSeries?.data?.length ?? 0,
+            firstObs: macroSeries?.data?.[0] || null,
+            lastObs: macroSeries?.data?.[macroSeries.data.length - 1] || null,
+          })
         }
 
         if (!macroSeries || macroSeries.data.length === 0) {
@@ -285,6 +427,7 @@ export async function POST(request: NextRequest) {
           durationMs: seriesDurationMs,
           totalPoints: macroSeries.data.length,
           newPoints: newPoints.length,
+          lastDateInDb,
         })
 
         if (newPoints.length === 0) {
@@ -311,6 +454,14 @@ export async function POST(request: NextRequest) {
         )
 
         // Upsert to database (idempotent - no duplicates)
+        logger.info(`[${series.id}] Preparing to upsert observations`, {
+          job: jobId,
+          series_id: series.id,
+          toInsert: newPoints.length,
+          firstDate: newPoints[0]?.date ?? null,
+          lastDate: newPoints[newPoints.length - 1]?.date ?? null,
+        })
+
         const upsertStartTime = Date.now()
         await upsertMacroSeries(macroSeries)
         const upsertDurationMs = Date.now() - upsertStartTime
@@ -349,7 +500,9 @@ export async function POST(request: NextRequest) {
     const finalNextCursor = actualNextCursor !== null ? actualNextCursor : nextCursor
 
     // Check if we've processed all series
-    const isComplete = endIndex >= FRED_SERIES.length
+    // When only=USPMI, baseSeries.length is 1, so use baseSeries.length instead of FRED_SERIES.length
+    const totalSeriesToProcess = onlySeries ? baseSeries.length : FRED_SERIES.length
+    const isComplete = endIndex >= totalSeriesToProcess
     const finalDone = isComplete && finalNextCursor === null
 
     // Log final cursor state
@@ -375,97 +528,25 @@ export async function POST(request: NextRequest) {
 
     // Only process PMI if we're in the last batch (to avoid timeout)
     // PMI is processed after all FRED series, so only do it if we're done with FRED series
+    // IMPORTANT: Skip this if only=USPMI (already processed in main loop above)
     const isLastBatch = finalDone
     let pmiIngested = false
     let pmiError: string | null = null
     
-    // Ingest PMI Manufacturing from alternative sources (not available in FRED)
-    // Try Alpha Vantage -> Manual entry (TradingEconomics removed for USA)
-    // Only process if we have time and this is the last batch
-    if (isLastBatch && !pmiIngested) {
-      if (!process.env.ALPHA_VANTAGE_API_KEY) {
-        logger.warn('ALPHA_VANTAGE_API_KEY not configured, skipping PMI ingestion', { job: jobId })
-        pmiError = 'ALPHA_VANTAGE_API_KEY not configured'
-      } else {
-        // Check time limit before processing PMI
-        const elapsed = Date.now() - startedAt
-        if (elapsed < HARD_LIMIT_MS) {
-          try {
-            logger.info('Attempting PMI ingestion from Alpha Vantage', { job: jobId })
-            const { fetchAlphaVantagePMI } = await import('@/packages/ingestors/alphavantage')
-            
-            const pmiObservations = await fetchAlphaVantagePMI(process.env.ALPHA_VANTAGE_API_KEY)
-            
-            if (pmiObservations.length > 0) {
-              // Accept data even if it's 1-2 months old (no strict freshness requirement)
-              // PMI is published monthly, so data from 1-2 months ago is still valid
-              const pmiSeries: MacroSeries = {
-                id: 'USPMI',
-                source: 'ALPHA_VANTAGE',
-                indicator: 'USPMI',
-                nativeId: 'MANUFACTURING_PMI',
-                name: 'ISM Manufacturing: PMI',
-                frequency: 'M', // Monthly - no transformations needed (diffusion index)
-                data: pmiObservations.map(obs => ({
-                  date: obs.date,
-                  value: obs.value,
-                })),
-                lastUpdated: pmiObservations[pmiObservations.length - 1]?.date || undefined,
-              }
-
-              await upsertMacroSeries(pmiSeries)
-              ingested++
-              pmiIngested = true
-              
-              const lastObs = pmiObservations[pmiObservations.length - 1]
-              const lastDate = lastObs?.date
-              const daysSinceLastObs = lastDate 
-                ? Math.floor((Date.now() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24))
-                : null
-              
-              logger.info('Ingested USPMI from Alpha Vantage', {
-                job: jobId,
-                series_id: 'USPMI',
-                points: pmiObservations.length,
-                lastDate: lastDate,
-                lastValue: lastObs?.value,
-                daysSinceLastObs: daysSinceLastObs,
-                // Warn if data is >60 days old, but still accept it
-                ...(daysSinceLastObs && daysSinceLastObs > 60 ? { warning: 'Data is older than 60 days' } : {}),
-              })
-              
-              // Log warning if data is stale but don't fail
-              if (daysSinceLastObs && daysSinceLastObs > 60) {
-                logger.warn('PMI data is older than 60 days, but accepted', {
-                  job: jobId,
-                  lastDate,
-                  daysSinceLastObs,
-                })
-              }
-            } else {
-              logger.warn('Alpha Vantage returned no PMI observations', { job: jobId })
-              pmiError = 'No observations returned from Alpha Vantage'
-            }
-          } catch (error) {
-            const avError = error instanceof Error ? error.message : String(error)
-            // Don't abort job if PMI fails - log warning and continue
-            logger.warn('Alpha Vantage PMI ingestion failed (non-fatal)', {
-              job: jobId,
-              error: avError,
-              note: 'Job continues - PMI can be inserted manually if needed',
-            })
-            if (!pmiError) pmiError = avError
-            // Don't increment errors - PMI is optional
-          }
-        } else {
-          logger.warn('Skipping PMI ingestion - time limit reached', {
-            job: jobId,
-            elapsed,
-            hardLimit: HARD_LIMIT_MS,
-          })
-          pmiError = 'Time limit reached'
-        }
-      }
+    // Check if USPMI was already processed in the main loop (when only=USPMI)
+    const uspmiAlreadyProcessed = onlySeries === 'USPMI' && seriesToProcess.some(s => s.id === 'USPMI')
+    
+    // USPMI is now processed in the main loop above (when only=USPMI or in normal flow)
+    // This section is kept for backward compatibility but should not execute if USPMI was already processed
+    // Note: Trading Economics is now the primary source for USPMI (replaced Alpha Vantage)
+    if (isLastBatch && !pmiIngested && !uspmiAlreadyProcessed) {
+      // USPMI should have been processed in main loop, but if not, log warning
+      logger.warn('USPMI was not processed in main loop (this should not happen)', {
+        job: jobId,
+        onlySeries,
+        seriesToProcess: seriesToProcess.map(s => s.id),
+      })
+      pmiError = 'USPMI processing skipped - should be handled in main loop'
     }
     
     // Log final status (only if last batch)
@@ -478,7 +559,7 @@ export async function POST(request: NextRequest) {
           job: jobId,
           series_id: 'USPMI',
           error: finalError,
-          hasApiKey: !!process.env.ALPHA_VANTAGE_API_KEY,
+          hasApiKey: !!process.env.TRADING_ECONOMICS_API_KEY,
           note: 'Job completed successfully - PMI can be inserted manually via /api/admin/pmi/insert',
         })
       } else {

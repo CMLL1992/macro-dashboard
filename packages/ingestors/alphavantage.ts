@@ -32,108 +32,112 @@ export async function fetchAlphaVantagePMI(
 ): Promise<Observation[]> {
   try {
     // Alpha Vantage Economic Data endpoint
-    // Note: Alpha Vantage uses function=ISM_MANUFACTURING (not ISM_MANUFACTURING_PMI)
-    // Try multiple formats as fallback
-    const functions = ['ISM_MANUFACTURING', 'ISM_MANUFACTURING_PMI', 'MANUFACTURING_PMI', 'PMI']
+    // Use only ISM_MANUFACTURING (confirmed endpoint name)
+    // Do NOT try multiple functions - this causes rate limits
+    const func = 'ISM_MANUFACTURING'
+    const url = `${AV_BASE}?function=${func}&interval=monthly&apikey=${apiKey}`;
     
-    for (const func of functions) {
-      try {
-        const url = `${AV_BASE}?function=${func}&interval=monthly&apikey=${apiKey}`;
+    // DEBUG: Log URL (mask API key completely)
+    const maskedUrl = url.replace(/apikey=[^&]+/, 'apikey=***')
+    console.log(`[alphavantage] Fetching PMI from Alpha Vantage`, {
+      function: func,
+      url: maskedUrl,
+    })
+    
+    const response = await fetchWithTimeout(url, { timeoutMs: 10000 });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    // Log response status and content-type before parsing
+    console.log(`[alphavantage] Response status for ${func}:`, {
+      status: response.status,
+      statusText: response.statusText,
+      contentType: response.headers.get('content-type'),
+    })
+    
+    const data = await response.json();
+    
+    // Log raw response for debugging (first 400 chars as requested)
+    const responsePreview = JSON.stringify(data).substring(0, 400)
+    console.log(`[alphavantage] Response body preview for ${func} (first 400 chars):`, responsePreview)
+    
+    // Also log full structure keys for debugging
+    if (data && typeof data === 'object') {
+      console.log(`[alphavantage] Response keys for ${func}:`, Object.keys(data))
+    }
+    
+    // CRITICAL: Handle rate limit as recoverable error - stop immediately
+    if (data['Note'] || data['Information']) {
+      const rateLimitMsg = data['Note'] || data['Information']
+      console.warn(`[alphavantage] Rate limit detected for ${func}:`, rateLimitMsg)
+      // Return empty array with error indicator - don't throw, let caller handle
+      return []
+    }
+    
+    // Alpha Vantage puede devolver errores en el JSON
+    if (data['Error Message']) {
+      const errorMsg = data['Error Message']
+      console.error(`[alphavantage] Error Message for ${func}:`, errorMsg)
+      throw new Error(errorMsg);
+    }
         
-        const response = await fetchWithTimeout(url, { timeoutMs: 10000 });
-        
-        if (!response.ok) {
-          if (response.status === 404 && func !== functions[functions.length - 1]) {
-            // Try next function name
-            continue
-          }
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        
-        // Log raw response for debugging (first 500 chars)
-        console.log(`[alphavantage] Response for ${func}:`, JSON.stringify(data).substring(0, 500))
-        
-        // Alpha Vantage puede devolver errores en el JSON
-        if (data['Error Message']) {
-          const errorMsg = data['Error Message']
-          console.warn(`[alphavantage] Error for ${func}:`, errorMsg)
-          if (func !== functions[functions.length - 1]) {
-            // Try next function name
-            continue
-          }
-          throw new Error(errorMsg);
-        }
-        
-        if (data['Note']) {
-          const note = data['Note']
-          console.warn(`[alphavantage] Note for ${func}:`, note)
-          throw new Error('Alpha Vantage API rate limit exceeded');
-        }
-        
-        // Parsear datos de Alpha Vantage
-        if (data['data'] && Array.isArray(data['data'])) {
-          const parsed = parseAlphaVantageResponse(data['data'])
-          if (parsed.length > 0) {
-            return parsed
-          }
-        }
-        
-        // Formato alternativo: Monthly Time Series
-        if (data['Monthly Time Series']) {
-          const series = data['Monthly Time Series'];
-          const parsed = Object.entries(series).map(([date, value]: [string, any]) => {
-            // Try multiple value keys (Alpha Vantage format can vary)
-            const numValue = parseFloat(
-              value['value'] || 
-              value['PMI'] || 
-              value['Manufacturing PMI'] ||
-              value['4. close'] || 
-              value['close'] ||
-              value
-            )
-            return {
-              indicator_id: 'AV:PMI',
-              date: date,
-              value: numValue,
-              source_url: `https://www.alphavantage.co/query?function=${func}`,
-              released_at: date,
-            }
-          }).filter(obs => !isNaN(obs.value) && obs.value > 0 && obs.value <= 100) // PMI is typically 0-100
-          
-          if (parsed.length > 0) {
-            return parsed.sort((a, b) => a.date.localeCompare(b.date))
-          }
-        }
-        
-        // Formato alternativo: data array directo
-        if (Array.isArray(data)) {
-          const parsed = parseAlphaVantageResponse(data)
-          if (parsed.length > 0) {
-            return parsed
-          }
-        }
-        
-        // Si llegamos aquí y no hay datos, intentar siguiente función
-        if (func !== functions[functions.length - 1]) {
-          continue
-        }
-      } catch (funcError) {
-        // Si no es el último intento, continuar con siguiente función
-        if (func !== functions[functions.length - 1]) {
-          continue
-        }
-        throw funcError
+    // Parsear datos de Alpha Vantage
+    if (data['data'] && Array.isArray(data['data'])) {
+      const parsed = parseAlphaVantageResponse(data['data'])
+      if (parsed.length > 0) {
+        return parsed
       }
     }
     
-        // Si ninguna función funcionó, retornar array vacío
-        console.warn('[alphavantage] No PMI data found with any function name', {
-          functionsTried: functions,
-          note: 'Alpha Vantage may not have PMI data available, or function names are incorrect',
-        })
-        return [];
+    // Formato alternativo: Monthly Time Series
+    if (data['Monthly Time Series']) {
+      const series = data['Monthly Time Series'];
+      const parsed = Object.entries(series).map(([date, value]: [string, any]) => {
+        // Try multiple value keys (Alpha Vantage format can vary)
+        const numValue = parseFloat(
+          value['value'] || 
+          value['PMI'] || 
+          value['Manufacturing PMI'] ||
+          value['4. close'] || 
+          value['close'] ||
+          value
+        )
+        
+        // Normalize date to YYYY-MM-01 for monthly series
+        const yearMonth = date.slice(0, 7); // "YYYY-MM"
+        const monthKey = `${yearMonth}-01`; // "YYYY-MM-01"
+        
+        return {
+          indicator_id: 'AV:PMI',
+          date: monthKey, // Always YYYY-MM-01 for monthly PMI data
+          value: numValue,
+          source_url: `https://www.alphavantage.co/query?function=${func}`,
+          released_at: date, // Keep original date as metadata
+        }
+      }).filter(obs => !isNaN(obs.value) && obs.value > 0 && obs.value <= 100) // PMI is typically 0-100
+      
+      if (parsed.length > 0) {
+        return parsed.sort((a, b) => a.date.localeCompare(b.date))
+      }
+    }
+    
+    // Formato alternativo: data array directo
+    if (Array.isArray(data)) {
+      const parsed = parseAlphaVantageResponse(data)
+      if (parsed.length > 0) {
+        return parsed
+      }
+    }
+    
+    // Si llegamos aquí y no hay datos, retornar array vacío
+    console.warn('[alphavantage] No PMI data found in response', {
+      function: func,
+      responseKeys: data && typeof data === 'object' ? Object.keys(data) : [],
+      note: 'Alpha Vantage may not have PMI data available, or response format is unexpected',
+    })
+    return []
   } catch (error) {
     console.error('[alphavantage] Error fetching PMI:', error);
     throw error;
@@ -159,7 +163,7 @@ function parseAlphaVantageResponse(data: any[]): Observation[] {
         return null;
       }
       
-      // Normalize date to YYYY-MM-DD format
+      // Normalize date to YYYY-MM-01 format (first day of month for monthly series)
       let normalizedDate = dateStr;
       if (dateStr.includes('T')) {
         normalizedDate = dateStr.split('T')[0];
@@ -173,12 +177,17 @@ function parseAlphaVantageResponse(data: any[]): Observation[] {
         }
       }
       
+      // CRITICAL: Normalize to YYYY-MM-01 for monthly series (PMI is monthly)
+      // This ensures consistent dates and prevents duplicate key conflicts
+      const yearMonth = normalizedDate.slice(0, 7); // "YYYY-MM"
+      const monthKey = `${yearMonth}-01`; // "YYYY-MM-01"
+      
       return {
         indicator_id: 'AV:PMI',
-        date: normalizedDate,
+        date: monthKey, // Always YYYY-MM-01 for monthly PMI data
         value: value,
         source_url: 'https://www.alphavantage.co/query?function=ISM_MANUFACTURING_PMI',
-        released_at: normalizedDate,
+        released_at: normalizedDate, // Keep original date as metadata
       };
     })
     .filter((obs): obs is Observation => obs !== null)
