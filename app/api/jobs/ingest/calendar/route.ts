@@ -19,6 +19,7 @@ import { recordJobSuccess, recordJobError } from '@/lib/db/job-status'
 import { notifyNewCalendarEvents } from '@/lib/notifications/calendar'
 import { getUnifiedDB } from '@/lib/db/unified-db'
 import { isHighImpactEvent } from '@/config/calendar-whitelist'
+import { ALLOWED_COUNTRIES } from '@/config/calendar-constants'
 
 // Get MultiProvider instance (fuentes oficiales: ICS, JSON, HTML)
 const getProvider = () => {
