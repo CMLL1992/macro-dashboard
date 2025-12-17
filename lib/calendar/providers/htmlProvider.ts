@@ -413,9 +413,14 @@ export class HTMLProvider implements CalendarProvider {
         })
         
         // Parsear cada subpágina
+        const defaultHeaders: HeadersInit = headers || {
+          'Accept': 'text/html,*/*',
+          'User-Agent': 'Mozilla/5.0 (compatible; MacroDashboard/1.0)',
+        }
+        
         for (const subpageUrl of subpageLinks.slice(0, 50)) { // Limitar a 50 para no sobrecargar
           try {
-            const subpageResponse = await fetch(subpageUrl, { headers })
+            const subpageResponse = await fetch(subpageUrl, { headers: defaultHeaders })
             if (!subpageResponse.ok) continue
             
             const subpageHtml = await subpageResponse.text()
@@ -464,6 +469,8 @@ export class HTMLProvider implements CalendarProvider {
       // Fallback a parser básico si cheerio falla
       return this.parseHTMLBasic(htmlText, feed, from, to)
     }
+    
+    return events
     
     return events
   }
