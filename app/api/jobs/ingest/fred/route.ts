@@ -446,14 +446,28 @@ export async function POST(request: NextRequest) {
     }
     
     // Log final status (only if last batch)
-    if (isLastBatch && !pmiIngested) {
-      errors++
-      const finalError = pmiError || 'No PMI data sources available or all sources failed'
-      ingestErrors.push({ seriesId: 'USPMI', error: finalError })
-      logger.warn('PMI ingestion failed from all sources. Manual entry may be required.', {
+    if (isLastBatch) {
+      if (!pmiIngested) {
+        errors++
+        const finalError = pmiError || 'No PMI data sources available or all sources failed'
+        ingestErrors.push({ seriesId: 'USPMI', error: finalError })
+        logger.warn('PMI ingestion failed from all sources. Manual entry may be required.', {
+          job: jobId,
+          series_id: 'USPMI',
+          error: finalError,
+          hasApiKey: !!process.env.ALPHA_VANTAGE_API_KEY,
+        })
+      } else {
+        logger.info('PMI ingestion completed successfully', {
+          job: jobId,
+          series_id: 'USPMI',
+        })
+      }
+    } else {
+      logger.info('PMI ingestion skipped (not last batch)', {
         job: jobId,
-        series_id: 'USPMI',
-        error: finalError,
+        isLastBatch,
+        done,
       })
     }
 
