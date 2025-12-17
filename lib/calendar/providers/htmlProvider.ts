@@ -28,19 +28,7 @@ interface HTMLFeedConfig {
 const HTML_FEEDS: HTMLFeedConfig[] = [
   {
     name: 'ECB Statistical Calendar - HICP',
-    url: 'https://www.ecb.europa.eu/stats/ecb_statistical_calendar/html/index.en.html#hicp',
-    country: 'Euro Area',
-    currency: 'EUR',
-  },
-  {
-    name: 'ECB Statistical Calendar - QSA',
-    url: 'https://www.ecb.europa.eu/stats/ecb_statistical_calendar/html/index.en.html#qsa',
-    country: 'Euro Area',
-    currency: 'EUR',
-  },
-  {
-    name: 'ECB Statistical Calendar - BoP',
-    url: 'https://www.ecb.europa.eu/stats/ecb_statistical_calendar/html/index.en.html#bop',
+    url: 'https://www.ecb.europa.eu/stats/ecb_statistical_calendar/html/index.en.html',
     country: 'Euro Area',
     currency: 'EUR',
   },
@@ -155,7 +143,7 @@ export class HTMLProvider implements CalendarProvider {
       const $ = cheerio.load(htmlText)
       
       // Estrategia de parsing según el feed
-      if (feed.name.startsWith('ECB Statistical Calendar')) {
+      if (feed.name === 'ECB Statistical Calendar') {
         // ECB: Parsear calendarios estadísticos (HICP, QSA, BoP)
         // Formato: dd/mm/yyyy hh:mm CET + título
         const text = $.text()
@@ -233,8 +221,13 @@ export class HTMLProvider implements CalendarProvider {
           
           if (icsUrl) {
             // Fetch y parsear ICS
+            const icsHeaders: HeadersInit = headers || {
+              'Accept': 'text/calendar,*/*',
+              'User-Agent': 'Mozilla/5.0 (compatible; MacroDashboard/1.0)',
+            }
+            
             try {
-              const icsResponse = await fetch(icsUrl, { headers })
+              const icsResponse = await fetch(icsUrl, { headers: icsHeaders })
               if (icsResponse.ok) {
                 const icsText = await icsResponse.text()
                 const icsEvents = await this.parseINEICS(icsText, feed, from, to)
@@ -413,14 +406,14 @@ export class HTMLProvider implements CalendarProvider {
         })
         
         // Parsear cada subpágina
-        const defaultHeaders: HeadersInit = headers || {
+        const subpageHeaders: HeadersInit = headers || {
           'Accept': 'text/html,*/*',
           'User-Agent': 'Mozilla/5.0 (compatible; MacroDashboard/1.0)',
         }
         
         for (const subpageUrl of subpageLinks.slice(0, 50)) { // Limitar a 50 para no sobrecargar
           try {
-            const subpageResponse = await fetch(subpageUrl, { headers: defaultHeaders })
+            const subpageResponse = await fetch(subpageUrl, { headers: subpageHeaders })
             if (!subpageResponse.ok) continue
             
             const subpageHtml = await subpageResponse.text()
