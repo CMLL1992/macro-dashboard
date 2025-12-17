@@ -15,7 +15,9 @@
 import { CalendarProvider } from '../provider'
 import { ProviderCalendarEvent, ProviderRelease } from '../types'
 import { isHighImpactEvent } from '@/config/calendar-whitelist'
-import * as ical from 'node-ical'
+import ical from 'node-ical'
+// node-ical puede ser importado de diferentes formas según el entorno
+import ical from 'node-ical'
 
 interface ICSConfig {
   name: string
@@ -137,8 +139,8 @@ export class ICSProvider implements CalendarProvider {
     
     try {
       // Usar node-ical para parsear (mejor compatibilidad ESM)
-      // node-ical.parseFile acepta string directamente
-      const parsed = ical.parseFile(icsText)
+      // parseICS acepta string directamente y devuelve objeto parseado
+      const parsed = ical.parseICS(icsText)
       
       for (const key in parsed) {
         const event = parsed[key]
