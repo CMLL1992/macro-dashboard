@@ -63,21 +63,26 @@ function extractPMIValue(eventText: string): number | null {
 }
 
 /**
- * Obtiene eventos de PMI del calendario publicados hoy (Manufacturing y Services)
+ * Obtiene eventos de PMI del calendario (últimos 90 días para tener datos históricos)
+ * No solo eventos de hoy - acepta datos de hasta 90 días atrás
  */
-async function getTodayPMIEvents(): Promise<Array<{ fecha: string; evento: string; consenso?: string; tipo: 'manufacturing' | 'services' }>> {
-  const today = new Date().toISOString().slice(0, 10)
+async function getRecentPMIEvents(daysBack: number = 90): Promise<Array<{ fecha: string; evento: string; consenso?: string; tipo: 'manufacturing' | 'services' }>> {
+  const today = new Date()
+  const startDate = new Date(today)
+  startDate.setDate(startDate.getDate() - daysBack)
+  const startDateStr = startDate.toISOString().slice(0, 10)
+  const todayStr = today.toISOString().slice(0, 10)
   
   if (isUsingTurso()) {
     const db = getUnifiedDB()
     const result = await db.prepare(`
       SELECT fecha, evento, consenso 
       FROM macro_calendar 
-      WHERE fecha = ? 
+      WHERE fecha >= ? AND fecha <= ?
         AND (evento LIKE '%PMI%' OR evento LIKE '%ISM%')
         AND (tema = 'Manufactura' OR tema = 'Servicios' OR evento LIKE '%Services%' OR evento LIKE '%Manufacturing%')
       ORDER BY fecha DESC
-    `).all(today)
+    `).all(startDateStr, todayStr)
     
     return (result as Array<{ fecha: string; evento: string; consenso?: string }>).map(row => {
       const isServices = row.evento.toLowerCase().includes('services') || row.evento.toLowerCase().includes('servicios')
@@ -94,11 +99,11 @@ async function getTodayPMIEvents(): Promise<Array<{ fecha: string; evento: strin
     const rows = await db.prepare(`
       SELECT fecha, evento, consenso 
       FROM macro_calendar 
-      WHERE fecha = ? 
+      WHERE fecha >= ? AND fecha <= ?
         AND (evento LIKE '%PMI%' OR evento LIKE '%ISM%')
         AND (tema = 'Manufactura' OR tema = 'Servicios' OR evento LIKE '%Services%' OR evento LIKE '%Manufacturing%')
       ORDER BY fecha DESC
-    `).all(today) as Array<{ fecha: string; evento: string; consenso?: string }>
+    `).all(startDateStr, todayStr) as Array<{ fecha: string; evento: string; consenso?: string }>
     
     return rows.map(row => {
       const isServices = row.evento.toLowerCase().includes('services') || row.evento.toLowerCase().includes('servicios')
@@ -143,19 +148,20 @@ export async function POST(request: NextRequest) {
   try {
     logger.info('Starting automatic PMI ingestion from calendar', { job: jobId })
 
-    // 1. Obtener eventos de PMI publicados hoy
-    const pmiEvents = await getTodayPMIEvents()
+    // 1. Obtener eventos de PMI de los últimos 90 días (no solo hoy)
+    // Esto permite ingerir datos históricos si el calendario tiene eventos pasados
+    const pmiEvents = await getRecentPMIEvents(90)
     
     if (pmiEvents.length === 0) {
-      logger.info('No PMI events found for today', { job: jobId })
+      logger.info('No PMI events found in calendar (last 90 days)', { job: jobId })
       return NextResponse.json({
         success: true,
-        message: 'No PMI events found for today',
+        message: 'No PMI events found in calendar (last 90 days)',
         ingested: 0,
       })
     }
 
-    logger.info(`Found ${pmiEvents.length} PMI events for today`, { job: jobId })
+    logger.info(`Found ${pmiEvents.length} PMI events in calendar (last 90 days)`, { job: jobId })
 
     let ingested = 0
     let skipped = 0
