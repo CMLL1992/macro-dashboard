@@ -12,30 +12,17 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 import { assertCronAuth } from '@/lib/security/cron'
-import { TradingEconomicsProvider } from '@/lib/calendar/tradingEconomicsProvider'
+import { MultiProvider } from '@/lib/calendar/multiProvider'
 import { upsertEconomicEvent, upsertEconomicRelease } from '@/lib/db/economic-events'
 import { mapProviderEventToInternal } from '@/lib/calendar/mappers'
 import { recordJobSuccess, recordJobError } from '@/lib/db/job-status'
 import { notifyNewCalendarEvents } from '@/lib/notifications/calendar'
 import { getUnifiedDB } from '@/lib/db/unified-db'
-import { calculateSurprise } from '@/lib/db/economic-events'
+import { isHighImpactEvent } from '@/config/calendar-whitelist'
 
-// Países exactos a solicitar (solo estos 5)
-const ALLOWED_COUNTRIES = [
-  'United States',
-  'Euro Area',
-  'Spain',
-  'United Kingdom',
-  'Germany',
-] as const
-
-// Get TradingEconomics provider instance (única fuente)
+// Get MultiProvider instance (fuentes oficiales: ICS, JSON, HTML)
 const getProvider = () => {
-  const apiKey = process.env.TRADING_ECONOMICS_API_KEY
-  if (!apiKey) {
-    throw new Error('TRADING_ECONOMICS_API_KEY is required')
-  }
-  return new TradingEconomicsProvider(apiKey)
+  return new MultiProvider()
 }
 
 export async function POST(req: Request) {
@@ -76,25 +63,25 @@ export async function POST(req: Request) {
       days_ahead: Math.round((to.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)),
     })
 
-    // Fetch eventos desde TradingEconomics
-    // SOLO eventos de importancia alta (importance = 3)
+    // Fetch eventos desde providers oficiales (ICS, JSON, HTML)
+    // Los providers ya filtran por whitelist (solo eventos de alta importancia)
     const providerEvents = await provider.fetchCalendar({
       from,
       to,
       minImportance: 'high', // SOLO high (importance = 3)
-      countries: ALLOWED_COUNTRIES, // Solo estos 5 países
-      includeValues: true, // Activar values=true para obtener ActualValue, PreviousValue, ForecastValue
     })
 
     console.log(`[ingest/calendar] Provider returned ${providerEvents.length} events`)
     
-    // Filtrar solo eventos de los países permitidos
+    // Los eventos ya están filtrados por whitelist en los providers
+    // Verificar que todos tienen importance = 'high'
     const filteredEvents = providerEvents.filter(ev => {
-      const country = ev.country || ''
-      return ALLOWED_COUNTRIES.includes(country as any)
+      // Verificar que está en whitelist (doble verificación)
+      const whitelistMatch = isHighImpactEvent(ev.name, ev.country)
+      return whitelistMatch !== null && ev.importance === 'high'
     })
     
-    console.log(`[ingest/calendar] Filtered to ${filteredEvents.length} events (countries: ${ALLOWED_COUNTRIES.join(', ')}, importance: high only)`)
+    console.log(`[ingest/calendar] Filtered to ${filteredEvents.length} events (whitelist only, importance: high only)`)
     
     // Estadísticas por moneda
     const byCurrency: Record<string, number> = {}

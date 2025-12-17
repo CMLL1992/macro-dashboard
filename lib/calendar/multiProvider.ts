@@ -1,92 +1,48 @@
 /**
  * Sistema de múltiples proveedores de calendario
  * 
- * Combina eventos de múltiples fuentes:
- * - TradingEconomics (para países con acceso gratuito)
- * - FRED (para eventos económicos de EEUU)
- * - ECB (para eventos económicos de Euro Area)
+ * Combina eventos de múltiples fuentes OFICIALES (gratuitas):
+ * - ICS Providers (Eurostat, INE, Banco de España, Destatis)
+ * - JSON Providers (BEA)
+ * - HTML Providers (ONS, Fed Calendar)
  * 
  * Elimina duplicados basándose en externalId y combina resultados
+ * Solo incluye eventos de alta importancia (★★★) según whitelist
  */
 
 import { CalendarProvider } from './provider'
 import { ProviderCalendarEvent, ProviderRelease } from './types'
-import { TradingEconomicsProvider } from './tradingEconomicsProvider'
-import { FREDProvider } from './fredProvider'
-import { ECBProvider } from './ecbProvider'
-import { BoEProvider } from './boeProvider'
-import { BoJProvider } from './bojProvider'
-import { RBAProvider } from './rbaProvider'
-import { FOMCProvider } from './fomcProvider'
+import { ICSProvider } from './providers/icsProvider'
+import { JSONProvider } from './providers/jsonProvider'
+import { HTMLProvider } from './providers/htmlProvider'
 
 export class MultiProvider implements CalendarProvider {
   private providers: Array<{ name: string; provider: CalendarProvider; enabled: boolean }> = []
 
   constructor() {
-    // TradingEconomics - siempre habilitado (tiene países gratuitos)
-    const tradingEconomicsKey = process.env.TRADING_ECONOMICS_API_KEY
-    if (tradingEconomicsKey) {
-      this.providers.push({
-        name: 'TradingEconomics',
-        provider: new TradingEconomicsProvider(tradingEconomicsKey),
-        enabled: true,
-      })
-    } else {
-      console.warn('[MultiProvider] TRADING_ECONOMICS_API_KEY not set, skipping TradingEconomics')
-    }
-
-    // FRED - para eventos de EEUU
-    const fredKey = process.env.FRED_API_KEY
-    if (fredKey) {
-      this.providers.push({
-        name: 'FRED',
-        provider: new FREDProvider(fredKey),
-        enabled: true,
-      })
-      console.log('[MultiProvider] FRED provider enabled')
-    } else {
-      console.warn('[MultiProvider] FRED_API_KEY not set, skipping FRED (US events will be missing)')
-    }
-
-    // ECB - para eventos de Euro Area
+    // ICS Providers - calendarios oficiales en formato ICS/iCalendar
     this.providers.push({
-      name: 'ECB',
-      provider: new ECBProvider(),
+      name: 'ICS',
+      provider: new ICSProvider(),
       enabled: true,
     })
-    console.log('[MultiProvider] ECB provider enabled')
+    console.log('[MultiProvider] ICS provider enabled (Eurostat, INE, Banco de España, Destatis)')
 
-    // BoE - para eventos de Reino Unido (GBP)
+    // JSON Providers - calendarios oficiales en formato JSON
     this.providers.push({
-      name: 'BoE',
-      provider: new BoEProvider(),
+      name: 'JSON',
+      provider: new JSONProvider(),
       enabled: true,
     })
-    console.log('[MultiProvider] BoE provider enabled')
+    console.log('[MultiProvider] JSON provider enabled (BEA)')
 
-    // BoJ - para eventos de Japón (JPY)
+    // HTML Providers - calendarios oficiales en formato HTML
     this.providers.push({
-      name: 'BoJ',
-      provider: new BoJProvider(),
+      name: 'HTML',
+      provider: new HTMLProvider(),
       enabled: true,
     })
-    console.log('[MultiProvider] BoJ provider enabled')
-
-    // RBA - para eventos de Australia (AUD)
-    this.providers.push({
-      name: 'RBA',
-      provider: new RBAProvider(),
-      enabled: true,
-    })
-    console.log('[MultiProvider] RBA provider enabled')
-
-    // FOMC - para eventos de política monetaria de la Fed (USD)
-    this.providers.push({
-      name: 'FOMC',
-      provider: new FOMCProvider(),
-      enabled: true,
-    })
-    console.log('[MultiProvider] FOMC provider enabled')
+    console.log('[MultiProvider] HTML provider enabled (ONS, Fed Calendar)')
   }
 
   async fetchCalendar(params: {
@@ -143,41 +99,9 @@ export class MultiProvider implements CalendarProvider {
     externalId: string
     scheduledTimeUTC: string
   }): Promise<ProviderRelease | null> {
-    // Determinar qué proveedor maneja este evento basándose en externalId
-    const providerPrefix = event.externalId.split('-')[0]
-
-    for (const { name, provider, enabled } of this.providers) {
-      if (!enabled) continue
-
-      // Mapear prefijo a proveedor
-      let matches = false
-      if (providerPrefix === 'FRED' && name === 'FRED') matches = true
-      if (providerPrefix === 'ECB' && name === 'ECB') matches = true
-      if (providerPrefix === 'BOE' && name === 'BoE') matches = true
-      if (providerPrefix === 'BOJ' && name === 'BoJ') matches = true
-      if (providerPrefix === 'RBA' && name === 'RBA') matches = true
-      if (providerPrefix === 'FOMC' && name === 'FOMC') matches = true
-      // TradingEconomics no tiene prefijo específico, intentar si otros no coinciden
-      if (!matches && name === 'TradingEconomics' && 
-          providerPrefix !== 'FRED' && providerPrefix !== 'ECB' && 
-          providerPrefix !== 'BOE' && providerPrefix !== 'BOJ' && providerPrefix !== 'RBA' && providerPrefix !== 'FOMC') {
-        matches = true
-      }
-
-      if (matches) {
-        try {
-          const release = await provider.fetchRelease(event)
-          if (release) {
-            console.log(`[MultiProvider] Release found from ${name}`)
-            return release
-          }
-        } catch (error) {
-          console.error(`[MultiProvider] Error fetching release from ${name}:`, error)
-          // Continuar con siguiente proveedor
-        }
-      }
-    }
-
+    // Los providers oficiales (ICS/JSON/HTML) no proporcionan releases con valores
+    // Los valores se obtendrán de APIs oficiales (BLS, BEA, etc.) cuando estén disponibles
+    // Por ahora, retornar null
     return null
   }
 
