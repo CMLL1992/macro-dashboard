@@ -4,7 +4,7 @@
  */
 
 import type { MacroSeries, DataPoint } from '@/lib/types/macro'
-import { fetchTradingEconomics } from '@/packages/ingestors/tradingeconomics'
+import { fetchTradingEconomics } from '@/lib/ingestors/tradingeconomics'
 
 export interface TradingEconomicsConfig {
   endpoint: string
