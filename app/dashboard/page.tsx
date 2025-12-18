@@ -262,15 +262,49 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
           </p>
           <div className="flex flex-wrap items-center gap-2 text-sm mb-2">
             <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
-              Régimen: <strong>{regime.overall}</strong>
+              Régimen: <strong>{regime.overall || 'Sin clasificar'}</strong>
+              {regime.coverage && !regime.coverage.isReliable && (
+                <span className="text-xs text-amber-600 dark:text-amber-400" title={regime.coverage.warnings?.join(', ')}>
+                  ⚠️
+                </span>
+              )}
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
-              USD: <strong>{regime.usd_label}</strong>
+              USD: <strong>{regime.usd_label || 'Neutral'}</strong>
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
-              Cuadrante: <strong>{regime.quad}</strong>
+              Cuadrante: <strong>{regime.quad || 'Sin clasificar'}</strong>
             </span>
+            {regime.liquidity && (
+              <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
+                Liquidez: <strong>{regime.liquidity}</strong>
+              </span>
+            )}
+            {regime.credit && (
+              <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
+                Crédito: <strong>{regime.credit}</strong>
+              </span>
+            )}
+            {regime.risk && (
+              <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
+                Riesgo: <strong>{regime.risk}</strong>
+              </span>
+            )}
           </div>
+          {regime.coverage && !regime.coverage.isReliable && (
+            <div className="mb-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30 p-3 text-xs">
+              <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">
+                ⚠️ Régimen calculado con datos incompletos/obsoletos
+              </p>
+              <p className="text-amber-800 dark:text-amber-300">
+                Cobertura: {Math.round(regime.coverage.percentage * 100)}% · 
+                Datos obsoletos: {Math.round(regime.coverage.staleRatio * 100)}%
+                {regime.coverage.warnings && regime.coverage.warnings.length > 0 && (
+                  <span className="ml-2">· {regime.coverage.warnings.join(', ')}</span>
+                )}
+              </p>
+            </div>
+          )}
           <div className="text-xs text-muted-foreground mb-3">
             Indicadores (items): {indicatorRows.length} · Pares tácticos: {tacticalRowsSafe.length} · Escenarios detectados: {scenarios.length} · Correlaciones: {correlations.count}
           </div>
@@ -284,9 +318,11 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                   <div className="border rounded-lg p-3 bg-blue-50/30 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-semibold text-blue-900 dark:text-blue-200">USD (Estados Unidos)</span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium">
-                        {Math.round(currencyRegimes.USD.probability * 100)}%
-                      </span>
+                      {currencyRegimes.USD.probability != null && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium">
+                          {Math.round((currencyRegimes.USD.probability || 0) * 100)}%
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm font-medium text-foreground mb-1">
                       {currencyRegimes.USD.regime === 'reflation' && '🟠 Reflación'}
@@ -294,17 +330,23 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                       {currencyRegimes.USD.regime === 'recession' && '🔵 Recesión'}
                       {currencyRegimes.USD.regime === 'goldilocks' && '🟢 Goldilocks'}
                       {currencyRegimes.USD.regime === 'mixed' && '⚪ Mixto'}
+                      {currencyRegimes.USD.regime === 'insufficient_data' && '⚪ Datos insuficientes'}
+                      {!currencyRegimes.USD.regime && '⚪ Sin clasificar'}
                     </div>
-                    <div className="text-xs text-muted-foreground">{currencyRegimes.USD.description}</div>
+                    {currencyRegimes.USD.description && (
+                      <div className="text-xs text-muted-foreground">{currencyRegimes.USD.description}</div>
+                    )}
                   </div>
                 )}
                 {currencyRegimes.EUR && (
                   <div className="border rounded-lg p-3 bg-yellow-50/30 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-semibold text-yellow-900 dark:text-yellow-200">EUR (Eurozona)</span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 font-medium">
-                        {Math.round(currencyRegimes.EUR.probability * 100)}%
-                      </span>
+                      {currencyRegimes.EUR.probability != null && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 font-medium">
+                          {Math.round((currencyRegimes.EUR.probability || 0) * 100)}%
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm font-medium text-foreground mb-1">
                       {currencyRegimes.EUR.regime === 'reflation' && '🟠 Reflación'}
@@ -312,17 +354,23 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                       {currencyRegimes.EUR.regime === 'recession' && '🔵 Recesión'}
                       {currencyRegimes.EUR.regime === 'goldilocks' && '🟢 Goldilocks'}
                       {currencyRegimes.EUR.regime === 'mixed' && '⚪ Mixto'}
+                      {currencyRegimes.EUR.regime === 'insufficient_data' && '⚪ Datos insuficientes'}
+                      {!currencyRegimes.EUR.regime && '⚪ Sin clasificar'}
                     </div>
-                    <div className="text-xs text-muted-foreground">{currencyRegimes.EUR.description}</div>
+                    {currencyRegimes.EUR.description && (
+                      <div className="text-xs text-muted-foreground">{currencyRegimes.EUR.description}</div>
+                    )}
                   </div>
                 )}
                 {currencyRegimes.GBP && (
                   <div className="border rounded-lg p-3 bg-red-50/30 dark:bg-red-950/20 border-red-200 dark:border-red-800">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-semibold text-red-900 dark:text-red-200">GBP (Reino Unido)</span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 font-medium">
-                        {Math.round(currencyRegimes.GBP.probability * 100)}%
-                      </span>
+                      {currencyRegimes.GBP.probability != null && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 font-medium">
+                          {Math.round((currencyRegimes.GBP.probability || 0) * 100)}%
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm font-medium text-foreground mb-1">
                       {currencyRegimes.GBP.regime === 'reflation' && '🟠 Reflación'}
@@ -330,17 +378,23 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                       {currencyRegimes.GBP.regime === 'recession' && '🔵 Recesión'}
                       {currencyRegimes.GBP.regime === 'goldilocks' && '🟢 Goldilocks'}
                       {currencyRegimes.GBP.regime === 'mixed' && '⚪ Mixto'}
+                      {currencyRegimes.GBP.regime === 'insufficient_data' && '⚪ Datos insuficientes'}
+                      {!currencyRegimes.GBP.regime && '⚪ Sin clasificar'}
                     </div>
-                    <div className="text-xs text-muted-foreground">{currencyRegimes.GBP.description}</div>
+                    {currencyRegimes.GBP.description && (
+                      <div className="text-xs text-muted-foreground">{currencyRegimes.GBP.description}</div>
+                    )}
                   </div>
                 )}
                 {currencyRegimes.JPY && (
                   <div className="border rounded-lg p-3 bg-purple-50/30 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-semibold text-purple-900 dark:text-purple-200">JPY (Japón)</span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 font-medium">
-                        {Math.round(currencyRegimes.JPY.probability * 100)}%
-                      </span>
+                      {currencyRegimes.JPY.probability != null && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 font-medium">
+                          {Math.round((currencyRegimes.JPY.probability || 0) * 100)}%
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm font-medium text-foreground mb-1">
                       {currencyRegimes.JPY.regime === 'reflation' && '🟠 Reflación'}
@@ -348,17 +402,23 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                       {currencyRegimes.JPY.regime === 'recession' && '🔵 Recesión'}
                       {currencyRegimes.JPY.regime === 'goldilocks' && '🟢 Goldilocks'}
                       {currencyRegimes.JPY.regime === 'mixed' && '⚪ Mixto'}
+                      {currencyRegimes.JPY.regime === 'insufficient_data' && '⚪ Datos insuficientes'}
+                      {!currencyRegimes.JPY.regime && '⚪ Sin clasificar'}
                     </div>
-                    <div className="text-xs text-muted-foreground">{currencyRegimes.JPY.description}</div>
+                    {currencyRegimes.JPY.description && (
+                      <div className="text-xs text-muted-foreground">{currencyRegimes.JPY.description}</div>
+                    )}
                   </div>
                 )}
                 {currencyRegimes.AUD && (
                   <div className="border rounded-lg p-3 bg-green-50/30 dark:bg-green-950/20 border-green-200 dark:border-green-800">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-semibold text-green-900 dark:text-green-200">AUD (Australia)</span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 font-medium">
-                        {Math.round(currencyRegimes.AUD.probability * 100)}%
-                      </span>
+                      {currencyRegimes.AUD.probability != null && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 font-medium">
+                          {Math.round((currencyRegimes.AUD.probability || 0) * 100)}%
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm font-medium text-foreground mb-1">
                       {currencyRegimes.AUD.regime === 'reflation' && '🟠 Reflación'}
@@ -366,8 +426,12 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                       {currencyRegimes.AUD.regime === 'recession' && '🔵 Recesión'}
                       {currencyRegimes.AUD.regime === 'goldilocks' && '🟢 Goldilocks'}
                       {currencyRegimes.AUD.regime === 'mixed' && '⚪ Mixto'}
+                      {currencyRegimes.AUD.regime === 'insufficient_data' && '⚪ Datos insuficientes'}
+                      {!currencyRegimes.AUD.regime && '⚪ Sin clasificar'}
                     </div>
-                    <div className="text-xs text-muted-foreground">{currencyRegimes.AUD.description}</div>
+                    {currencyRegimes.AUD.description && (
+                      <div className="text-xs text-muted-foreground">{currencyRegimes.AUD.description}</div>
+                    )}
                   </div>
                 )}
               </div>
@@ -393,44 +457,48 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
           </div>
 
           {/* Resumen rápido de correlaciones USD */}
-          <div className="mt-3 text-xs text-muted-foreground space-y-1">
-            <div>
-              <span className="font-semibold">Resumen correlaciones USD:</span>{' '}
-              {corrInsight.usdBiasSignal}
+          {corrInsight && (
+            <div className="mt-3 text-xs text-muted-foreground space-y-1">
+              <div>
+                <span className="font-semibold">Resumen correlaciones USD:</span>{' '}
+                {corrInsight.usdBiasSignal || 'Sin señal clara'}
+              </div>
+              {corrInsight.strongPairs && corrInsight.strongPairs.length > 0 && (
+                <div>
+                  <span className="font-semibold">
+                    Pares más ligados al USD (|ρ 12m| ≥ 0,60):
+                  </span>{' '}
+                  {corrInsight.strongPairs.join(', ')}
+                </div>
+              )}
+              {corrInsight.decoupledPairs && corrInsight.decoupledPairs.length > 0 && (
+                <div>
+                  <span className="font-semibold">
+                    Pares desconectados (12m fuerte, 3m débil):
+                  </span>{' '}
+                  {corrInsight.decoupledPairs.join(', ')}
+                </div>
+              )}
             </div>
-            {corrInsight.strongPairs.length > 0 && (
-              <div>
-                <span className="font-semibold">
-                  Pares más ligados al USD (|ρ 12m| ≥ 0,60):
-                </span>{' '}
-                {corrInsight.strongPairs.join(', ')}
-              </div>
-            )}
-            {corrInsight.decoupledPairs.length > 0 && (
-              <div>
-                <span className="font-semibold">
-                  Pares desconectados (12m fuerte, 3m débil):
-                </span>{' '}
-                {corrInsight.decoupledPairs.join(', ')}
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Insights adicionales del mercado */}
-          <div className="mt-3 text-xs text-muted-foreground space-y-1">
-            <div>
-              <span className="font-semibold">Pares destacados:</span>{' '}
-              {usdMarketInsights.topPairsSummary}
+          {usdMarketInsights && (
+            <div className="mt-3 text-xs text-muted-foreground space-y-1">
+              <div>
+                <span className="font-semibold">Pares destacados:</span>{' '}
+                {usdMarketInsights.topPairsSummary || 'Sin pares destacados'}
+              </div>
+              <div>
+                <span className="font-semibold">Sesgo en pares USD:</span>{' '}
+                {usdMarketInsights.actionBiasSummary || 'Sin sesgo detectado'}
+              </div>
+              <div>
+                <span className="font-semibold">Divergencias corr. 3m vs 12m:</span>{' '}
+                {usdMarketInsights.divergenceSummary || 'Sin divergencias relevantes'}
+              </div>
             </div>
-            <div>
-              <span className="font-semibold">Sesgo en pares USD:</span>{' '}
-              {usdMarketInsights.actionBiasSummary}
-            </div>
-            <div>
-              <span className="font-semibold">Divergencias corr. 3m vs 12m:</span>{' '}
-              {usdMarketInsights.divergenceSummary}
-            </div>
-          </div>
+          )}
         </section>
 
         {/* Últimos eventos macro */}
@@ -708,7 +776,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                     <th className="px-3 py-2 text-left">Evolución</th>
                     <th className="px-3 py-2 text-left">Postura</th>
                     <th className="px-3 py-2 text-left">Peso</th>
-                    <th className="px-3 py-2 text-left">Fecha</th>
+                    <th className="px-3 py-2 text-left">Fecha dato</th>
+                    <th className="px-3 py-2 text-left">Última actualización</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -741,7 +810,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                         <React.Fragment key={section}>
                           {/* Section header */}
                           <tr className="bg-blue-50 dark:bg-blue-950/30 border-t-2 border-blue-200 dark:border-blue-800">
-                            <td colSpan={7} className="text-sm font-bold uppercase tracking-wide py-3 px-4 text-blue-900 dark:text-blue-200">
+                            <td colSpan={8} className="text-sm font-bold uppercase tracking-wide py-3 px-4 text-blue-900 dark:text-blue-200">
                               {section}
                             </td>
                           </tr>
@@ -759,7 +828,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                             return (
                               <React.Fragment key={`${section}-${cat}`}>
                                 <tr className="bg-muted border-t">
-                                  <td colSpan={7} className="text-sm font-semibold uppercase tracking-wide py-2 px-3">
+                                  <td colSpan={8} className="text-sm font-semibold uppercase tracking-wide py-2 px-3">
                                     {cat}
                                   </td>
                                 </tr>
@@ -861,6 +930,19 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
                                   </span>
                                 )}
                               </div>
+                            </td>
+                            <td className="px-3 py-2 text-xs text-muted-foreground">
+                              {row.lastUpdated ? (
+                                <span title={`Última actualización del indicador en BD: ${row.lastUpdated}`}>
+                                  {formatIndicatorDate(row.lastUpdated, indicatorKey)}
+                                </span>
+                              ) : row.date ? (
+                                <span title={`Fecha del dato (última actualización no disponible): ${row.date}`}>
+                                  {formatIndicatorDate(row.date, indicatorKey)}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
                             </td>
                           </tr>
                         )

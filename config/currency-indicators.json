@@ -55,7 +55,16 @@
     "JP_PPI_YOY": { "currency": "JPY", "group": "inflation" },
     "JP_UNEMPLOYMENT_RATE": { "currency": "JPY", "group": "labor" },
     "JP_JOB_TO_APPLICANT_RATIO": { "currency": "JPY", "group": "labor" },
-    "JP_BOJ_RATE": { "currency": "JPY", "group": "monetary" }
+    "JP_BOJ_RATE": { "currency": "JPY", "group": "monetary" },
+    "AU_CPI_YOY": { "currency": "AUD", "group": "inflation" },
+    "AU_CORE_CPI_YOY": { "currency": "AUD", "group": "inflation" },
+    "AU_GDP_QOQ": { "currency": "AUD", "group": "growth" },
+    "AU_GDP_YOY": { "currency": "AUD", "group": "growth" },
+    "AU_UNEMPLOYMENT_RATE": { "currency": "AUD", "group": "labor" },
+    "AU_RBA_RATE": { "currency": "AUD", "group": "monetary" },
+    "AU_PMI_MANUFACTURING": { "currency": "AUD", "group": "growth" },
+    "AU_PMI_SERVICES": { "currency": "AUD", "group": "growth" },
+    "AU_RETAIL_SALES_YOY": { "currency": "AUD", "group": "growth" }
   }
 }
 

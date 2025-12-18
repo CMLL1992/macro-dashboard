@@ -109,6 +109,33 @@ async function getSeriesFrequency(seriesId: string): Promise<string | null> {
 }
 
 /**
+ * Get series last_updated from macro_series table
+ * Works with both Turso (async) and better-sqlite3 (sync)
+ */
+async function getSeriesLastUpdated(seriesId: string): Promise<string | null> {
+  if (isUsingTurso()) {
+    const db = getUnifiedDB()
+    try {
+      const result = await db.prepare('SELECT last_updated FROM macro_series WHERE series_id = ?').get(seriesId)
+      const row = result as { last_updated: string | null } | undefined
+      return row?.last_updated ?? null
+    } catch (error) {
+      return null
+    }
+  } else {
+    const db = getDB()
+    try {
+      const row = db
+        .prepare('SELECT last_updated FROM macro_series WHERE series_id = ?')
+        .get(seriesId) as { last_updated: string | null } | undefined
+      return row?.last_updated ?? null
+    } catch (error) {
+      return null
+    }
+  }
+}
+
+/**
  * Get previous and current values for a series using robust date-based calculation
  * Works with both Turso (async) and better-sqlite3 (sync)
  */
@@ -179,6 +206,7 @@ export type LatestPointWithPrev = LatestPoint & {
   date_previous?: string | null
   observation_period?: string | null // Periodo del dato (observation_date) para mostrar en tooltip
   isStale?: boolean
+  lastUpdated?: string | null // Última actualización del indicador en BD (desde macro_series.last_updated)
 }
 
 /**
@@ -449,6 +477,9 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
           const freshness = computeFreshness(key, lastDate)
           const stale = freshness === 'STALE' || freshness === 'PENDING'
           
+          // Get last_updated for this indicator
+          const lastUpdated = await getSeriesLastUpdated(seriesId)
+          
           results.push({
             key,
             label: KEY_LABELS[key] ?? labelOf(seriesId),
@@ -458,6 +489,7 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
             value_previous: history.value_previous,
             date_previous: history.date_previous ?? null,
             isStale: stale,
+            lastUpdated: lastUpdated ?? null,
           })
           continue // Skip calculation, use pre-calculated value
         }
@@ -469,6 +501,7 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
     
     const series = await getSeriesObservations(seriesId)
     const frequency = await getSeriesFrequency(seriesId)
+    const lastUpdated = await getSeriesLastUpdated(seriesId)
     
     // DEBUG: Log for European indicators
     if (key.startsWith('eu_')) {
@@ -476,6 +509,7 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
     }
     
     if (series.length === 0) {
+      const lastUpdated = await getSeriesLastUpdated(seriesId)
       results.push({
         key,
         label: KEY_LABELS[key] ?? labelOf(seriesId),
@@ -485,6 +519,7 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
         value_previous: null,
         date_previous: null,
         isStale: true,
+        lastUpdated: lastUpdated ?? null,
       })
       continue
     }
@@ -665,6 +700,7 @@ export async function getAllLatestFromDBWithPrev(): Promise<LatestPointWithPrev[
       date_previous: previous?.date ?? null,
       observation_period: observationPeriod,
       isStale: stale,
+      lastUpdated: lastUpdated ?? null,
     })
   }
 

@@ -1,0 +1,86 @@
+{
+  "description": "Indicadores macroeconómicos de Australia (AUD) para el motor macro relativo",
+  "indicators": [
+    {
+      "id": "AU_GDP_QOQ",
+      "name": "GDP Quarter-on-Quarter",
+      "source": "trading_economics",
+      "series": "australia/gdp-growth",
+      "frequency": "Q",
+      "unit": "% QoQ",
+      "needsYoY": false
+    },
+    {
+      "id": "AU_GDP_YOY",
+      "name": "GDP Year-on-Year",
+      "source": "trading_economics",
+      "series": "australia/gdp-growth-annual",
+      "frequency": "Q",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "AU_SERVICES_PMI",
+      "name": "Services PMI",
+      "source": "trading_economics",
+      "series": "australia/services-pmi",
+      "frequency": "M",
+      "unit": "Índice",
+      "needsYoY": false
+    },
+    {
+      "id": "AU_MANUFACTURING_PMI",
+      "name": "Manufacturing PMI",
+      "source": "trading_economics",
+      "series": "australia/manufacturing-pmi",
+      "frequency": "M",
+      "unit": "Índice",
+      "needsYoY": false
+    },
+    {
+      "id": "AU_RETAIL_SALES_YOY",
+      "name": "Retail Sales YoY",
+      "source": "trading_economics",
+      "series": "australia/retail-sales-yoy",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "AU_CPI_YOY",
+      "name": "CPI YoY",
+      "source": "trading_economics",
+      "series": "australia/inflation-cpi",
+      "frequency": "Q",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "AU_CORE_CPI_YOY",
+      "name": "Core CPI YoY",
+      "source": "trading_economics",
+      "series": "australia/core-inflation-rate",
+      "frequency": "Q",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "AU_UNEMPLOYMENT_RATE",
+      "name": "Unemployment Rate",
+      "source": "trading_economics",
+      "series": "australia/unemployment-rate",
+      "frequency": "M",
+      "unit": "%",
+      "needsYoY": false
+    },
+    {
+      "id": "AU_RBA_RATE",
+      "name": "Reserve Bank of Australia Cash Rate",
+      "source": "trading_economics",
+      "series": "australia/interest-rate",
+      "frequency": "B",
+      "unit": "%",
+      "needsYoY": false
+    }
+  ]
+}

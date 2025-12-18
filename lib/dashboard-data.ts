@@ -33,6 +33,7 @@ export type IndicatorRow = {
   unit?: string | null
   isStale?: boolean
   section?: string | null
+  lastUpdated?: string | null // Última actualización del indicador en BD
 }
 
 export type TacticalRowSafe = {
@@ -107,6 +108,13 @@ export type DashboardData = {
     liquidity: string
     credit: string
     risk: string
+    // Validación de cobertura y frescura
+    coverage?: {
+      percentage: number
+      staleRatio: number
+      isReliable: boolean
+      warnings?: string[]
+    }
   }
   
   // Regímenes macro por moneda (nuevo)
@@ -216,6 +224,7 @@ function buildIndicatorRows(table: any[]): IndicatorRow[] {
         unit,
         isStale: row?.isStale ?? false,
         section: section ?? null,
+        lastUpdated: row?.lastUpdated ?? null,
       }
     })
   
@@ -634,7 +643,61 @@ export async function getDashboardData(): Promise<DashboardData> {
     currencyRegimes: biasState.currencyRegimes,
   }
   
-  const tacticalRowsSafe = buildTacticalSafe(tacticalRows, tacticalContext)
+  // Helper function para extraer monedas de un par
+  const extractCurrenciesFromPair = (pair: string): { base: string | null; quote: string | null } => {
+    const normalized = pair.replace('/', '').toUpperCase()
+    const majors = ['EUR', 'GBP', 'AUD', 'NZD', 'USD', 'JPY', 'CHF', 'CAD']
+    
+    // Intentar extraer base (primeros 3 caracteres)
+    let base: string | null = null
+    let quote: string | null = null
+    
+    for (const major of majors) {
+      if (normalized.startsWith(major)) {
+        base = major
+        const rest = normalized.substring(major.length)
+        // Intentar encontrar quote en el resto
+        for (const q of majors) {
+          if (rest === q || rest.startsWith(q)) {
+            quote = q
+            break
+          }
+        }
+        break
+      }
+    }
+    
+    return { base, quote }
+  }
+  
+  // Filtrar pares tácticos donde base o quote tienen insufficient_data
+  const filteredTacticalRows = tacticalRows.filter((row: any) => {
+    const symbol = (row.pair ?? row.symbol ?? '').toString()
+    const { base, quote } = extractCurrenciesFromPair(symbol)
+    
+    // Si no es un par de divisas (no tiene base/quote), pasar el filtro
+    if (!base || !quote) {
+      return true
+    }
+    
+    // Verificar si base o quote tienen insufficient_data
+    const baseRegime = biasState.currencyRegimes?.[base as 'USD' | 'EUR' | 'GBP' | 'JPY' | 'AUD']
+    const quoteRegime = biasState.currencyRegimes?.[quote as 'USD' | 'EUR' | 'GBP' | 'JPY' | 'AUD']
+    
+    const baseInsufficient = baseRegime?.regime === 'insufficient_data'
+    const quoteInsufficient = quoteRegime?.regime === 'insufficient_data'
+    
+    if (baseInsufficient || quoteInsufficient) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[dashboard-data] Filtering out pair ${symbol}: base=${base} (${baseRegime?.regime}), quote=${quote} (${quoteRegime?.regime})`)
+      }
+      return false
+    }
+    
+    return true
+  })
+  
+  const tacticalRowsSafe = buildTacticalSafe(filteredTacticalRows, tacticalContext)
 
   // Detect scenarios (método institucional + macro)
   let scenarios: Scenario[] = []
@@ -657,11 +720,63 @@ export async function getDashboardData(): Promise<DashboardData> {
         }))
       : []
     
+    // Helper function para extraer monedas de un par (reutilizar la misma lógica)
+    const extractCurrenciesFromPair = (pair: string): { base: string | null; quote: string | null } => {
+      const normalized = pair.replace('/', '').toUpperCase()
+      const majors = ['EUR', 'GBP', 'AUD', 'NZD', 'USD', 'JPY', 'CHF', 'CAD']
+      
+      let base: string | null = null
+      let quote: string | null = null
+      
+      for (const major of majors) {
+        if (normalized.startsWith(major)) {
+          base = major
+          const rest = normalized.substring(major.length)
+          for (const q of majors) {
+            if (rest === q || rest.startsWith(q)) {
+              quote = q
+              break
+            }
+          }
+          break
+        }
+      }
+      
+      return { base, quote }
+    }
+    
+    // Filtrar tacticalRowsForScenarios donde base o quote tienen insufficient_data
+    const filteredTacticalRowsForScenarios = tacticalRowsForScenarios.filter((row: any) => {
+      const symbol = (row.pair ?? row.par ?? row.symbol ?? '').toString()
+      const { base, quote } = extractCurrenciesFromPair(symbol)
+      
+      // Si no es un par de divisas, pasar el filtro
+      if (!base || !quote) {
+        return true
+      }
+      
+      // Verificar si base o quote tienen insufficient_data
+      const baseRegime = biasState.currencyRegimes?.[base as 'USD' | 'EUR' | 'GBP' | 'JPY' | 'AUD']
+      const quoteRegime = biasState.currencyRegimes?.[quote as 'USD' | 'EUR' | 'GBP' | 'JPY' | 'AUD']
+      
+      const baseInsufficient = baseRegime?.regime === 'insufficient_data'
+      const quoteInsufficient = quoteRegime?.regime === 'insufficient_data'
+      
+      if (baseInsufficient || quoteInsufficient) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[dashboard-data] Filtering out scenario pair ${symbol}: base=${base} (${baseRegime?.regime}), quote=${quote} (${quoteRegime?.regime})`)
+        }
+        return false
+      }
+      
+      return true
+    })
+    
     // Get USD label from usd_direction (calculated below)
     const usdLabelFromDirection = USD_LABELS[biasState.regime.usd_direction] ?? 'Neutral'
     const usdBiasLabel = usdLabelFromDirection
     const institutionalScenariosGrouped = getInstitutionalScenarios(
-      tacticalRowsForScenarios,
+      filteredTacticalRowsForScenarios,
       usdBiasLabel,
       biasState.regime.overall
     )
@@ -725,6 +840,58 @@ export async function getDashboardData(): Promise<DashboardData> {
     console.warn('[dashboard-data] getRecentEventsWithImpact failed:', error)
   }
 
+  // Validar cobertura y frescura del régimen global
+  const KEY_INDICATORS_FOR_REGIME = [
+    // USD Bias
+    'twex', 'DTWEXBGS', 't10y2y', 'T10Y2Y', 't10y3m', 'T10Y3M', 'pce_yoy', 'PCEPI', 'gdp_yoy', 'GDPC1',
+    // Quad
+    'cpi_yoy', 'CPIAUCSL', 'gdp_yoy', 'GDPC1',
+  ]
+  
+  const validateGlobalRegimeCoverage = (): {
+    percentage: number
+    staleRatio: number
+    isReliable: boolean
+    warnings?: string[]
+  } => {
+    const MIN_COVERAGE = 0.3 // 30% mínimo
+    const MAX_STALE_RATIO = 0.4 // Máximo 40% stale
+    
+    // Contar indicadores clave presentes
+    const keyIndicatorsPresent = finalIndicatorRows.filter(row => {
+      const key = (row.originalKey ?? row.key ?? '').toLowerCase()
+      return KEY_INDICATORS_FOR_REGIME.some(ki => key.includes(ki.toLowerCase()))
+    })
+    
+    const totalKeyIndicators = KEY_INDICATORS_FOR_REGIME.length
+    const coverage = keyIndicatorsPresent.length / totalKeyIndicators
+    
+    // Contar indicadores stale
+    const staleIndicators = keyIndicatorsPresent.filter(row => row.isStale === true)
+    const staleRatio = keyIndicatorsPresent.length > 0 
+      ? staleIndicators.length / keyIndicatorsPresent.length 
+      : 0
+    
+    const isReliable = coverage >= MIN_COVERAGE && staleRatio <= MAX_STALE_RATIO
+    
+    const warnings: string[] = []
+    if (coverage < MIN_COVERAGE) {
+      warnings.push(`Cobertura baja (${Math.round(coverage * 100)}% < ${Math.round(MIN_COVERAGE * 100)}%)`)
+    }
+    if (staleRatio > MAX_STALE_RATIO) {
+      warnings.push(`Muchos datos obsoletos (${Math.round(staleRatio * 100)}% > ${Math.round(MAX_STALE_RATIO * 100)}%)`)
+    }
+    
+    return {
+      percentage: Math.round(coverage * 100) / 100,
+      staleRatio: Math.round(staleRatio * 100) / 100,
+      isReliable,
+      warnings: warnings.length > 0 ? warnings : undefined,
+    }
+  }
+  
+  const regimeCoverage = validateGlobalRegimeCoverage()
+
   const dashboardData = {
     regime: {
       overall: biasState.regime.overall,
@@ -734,6 +901,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       liquidity: biasState.regime.liquidity,
       credit: biasState.regime.credit,
       risk: biasState.regime.risk,
+      coverage: regimeCoverage,
     },
     metrics: {
       usdScore: biasState.metrics.usdScore,

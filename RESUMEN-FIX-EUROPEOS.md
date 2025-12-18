@@ -131,3 +131,5 @@ await initializeSchemaUnified()
 **Estado del dashboard:** Debería mostrar datos para 11 indicadores europeos en lugar de "Dato pendiente" para todos.
 
 
+
+

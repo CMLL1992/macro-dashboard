@@ -122,6 +122,16 @@ export const MAP_KEY_TO_WEIGHT_KEY: Record<string, string> = {
   jp_unemployment_rate: 'JP_UNEMPLOYMENT_RATE',
   jp_job_to_applicant_ratio: 'JP_JOB_TO_APPLICANT_RATIO',
   jp_boj_rate: 'JP_BOJ_RATE',
+  // Australia Indicators (AUD)
+  au_gdp_qoq: 'AU_GDP_QOQ',
+  au_gdp_yoy: 'AU_GDP_YOY',
+  au_cpi_yoy: 'AU_CPI_YOY',
+  au_core_cpi_yoy: 'AU_CORE_CPI_YOY',
+  au_unemployment_rate: 'AU_UNEMPLOYMENT_RATE',
+  au_rba_rate: 'AU_RBA_RATE',
+  au_pmi_manufacturing: 'AU_MANUFACTURING_PMI',
+  au_pmi_services: 'AU_SERVICES_PMI',
+  au_retail_sales_yoy: 'AU_RETAIL_SALES_YOY',
 }
 
 /**

@@ -109,10 +109,46 @@ export async function POST(request: NextRequest) {
           throw new Error('Failed to fetch macro series')
         }
 
+        // Count rows BEFORE insertion
+        let verifyCountBefore = 0
+        try {
+          const db = getUnifiedDB()
+          const beforeResult = await db.prepare(
+            `SELECT COUNT(*) as count FROM macro_observations WHERE series_id = ?`
+          ).get(indicator.id) as { count: number } | null
+          verifyCountBefore = beforeResult?.count || 0
+        } catch (beforeErr) {
+          logger.warn(`[${jobId}] Could not count rows before insertion for ${indicator.id}`, { error: String(beforeErr) })
+        }
+
         // Upsert to database
         await upsertMacroSeries(macroSeries)
+        
+        // Count rows AFTER insertion
+        let verifyCountAfter = 0
+        try {
+          const db = getUnifiedDB()
+          const afterResult = await db.prepare(
+            `SELECT COUNT(*) as count FROM macro_observations WHERE series_id = ?`
+          ).get(indicator.id) as { count: number } | null
+          verifyCountAfter = afterResult?.count || 0
+        } catch (afterErr) {
+          logger.warn(`[${jobId}] Could not count rows after insertion for ${indicator.id}`, { error: String(afterErr) })
+        }
+        
+        const delta = verifyCountAfter - verifyCountBefore
+        
         ingested++
-        logger.info(`Ingested Japan indicator: ${indicator.id}`, { job: jobId, indicatorId: indicator.id, observations: macroSeries.data.length })
+        logger.info(`Ingested Japan indicator: ${indicator.id}`, { 
+          job: jobId, 
+          indicatorId: indicator.id, 
+          observations: macroSeries.data.length,
+          beforeCount: verifyCountBefore,
+          afterCount: verifyCountAfter,
+          newRows: delta,
+          firstDate: macroSeries.data[0]?.date,
+          lastDate: macroSeries.data[macroSeries.data.length - 1]?.date,
+        })
       } catch (error) {
         errors++
         const errorMessage = error instanceof Error ? error.message : String(error)

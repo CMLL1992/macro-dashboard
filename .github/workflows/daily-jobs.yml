@@ -41,6 +41,16 @@ jobs:
           CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
           APP_URL: ${{ secrets.APP_URL }}
 
+      - name: Ingest Australia Indicators
+        run: |
+          echo "🔄 Ingestando indicadores Australia (AUD)..."
+          curl -sS -X POST \
+            -H "Authorization: Bearer $CRON_TOKEN" \
+            "${APP_URL}/api/jobs/ingest/au" | jq '{success, ingested, errors}' || echo "⚠️ Australia ingestion failed (non-critical)"
+        env:
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+          APP_URL: ${{ secrets.APP_URL }}
+
       - name: Correlations
         run: |
           echo "🔄 Calculando correlaciones..."

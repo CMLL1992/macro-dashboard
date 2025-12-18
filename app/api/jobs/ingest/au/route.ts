@@ -1,9 +1,9 @@
 /**
- * Job: Ingest UK economic indicators into SQLite
- * POST /api/jobs/ingest/uk
+ * Job: Ingest Australia economic indicators into SQLite
+ * POST /api/jobs/ingest/au
  * Protected by CRON_TOKEN
  * 
- * Ingests all UK indicators (GBP) used by the dashboard
+ * Ingests all Australia indicators (AUD) used by the dashboard
  */
 
 export const runtime = 'nodejs'
@@ -18,36 +18,36 @@ import { fetchTradingEconomics } from '@/packages/ingestors/tradingEconomics'
 import fs from 'node:fs'
 import path from 'node:path'
 
-// Load UK indicators config
-function loadUKIndicators() {
+// Load Australia indicators config
+function loadAUIndicators() {
   try {
-    const configPath = path.join(process.cwd(), 'config', 'uk-indicators.json')
+    const configPath = path.join(process.cwd(), 'config', 'au-indicators.json')
     const raw = fs.readFileSync(configPath, 'utf8')
     return JSON.parse(raw)
   } catch (error) {
-    logger.error('Failed to load uk-indicators.json', { error })
+    logger.error('Failed to load au-indicators.json', { error })
     return { indicators: [] }
   }
 }
 
-const UK_INDICATORS = loadUKIndicators()
+const AU_INDICATORS = loadAUIndicators()
 
 export async function POST(request: NextRequest) {
   if (!validateCronToken(request)) {
     return unauthorizedResponse()
   }
 
-  const jobId = 'ingest_uk'
+  const jobId = 'ingest_au'
   const startedAt = new Date().toISOString()
 
   try {
-    logger.info('Starting UK indicators ingestion', { job: jobId })
+    logger.info('Starting Australia indicators ingestion', { job: jobId })
 
     let ingested = 0
     let errors = 0
     const ingestErrors: Array<{ indicatorId?: string; error: string }> = []
 
-    const indicators = UK_INDICATORS.indicators || []
+    const indicators = AU_INDICATORS.indicators || []
     
     // Rate limiting for Trading Economics
     let lastTradingEconomicsRequest = 0
@@ -57,19 +57,11 @@ export async function POST(request: NextRequest) {
       try {
         let macroSeries: MacroSeries | null = null
 
-        // UK indicators use Trading Economics
+        // Australia indicators use Trading Economics
         if (indicator.source === 'trading_economics') {
           const apiKey = process.env.TRADING_ECONOMICS_API_KEY
           if (!apiKey) {
-            // Debug: Log all env vars that start with TRADING
-            const tradingVars = Object.keys(process.env).filter(k => k.includes('TRADING'))
-            logger.error(`TRADING_ECONOMICS_API_KEY not configured, skipping ${indicator.id}`, { 
-              job: jobId,
-              indicatorId: indicator.id,
-              envVarsWithTrading: tradingVars,
-              nodeEnv: process.env.NODE_ENV,
-              vercel: !!process.env.VERCEL,
-            })
+            logger.warn(`TRADING_ECONOMICS_API_KEY not configured, skipping ${indicator.id}`, { job: jobId })
             ingestErrors.push({ indicatorId: indicator.id, error: 'TRADING_ECONOMICS_API_KEY not configured' })
             errors++
             continue
@@ -86,7 +78,7 @@ export async function POST(request: NextRequest) {
 
           try {
             lastTradingEconomicsRequest = Date.now()
-            const observations = await fetchTradingEconomics(indicator.series, apiKey, 'united kingdom')
+            const observations = await fetchTradingEconomics(indicator.series, apiKey, 'australia')
             
             if (!observations || observations.length === 0) {
               throw new Error('No observations returned from Trading Economics')
@@ -147,7 +139,7 @@ export async function POST(request: NextRequest) {
         const delta = verifyCountAfter - verifyCountBefore
         
         ingested++
-        logger.info(`Ingested UK indicator: ${indicator.id}`, { 
+        logger.info(`Ingested Australia indicator: ${indicator.id}`, { 
           job: jobId, 
           indicatorId: indicator.id, 
           observations: macroSeries.data.length,
@@ -160,14 +152,14 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         errors++
         const errorMessage = error instanceof Error ? error.message : String(error)
-        logger.error(`Failed to ingest UK indicator: ${indicator.id}`, { job: jobId, indicatorId: indicator.id, error: errorMessage })
+        logger.error(`Failed to ingest Australia indicator: ${indicator.id}`, { job: jobId, indicatorId: indicator.id, error: errorMessage })
         ingestErrors.push({ indicatorId: indicator.id, error: errorMessage })
       }
     }
 
     const finishedAt = new Date().toISOString()
 
-    logger.info('UK indicators ingestion completed', {
+    logger.info('Australia indicators ingestion completed', {
       job: jobId,
       ingested,
       errors,
@@ -185,7 +177,7 @@ export async function POST(request: NextRequest) {
     const finishedAt = new Date().toISOString()
     const errorMessage = error instanceof Error ? error.message : String(error)
 
-    logger.error('UK indicators ingestion failed', {
+    logger.error('Australia indicators ingestion failed', {
       job: jobId,
       error: errorMessage,
     })
@@ -201,4 +193,3 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   return POST(request)
 }
-
