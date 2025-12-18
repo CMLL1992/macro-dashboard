@@ -100,6 +100,7 @@ export const HIGH_IMPACT_WHITELIST: HighImpactEvent[] = [
       /^Federal\s+Funds\s+Rate$/i,
       /^Fed\s+Interest\s+Rate$/i,
       /^FOMC\s+Statement$/i,
+      /^FOMC\s+Meeting$/i, // Fed formato real
     ],
     canonicalEventName: 'FOMC Rate Decision',
     country: 'US',
@@ -107,6 +108,28 @@ export const HIGH_IMPACT_WHITELIST: HighImpactEvent[] = [
     category: 'Monetary',
     seriesId: 'FEDFUNDS',
     indicatorKey: 'us_fedfunds',
+    directionality: 'higher_is_positive',
+  },
+  {
+    matchTitleRegex: [
+      /^FOMC\s+Minutes$/i, // Fed formato real
+    ],
+    canonicalEventName: 'FOMC Minutes',
+    country: 'US',
+    currency: 'USD',
+    category: 'Monetary',
+    indicatorKey: 'us_fomc_minutes',
+    directionality: 'higher_is_positive',
+  },
+  {
+    matchTitleRegex: [
+      /^FOMC\s+Press\s+Conference$/i, // Fed formato real
+    ],
+    canonicalEventName: 'FOMC Press Conference',
+    country: 'US',
+    currency: 'USD',
+    category: 'Monetary',
+    indicatorKey: 'us_fomc_press',
     directionality: 'higher_is_positive',
   },
   {
@@ -402,6 +425,8 @@ export const HIGH_IMPACT_WHITELIST: HighImpactEvent[] = [
       /^CPI.*UK$/i,
       /^CPI.*United\s+Kingdom$/i,
       /^Consumer\s+Price\s+Index.*UK$/i,
+      /^Consumer\s+price\s+inflation.*UK/i, // ONS formato real
+      /^CPI\(H\).*UK/i, // ONS formato alternativo
     ],
     canonicalEventName: 'CPI',
     country: 'UK',
@@ -429,6 +454,7 @@ export const HIGH_IMPACT_WHITELIST: HighImpactEvent[] = [
       /^GDP.*UK$/i,
       /^GDP.*United\s+Kingdom$/i,
       /^GDP.*Quarterly.*UK$/i,
+      /^Gross\s+Domestic\s+Product.*UK/i, // ONS formato real
     ],
     canonicalEventName: 'GDP',
     country: 'UK',
@@ -444,6 +470,8 @@ export const HIGH_IMPACT_WHITELIST: HighImpactEvent[] = [
       /^Employment.*UK$/i,
       /^Unemployment.*UK$/i,
       /^Claimant\s+Count$/i,
+      /^Earnings\s+and\s+employment.*UK/i, // ONS formato real
+      /^Pay\s+As\s+You\s+Earn.*UK/i, // ONS PAYE
     ],
     canonicalEventName: 'Labour Market',
     country: 'UK',
@@ -451,6 +479,18 @@ export const HIGH_IMPACT_WHITELIST: HighImpactEvent[] = [
     category: 'Employment',
     indicatorKey: 'uk_unemployment',
     directionality: 'lower_is_positive',
+  },
+  {
+    matchTitleRegex: [
+      /^Producer\s+price\s+inflation.*UK/i, // ONS formato real
+      /^PPI.*UK$/i,
+    ],
+    canonicalEventName: 'PPI',
+    country: 'UK',
+    currency: 'GBP',
+    category: 'Inflation',
+    indicatorKey: 'uk_ppi_yoy',
+    directionality: 'higher_is_positive',
   },
   {
     matchTitleRegex: [
