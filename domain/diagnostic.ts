@@ -455,13 +455,13 @@ export interface RegimeResult {
  */
 /**
  * Calcula el régimen macro basado en growth e inflation scores
- * Usa thresholds más ajustados para evitar que todo caiga en "mixed"
+ * Usa thresholds más ajustados y lógica de "dirección dominante" para evitar que todo caiga en "mixed"
  */
 export function getRegime(growthScore: number, inflationScore: number): RegimeResult {
   const g = growthScore
   const inf = inflationScore
 
-  // Thresholds más ajustados (reducidos de 0.2 a 0.1 para mayor sensibilidad)
+  // Thresholds más ajustados (reducidos para mayor sensibilidad)
   const strongGrowth = g > 0.1
   const weakGrowth = g < -0.1
   const strongInflation = inf > 0.1
@@ -470,6 +470,7 @@ export function getRegime(growthScore: number, inflationScore: number): RegimeRe
   let regime: MacroRegime = 'mixed'
   let description = 'Señales mixtas'
 
+  // Primero intentar categorías claras
   if (strongGrowth && strongInflation) {
     regime = 'reflation'
     description = 'Reflación (crecimiento fuerte con inflación alta)'
@@ -483,23 +484,42 @@ export function getRegime(growthScore: number, inflationScore: number): RegimeRe
     regime = 'goldilocks'
     description = 'Goldilocks (crecimiento sólido con desinflación)'
   } else {
-    // Si no cae en categorías claras, usar la dirección dominante
+    // Si no cae en categorías claras, usar la dirección dominante con thresholds más bajos
     const growthDominant = Math.abs(g) > Math.abs(inf)
-    if (growthDominant) {
-      if (g > 0.05) {
-        regime = 'reflation' // Crecimiento positivo domina
-        description = 'Crecimiento positivo con inflación moderada'
-      } else if (g < -0.05) {
-        regime = 'recession' // Crecimiento negativo domina
-        description = 'Crecimiento débil con inflación moderada'
+    const growthMagnitude = Math.abs(g)
+    const inflationMagnitude = Math.abs(inf)
+    
+    // Si alguna señal tiene magnitud significativa (> 0.05), usar dirección dominante
+    if (growthMagnitude > 0.05 || inflationMagnitude > 0.05) {
+      if (growthDominant) {
+        if (g > 0.03) {
+          regime = 'reflation' // Crecimiento positivo domina (aunque sea leve)
+          description = 'Crecimiento positivo con inflación moderada'
+        } else if (g < -0.03) {
+          regime = 'recession' // Crecimiento negativo domina
+          description = 'Crecimiento débil con inflación moderada'
+        }
+      } else {
+        if (inf > 0.03) {
+          regime = 'stagflation' // Inflación alta domina
+          description = 'Inflación elevada con crecimiento moderado'
+        } else if (inf < -0.03) {
+          regime = 'goldilocks' // Inflación baja domina
+          description = 'Desinflación con crecimiento moderado'
+        }
       }
-    } else {
-      if (inf > 0.05) {
-        regime = 'stagflation' // Inflación alta domina
-        description = 'Inflación elevada con crecimiento moderado'
-      } else if (inf < -0.05) {
-        regime = 'goldilocks' // Inflación baja domina
-        description = 'Desinflación con crecimiento moderado'
+    }
+    
+    // Si ambas señales son muy pequeñas (< 0.03), mantener "mixed" pero con descripción más específica
+    if (regime === 'mixed' && growthMagnitude < 0.03 && inflationMagnitude < 0.03) {
+      if (g > 0 && inf > 0) {
+        description = 'Señales ligeramente positivas en crecimiento e inflación'
+      } else if (g < 0 && inf < 0) {
+        description = 'Señales ligeramente negativas en crecimiento e inflación'
+      } else if (g > 0 && inf < 0) {
+        description = 'Crecimiento leve positivo con inflación controlada'
+      } else if (g < 0 && inf > 0) {
+        description = 'Crecimiento leve negativo con presión inflacionaria'
       }
     }
   }
@@ -514,6 +534,9 @@ export function getRegime(growthScore: number, inflationScore: number): RegimeRe
 /**
  * Calcula el régimen de una moneda específica usando features completos
  * Esto asegura que cada moneda tenga su propio cálculo independiente
+ * 
+ * Estrategia: Si growth/inflation están muy cerca de 0, usar otros scores (labor, monetary, sentiment)
+ * para diferenciar monedas y evitar que todas salgan "mixed"
  */
 function calcCurrencyRegime(ccy: Currency, score: CurrencyScore): RegimeResult {
   // Construir features específicos para esta moneda
@@ -526,15 +549,41 @@ function calcCurrencyRegime(ccy: Currency, score: CurrencyScore): RegimeResult {
     total: score.totalScore,
   }
 
-  // Usar getRegime base pero con ajustes por moneda si es necesario
-  let regimeResult = getRegime(features.growth, features.inflation)
+  // Si growth e inflation están muy cerca de 0, usar otros scores para diferenciar
+  const growthMagnitude = Math.abs(features.growth)
+  const inflationMagnitude = Math.abs(features.inflation)
+  
+  let adjustedGrowth = features.growth
+  let adjustedInflation = features.inflation
+  
+  // Si ambas señales son muy pequeñas, amplificar usando otros scores
+  if (growthMagnitude < 0.05 && inflationMagnitude < 0.05) {
+    // Usar labor y monetary como proxy de growth/inflation
+    const laborWeight = 0.3
+    const monetaryWeight = 0.2
+    const sentimentWeight = 0.1
+    
+    adjustedGrowth = features.growth + (features.labor * laborWeight) + (features.sentiment * sentimentWeight)
+    adjustedInflation = features.inflation + (features.monetary * monetaryWeight)
+    
+    // Asegurar que no excedan [-1, 1]
+    adjustedGrowth = Math.max(-1, Math.min(1, adjustedGrowth))
+    adjustedInflation = Math.max(-1, Math.min(1, adjustedInflation))
+  }
+
+  // Usar getRegime con scores ajustados
+  let regimeResult = getRegime(adjustedGrowth, adjustedInflation)
 
   // Ajustar descripción con contexto adicional si hay señales fuertes en otros grupos
+  const contextParts: string[] = []
   if (Math.abs(features.labor) > 0.15) {
-    regimeResult.description += ` (empleo ${features.labor > 0 ? 'fuerte' : 'débil'})`
+    contextParts.push(`empleo ${features.labor > 0 ? 'fuerte' : 'débil'}`)
   }
   if (Math.abs(features.monetary) > 0.15) {
-    regimeResult.description += ` (política monetaria ${features.monetary > 0 ? 'hawkish' : 'dovish'})`
+    contextParts.push(`política monetaria ${features.monetary > 0 ? 'hawkish' : 'dovish'}`)
+  }
+  if (contextParts.length > 0) {
+    regimeResult.description += ` (${contextParts.join(', ')})`
   }
 
   return regimeResult
