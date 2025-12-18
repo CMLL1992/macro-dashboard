@@ -341,7 +341,10 @@ export class HTMLProvider implements CalendarProvider {
         // Fed: Buscar bloque "Upcoming Dates" y extraer eventos FOMC
         const text = $.text()
         const upcomingIndex = text.toLowerCase().indexOf('upcoming dates')
-        if (upcomingIndex === -1) return
+        if (upcomingIndex === -1) {
+          // No se encontró "Upcoming Dates", continuar sin eventos de este feed
+          return events
+        }
         
         // Buscar en el contexto después de "Upcoming Dates"
         const context = text.substring(upcomingIndex, upcomingIndex + 2000)
