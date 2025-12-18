@@ -50,6 +50,10 @@ export type TacticalRowSafe = {
     release_time_utc: string
   } | null
   updated_after_last_event?: boolean
+  // Drivers para explicar el sesgo
+  drivers?: Array<{ key: string; text: string }>
+  macroReasons?: string[]
+  why?: string | null
 }
 
 export type Scenario = {
@@ -188,6 +192,15 @@ function buildIndicatorRows(table: any[]): IndicatorRow[] {
       // Determine section: EUROZONA for EU indicators, undefined for others
       const section = (finalKey && finalKey.startsWith('eu_')) ? 'EUROZONA' : undefined
       
+      // Obtener unidad del mapping (prioridad: row.unit > mapping > null)
+      const { getIndicatorUnit } = require('@/domain/indicators/units')
+      const unit = row?.unit ?? getIndicatorUnit(finalKey) ?? null
+      
+      // Warning en dev si falta unidad
+      if (process.env.NODE_ENV !== 'production' && !unit && row?.value !== null) {
+        console.warn('[unit-missing]', finalKey)
+      }
+      
       return {
         key: finalKey,
         label: String(row?.label ?? row?.key ?? ''),
@@ -200,7 +213,7 @@ function buildIndicatorRows(table: any[]): IndicatorRow[] {
         date: row?.date ?? null,
         observation_period: row?.observation_period ?? null,
         originalKey: row?.originalKey ?? row?.key ?? null,
-        unit: row?.unit ?? null,
+        unit,
         isStale: row?.isStale ?? false,
         section: section ?? null,
       }
@@ -260,17 +273,65 @@ function buildScenarioItems(table: any[]) {
   }))
 }
 
-function buildTacticalSafe(rows: any[]): TacticalRowSafe[] {
-  return rows.map((row) => ({
-    pair: row.pair ?? row.par ?? row.symbol ?? '',
-    trend: row.trend ?? row.tactico ?? 'Neutral',
-    action: row.action ?? row.accion ?? 'Rango/táctico',
-    confidence: row.confidence ?? row.confianza ?? 'Media',
-    corr12m: row.corr12m ?? null,
-    corr3m: row.corr3m ?? null,
-    last_relevant_event: row.last_relevant_event ?? null,
-    updated_after_last_event: row.updated_after_last_event ?? false,
-  }))
+function buildTacticalSafe(
+  rows: any[],
+  context?: {
+    riskRegime?: string
+    usdDirection?: string
+    quad?: string
+    liquidity?: string
+    currencyRegimes?: Record<string, { regime?: string; probability?: number }>
+  }
+): TacticalRowSafe[] {
+  const { buildDriversForPair } = require('@/domain/tactical-pairs/drivers')
+  
+  return rows.map((row) => {
+    const pair = row.pair ?? row.par ?? row.symbol ?? ''
+    
+    // Construir drivers si hay contexto disponible
+    let drivers: Array<{ key: string; text: string }> = []
+    let macroReasons: string[] = []
+    let why: string | null = null
+    
+    if (context && pair) {
+      const tacticalContext = {
+        riskRegime: context.riskRegime || 'Neutral',
+        usdDirection: context.usdDirection,
+        quad: context.quad,
+        liquidity: context.liquidity,
+        currencyRegimes: context.currencyRegimes,
+      }
+      
+      const driverObjects = buildDriversForPair(pair, tacticalContext)
+      drivers = driverObjects.map(d => ({ key: d.key, text: d.text }))
+      macroReasons = driverObjects.map(d => d.text)
+      why = driverObjects.map(d => `• ${d.text}`).join('\n')
+    }
+    
+    // Si no hay drivers y estamos en dev, warning
+    if (drivers.length === 0 && process.env.NODE_ENV !== 'production') {
+      console.warn('[drivers-missing]', pair)
+      // Fallback mínimo
+      drivers = [{ key: 'insufficient_signals', text: 'Drivers insuficientes con el set actual de señales' }]
+      macroReasons = drivers.map(d => d.text)
+      why = drivers.map(d => `• ${d.text}`).join('\n')
+    }
+    
+    return {
+      pair,
+      trend: row.trend ?? row.tactico ?? 'Neutral',
+      action: row.action ?? row.accion ?? 'Rango/táctico',
+      confidence: row.confidence ?? row.confianza ?? 'Media',
+      corr12m: row.corr12m ?? null,
+      corr3m: row.corr3m ?? null,
+      last_relevant_event: row.last_relevant_event ?? null,
+      updated_after_last_event: row.updated_after_last_event ?? false,
+      // Añadir drivers, macroReasons, why
+      drivers,
+      macroReasons,
+      why,
+    }
+  })
 }
 
 function deriveLatestDataDate(rows: IndicatorRow[]): string | null {
@@ -563,7 +624,16 @@ export async function getDashboardData(): Promise<DashboardData> {
     // If we can't load the config, show all pairs (fallback behavior)
   }
   
-  const tacticalRowsSafe = buildTacticalSafe(tacticalRows)
+  // Construir contexto macro para drivers de pares tácticos
+  const tacticalContext = {
+    riskRegime: biasState.regime.overall || 'Neutral',
+    usdDirection: biasState.regime.usd_direction,
+    quad: biasState.regime.quad,
+    liquidity: biasState.regime.liquidity,
+    currencyRegimes: biasState.currencyRegimes,
+  }
+  
+  const tacticalRowsSafe = buildTacticalSafe(tacticalRows, tacticalContext)
 
   // Detect scenarios (método institucional + macro)
   let scenarios: Scenario[] = []

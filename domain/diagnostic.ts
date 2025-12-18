@@ -296,13 +296,29 @@ export async function getMacroDiagnosis() {
   // Calcular scores por moneda
   const currencyScores = computeCurrencyScores(items, WEIGHTS, CURRENCY_INDICATORS)
   
-  // Calcular regímenes macro por moneda
+  // Calcular regímenes macro por moneda con features específicos
+  // Cada moneda debe calcularse independientemente para evitar clonados
   const currencyRegimes: Record<Currency, RegimeResult> = {
-    USD: getRegime(currencyScores.USD.growthScore, currencyScores.USD.inflationScore),
-    EUR: getRegime(currencyScores.EUR.growthScore, currencyScores.EUR.inflationScore),
-    GBP: getRegime(currencyScores.GBP.growthScore, currencyScores.GBP.inflationScore),
-    JPY: getRegime(currencyScores.JPY.growthScore, currencyScores.JPY.inflationScore),
-    AUD: getRegime(currencyScores.AUD.growthScore, currencyScores.AUD.inflationScore),
+    USD: calcCurrencyRegime('USD', currencyScores.USD),
+    EUR: calcCurrencyRegime('EUR', currencyScores.EUR),
+    GBP: calcCurrencyRegime('GBP', currencyScores.GBP),
+    JPY: calcCurrencyRegime('JPY', currencyScores.JPY),
+    AUD: calcCurrencyRegime('AUD', currencyScores.AUD),
+  }
+
+  // Debug: Log features por moneda (solo en dev)
+  if (process.env.NODE_ENV !== 'production' && process.env.DEBUG_CURRENCY_REGIMES === 'true') {
+    for (const [ccy, score] of Object.entries(currencyScores)) {
+      const regime = currencyRegimes[ccy as Currency]
+      console.debug('[currencyRegime]', ccy, {
+        growthScore: score.growthScore,
+        inflationScore: score.inflationScore,
+        laborScore: score.laborScore,
+        monetaryScore: score.monetaryScore,
+        regime: regime.regime,
+        probability: regime.probability,
+      })
+    }
   }
 
   return { 
@@ -437,14 +453,19 @@ export interface RegimeResult {
 /**
  * Clasifica el régimen macro basado en growthScore e inflationScore
  */
+/**
+ * Calcula el régimen macro basado en growth e inflation scores
+ * Usa thresholds más ajustados para evitar que todo caiga en "mixed"
+ */
 export function getRegime(growthScore: number, inflationScore: number): RegimeResult {
   const g = growthScore
   const inf = inflationScore
 
-  const strongGrowth = g > 0.2
-  const weakGrowth = g < -0.2
-  const strongInflation = inf > 0.2
-  const weakInflation = inf < -0.2
+  // Thresholds más ajustados (reducidos de 0.2 a 0.1 para mayor sensibilidad)
+  const strongGrowth = g > 0.1
+  const weakGrowth = g < -0.1
+  const strongInflation = inf > 0.1
+  const weakInflation = inf < -0.1
 
   let regime: MacroRegime = 'mixed'
   let description = 'Señales mixtas'
@@ -461,13 +482,62 @@ export function getRegime(growthScore: number, inflationScore: number): RegimeRe
   } else if (strongGrowth && weakInflation) {
     regime = 'goldilocks'
     description = 'Goldilocks (crecimiento sólido con desinflación)'
+  } else {
+    // Si no cae en categorías claras, usar la dirección dominante
+    const growthDominant = Math.abs(g) > Math.abs(inf)
+    if (growthDominant) {
+      if (g > 0.05) {
+        regime = 'reflation' // Crecimiento positivo domina
+        description = 'Crecimiento positivo con inflación moderada'
+      } else if (g < -0.05) {
+        regime = 'recession' // Crecimiento negativo domina
+        description = 'Crecimiento débil con inflación moderada'
+      }
+    } else {
+      if (inf > 0.05) {
+        regime = 'stagflation' // Inflación alta domina
+        description = 'Inflación elevada con crecimiento moderado'
+      } else if (inf < -0.05) {
+        regime = 'goldilocks' // Inflación baja domina
+        description = 'Desinflación con crecimiento moderado'
+      }
+    }
   }
 
   // Probabilidad "proxy": cuánta distancia hay del centro
   const magnitude = Math.max(Math.abs(g), Math.abs(inf))
-  const probability = Math.min(1, magnitude / 0.5) // si |score| ≈0.5 → ~100%
+  const probability = Math.min(1, Math.max(0.3, magnitude / 0.5)) // Mínimo 30% para evitar 0
 
   return { regime, probability, description }
+}
+
+/**
+ * Calcula el régimen de una moneda específica usando features completos
+ * Esto asegura que cada moneda tenga su propio cálculo independiente
+ */
+function calcCurrencyRegime(ccy: Currency, score: CurrencyScore): RegimeResult {
+  // Construir features específicos para esta moneda
+  const features = {
+    growth: score.growthScore,
+    inflation: score.inflationScore,
+    labor: score.laborScore,
+    monetary: score.monetaryScore,
+    sentiment: score.sentimentScore,
+    total: score.totalScore,
+  }
+
+  // Usar getRegime base pero con ajustes por moneda si es necesario
+  let regimeResult = getRegime(features.growth, features.inflation)
+
+  // Ajustar descripción con contexto adicional si hay señales fuertes en otros grupos
+  if (Math.abs(features.labor) > 0.15) {
+    regimeResult.description += ` (empleo ${features.labor > 0 ? 'fuerte' : 'débil'})`
+  }
+  if (Math.abs(features.monetary) > 0.15) {
+    regimeResult.description += ` (política monetaria ${features.monetary > 0 ? 'hawkish' : 'dovish'})`
+  }
+
+  return regimeResult
 }
 
 /**

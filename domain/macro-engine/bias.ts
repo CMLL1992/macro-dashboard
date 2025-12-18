@@ -390,6 +390,7 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
             corr12m: null,
             corr3m: null,
             motive: 'Generado desde macro_bias cache',
+            // Drivers se añadirán en buildTacticalSafe usando el contexto macro
           }
         })
     } else {
