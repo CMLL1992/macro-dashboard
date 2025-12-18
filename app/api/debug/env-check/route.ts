@@ -7,6 +7,12 @@ export const runtime = "nodejs"
 
 export async function GET() {
   return Response.json({
-    TE_API_KEY: { configured: (process.env.TE_API_KEY?.length ?? 0) > 0 }
+    has_TE_API_KEY: Boolean(process.env.TE_API_KEY),
+    has_VERCEL: Boolean(process.env.VERCEL),
+    has_VERCEL_ENV: Boolean(process.env.VERCEL_ENV),
+    vercel_env_value: process.env.VERCEL_ENV ?? null,
+    has_NODE_ENV: Boolean(process.env.NODE_ENV),
+    node_env_value: process.env.NODE_ENV ?? null,
+    dummy: process.env.DUMMY_ENV_TEST ?? null,
   })
 }
