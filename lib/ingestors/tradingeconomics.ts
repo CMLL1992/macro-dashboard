@@ -199,41 +199,41 @@ function mapTradingEconomicsEndpoint(endpoint: string): string {
     "united-states/new-home-sales": "new home sales",
     "united-states/retail-sales": "retail sales",
     "united-states/industrial-production": "industrial production",
-    // United Kingdom
-    "united-kingdom/gdp-growth": "gdp",
-    "united-kingdom/gdp-growth-annual": "gdp",
-    "united-kingdom/services-pmi": "services pmi",
-    "united-kingdom/manufacturing-pmi": "manufacturing pmi",
-    "united-kingdom/retail-sales-yoy": "retail sales yoy",
-    "united-kingdom/inflation-cpi": "inflation cpi",
-    "united-kingdom/core-inflation-rate": "core inflation rate",
-    "united-kingdom/producer-prices": "producer prices",
-    "united-kingdom/unemployment-rate": "unemployment rate",
-    "united-kingdom/wage-growth": "wage growth",
-    "united-kingdom/interest-rate": "interest rate",
+    // United Kingdom - usar nombres exactos de Trading Economics
+    "united-kingdom/gdp-growth": "GDP Growth",
+    "united-kingdom/gdp-growth-annual": "GDP Annual Growth Rate",
+    "united-kingdom/services-pmi": "Services PMI",
+    "united-kingdom/manufacturing-pmi": "Manufacturing PMI",
+    "united-kingdom/retail-sales-yoy": "Retail Sales YoY",
+    "united-kingdom/inflation-cpi": "Inflation CPI",
+    "united-kingdom/core-inflation-rate": "Core Inflation Rate",
+    "united-kingdom/producer-prices": "Producer Prices",
+    "united-kingdom/unemployment-rate": "Unemployment Rate",
+    "united-kingdom/wage-growth": "Wage Growth",
+    "united-kingdom/interest-rate": "Interest Rate",
     // Japan
-    "japan/gdp-growth": "gdp",
-    "japan/gdp-growth-annual": "gdp",
-    "japan/industrial-production": "industrial production",
-    "japan/retail-sales-yoy": "retail sales yoy",
-    "japan/tankan-large-manufacturing-index": "tankan large manufacturing index",
-    "japan/services-pmi": "services pmi",
-    "japan/inflation-cpi": "inflation cpi",
-    "japan/core-inflation-rate": "core inflation rate",
-    "japan/producer-prices": "producer prices",
-    "japan/unemployment-rate": "unemployment rate",
-    "japan/jobs-to-applicants-ratio": "jobs to applicants ratio",
-    "japan/interest-rate": "interest rate",
+    "japan/gdp-growth": "GDP Growth",
+    "japan/gdp-growth-annual": "GDP Annual Growth Rate",
+    "japan/industrial-production": "Industrial Production",
+    "japan/retail-sales-yoy": "Retail Sales YoY",
+    "japan/tankan-large-manufacturing-index": "Tankan Large Manufacturing Index",
+    "japan/services-pmi": "Services PMI",
+    "japan/inflation-cpi": "Inflation CPI",
+    "japan/core-inflation-rate": "Core Inflation Rate",
+    "japan/producer-prices": "Producer Prices",
+    "japan/unemployment-rate": "Unemployment Rate",
+    "japan/jobs-to-applicants-ratio": "Jobs to Applicants Ratio",
+    "japan/interest-rate": "Interest Rate",
     // Australia
-    "australia/gdp-growth": "gdp",
-    "australia/gdp-growth-annual": "gdp",
-    "australia/services-pmi": "services pmi",
-    "australia/manufacturing-pmi": "manufacturing pmi",
-    "australia/retail-sales-yoy": "retail sales yoy",
-    "australia/inflation-cpi": "inflation cpi",
-    "australia/core-inflation-rate": "core inflation rate",
-    "australia/unemployment-rate": "unemployment rate",
-    "australia/interest-rate": "interest rate",
+    "australia/gdp-growth": "GDP Growth",
+    "australia/gdp-growth-annual": "GDP Annual Growth Rate",
+    "australia/services-pmi": "Services PMI",
+    "australia/manufacturing-pmi": "Manufacturing PMI",
+    "australia/retail-sales-yoy": "Retail Sales YoY",
+    "australia/inflation-cpi": "Inflation CPI",
+    "australia/core-inflation-rate": "Core Inflation Rate",
+    "australia/unemployment-rate": "Unemployment Rate",
+    "australia/interest-rate": "Interest Rate",
     // Eurozone indicators
     "retail sales yoy": "retail sales yoy",
     "industrial production yoy": "industrial production yoy",
@@ -297,6 +297,22 @@ export async function fetchTradingEconomics(
   const dateParams = `&d1=${startDate}&d2=${today}`;
   const dateRange = `${startDate} to ${today}`;
   
+  // Normalizar nombre del país: convertir a formato que Trading Economics espera
+  // Trading Economics espera: "United Kingdom", "Japan", "Australia" (Title Case)
+  const normalizeCountry = (country: string): string => {
+    const countryMap: Record<string, string> = {
+      'united kingdom': 'United Kingdom',
+      'japan': 'Japan',
+      'australia': 'Australia',
+      'united states': 'United States',
+    }
+    const lower = country.toLowerCase().trim()
+    return countryMap[lower] || country
+  }
+  
+  const normalizedCountry = normalizeCountry(defaultCountry)
+  const countryEncoded = encodeURIComponent(normalizedCountry)
+  
   const endpoints = isEurozoneIndicator ? [
     // PRIORIDAD 1: Historical sin rango de fechas (devuelve todos los datos, más recientes al final)
     {
@@ -314,14 +330,20 @@ export async function fetchTradingEconomics(
       description: `indicator/${mappedIndicator} for euro area`,
     },
   ] : [
-    // Para otros países, mismo patrón
+    // PRIORIDAD 1: Historical sin rango de fechas (más completo)
     {
-      url: `${TE_BASE}/indicator/${encodeURIComponent(mappedIndicator)}?country=${encodeURIComponent(defaultCountry)}&c=${encodeURIComponent(apiKey)}`,
-      description: `indicator/${mappedIndicator} for ${defaultCountry}`,
+      url: `${TE_BASE}/historical/country/${countryEncoded}/indicator/${encodeURIComponent(mappedIndicator)}?c=${encodeURIComponent(apiKey)}`,
+      description: `historical/country/${normalizedCountry}/indicator/${mappedIndicator} (all data)`,
     },
+    // PRIORIDAD 2: Historical con rango de fechas
     {
-      url: `${TE_BASE}/historical/country/${encodeURIComponent(defaultCountry)}/indicator/${encodeURIComponent(mappedIndicator)}?c=${encodeURIComponent(apiKey)}${dateParams}`,
-      description: `historical/country/${defaultCountry}/indicator/${mappedIndicator} (last 5 years)`,
+      url: `${TE_BASE}/historical/country/${countryEncoded}/indicator/${encodeURIComponent(mappedIndicator)}?c=${encodeURIComponent(apiKey)}${dateParams}`,
+      description: `historical/country/${normalizedCountry}/indicator/${mappedIndicator} (last 5 years)`,
+    },
+    // PRIORIDAD 3: Endpoint de indicador actual (puede no estar disponible para todos)
+    {
+      url: `${TE_BASE}/indicator/${encodeURIComponent(mappedIndicator)}?country=${countryEncoded}&c=${encodeURIComponent(apiKey)}`,
+      description: `indicator/${mappedIndicator} for ${normalizedCountry}`,
     },
   ];
   
@@ -330,7 +352,13 @@ export async function fetchTradingEconomics(
   for (const endpointConfig of endpoints) {
     const { url, description } = endpointConfig;
     try {
-      console.log(`[TradingEconomics] Trying ${description} for ${endpoint}`);
+      console.log(`[TradingEconomics] Trying ${description} for ${endpoint}`, {
+        originalEndpoint: endpoint,
+        mappedIndicator,
+        country: defaultCountry,
+        normalizedCountry: normalizedCountry,
+        url: url.replace(apiKey, '***'),
+      });
       
       // Usar httpGetWithRetry que maneja retries automáticamente
       const data = await httpGetWithRetry(url, endpoint, mappedIndicator, dateRange);
