@@ -10,9 +10,9 @@
  * Nota: Eurostat e INE ahora usan HTML Provider (ver htmlProvider.ts)
  * 
  * Usa node-ical para parsear archivos ICS (mejor compatibilidad ESM)
+ * 
+ * Nota: server-only removido para permitir tests con tsx
  */
-
-import "server-only"
 
 import { CalendarProvider } from '../provider'
 import { ProviderCalendarEvent, ProviderRelease } from '../types'
