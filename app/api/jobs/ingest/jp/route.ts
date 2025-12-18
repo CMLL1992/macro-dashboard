@@ -99,7 +99,16 @@ export async function POST(request: NextRequest) {
               })),
             }
           } catch (teError) {
-            throw new Error(`Trading Economics error: ${teError instanceof Error ? teError.message : String(teError)}`)
+            let errorMessage = 'Unknown error'
+            if (teError instanceof Error) {
+              errorMessage = teError.message
+            } else if (typeof teError === 'object' && teError !== null) {
+              const errorObj = teError as any
+              errorMessage = errorObj.message || errorObj.error || errorObj.type || JSON.stringify(teError)
+            } else {
+              errorMessage = String(teError)
+            }
+            throw new Error(`Trading Economics error: ${errorMessage}`)
           }
         } else {
           throw new Error(`Unsupported source: ${indicator.source}`)
