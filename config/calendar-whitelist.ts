@@ -426,6 +426,7 @@ export const HIGH_IMPACT_WHITELIST: HighImpactEvent[] = [
       /international\s+investment\s+position/i,
       /iip\b/i,
       /external\s+debt/i,
+      /^external\s+debt$/i, // Título exacto
     ],
     canonicalEventName: 'Balance of Payments / IIP',
     country: 'DE',
