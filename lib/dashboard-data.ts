@@ -284,6 +284,7 @@ function buildTacticalSafe(
   }
 ): TacticalRowSafe[] {
   const { buildDriversForPair } = require('@/domain/tactical-pairs/drivers')
+  type TacticalDriver = { key: string; text: string; weight?: number }
   
   return rows.map((row) => {
     const pair = row.pair ?? row.par ?? row.symbol ?? ''
@@ -302,10 +303,10 @@ function buildTacticalSafe(
         currencyRegimes: context.currencyRegimes,
       }
       
-      const driverObjects = buildDriversForPair(pair, tacticalContext)
-      drivers = driverObjects.map(d => ({ key: d.key, text: d.text }))
-      macroReasons = driverObjects.map(d => d.text)
-      why = driverObjects.map(d => `• ${d.text}`).join('\n')
+      const driverObjects: TacticalDriver[] = buildDriversForPair(pair, tacticalContext)
+      drivers = driverObjects.map((d: TacticalDriver) => ({ key: d.key, text: d.text }))
+      macroReasons = driverObjects.map((d: TacticalDriver) => d.text)
+      why = driverObjects.map((d: TacticalDriver) => `• ${d.text}`).join('\n')
     }
     
     // Si no hay drivers y estamos en dev, warning
@@ -313,8 +314,8 @@ function buildTacticalSafe(
       console.warn('[drivers-missing]', pair)
       // Fallback mínimo
       drivers = [{ key: 'insufficient_signals', text: 'Drivers insuficientes con el set actual de señales' }]
-      macroReasons = drivers.map(d => d.text)
-      why = drivers.map(d => `• ${d.text}`).join('\n')
+      macroReasons = drivers.map((d) => d.text)
+      why = drivers.map((d) => `• ${d.text}`).join('\n')
     }
     
     return {
