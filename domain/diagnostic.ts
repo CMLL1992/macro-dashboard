@@ -588,16 +588,17 @@ function calcCurrencyRegime(ccy: Currency, score: CurrencyScore, globalRegime?: 
       adjustedGrowth = Math.max(-1, Math.min(1, adjustedGrowth))
       adjustedInflation = Math.max(-1, Math.min(1, adjustedInflation))
       
-      // Si aún están muy cerca de 0, aplicar diferenciación mínima por moneda
+      // Si aún están muy cerca de 0, aplicar diferenciación por moneda
       // para evitar que todas salgan "mixed" idéntico
       if (Math.abs(adjustedGrowth) < 0.03 && Math.abs(adjustedInflation) < 0.03) {
-        // Diferenciación mínima basada en la moneda (heurística para evitar clonados)
+        // Diferenciación basada en la moneda (heurística para evitar clonados)
+        // Usar offsets más grandes para garantizar diferenciación
         const currencyOffset: Record<Currency, { growth: number; inflation: number }> = {
-          USD: { growth: 0.02, inflation: 0.01 },
-          EUR: { growth: -0.01, inflation: 0.02 },
-          GBP: { growth: 0.01, inflation: -0.01 },
-          JPY: { growth: -0.02, inflation: -0.02 },
-          AUD: { growth: 0.02, inflation: -0.02 },
+          USD: { growth: 0.08, inflation: 0.04 },  // USD típicamente más fuerte en crecimiento
+          EUR: { growth: -0.04, inflation: 0.06 }, // EUR con inflación más alta típicamente
+          GBP: { growth: 0.04, inflation: -0.04 }, // GBP crecimiento moderado, inflación controlada
+          JPY: { growth: -0.06, inflation: -0.08 }, // JPY crecimiento débil, deflación
+          AUD: { growth: 0.06, inflation: -0.06 }, // AUD crecimiento fuerte, inflación controlada
         }
         
         const offset = currencyOffset[ccy] || { growth: 0, inflation: 0 }
@@ -605,10 +606,18 @@ function calcCurrencyRegime(ccy: Currency, score: CurrencyScore, globalRegime?: 
         adjustedInflation = features.inflation + offset.inflation
         
         // Si el régimen global está disponible, ajustar según él
-        if (globalRegime === 'Risk ON') {
-          adjustedGrowth += 0.03 // Risk ON favorece crecimiento
-        } else if (globalRegime === 'Risk OFF') {
-          adjustedGrowth -= 0.03 // Risk OFF penaliza crecimiento
+        if (globalRegime === 'Risk ON' || globalRegime === 'Risk-on') {
+          adjustedGrowth += 0.05 // Risk ON favorece crecimiento
+          // Ajustar según moneda: pro-cíclicas se benefician más
+          if (ccy === 'EUR' || ccy === 'GBP' || ccy === 'AUD') {
+            adjustedGrowth += 0.03
+          }
+        } else if (globalRegime === 'Risk OFF' || globalRegime === 'Risk-off') {
+          adjustedGrowth -= 0.05 // Risk OFF penaliza crecimiento
+          // Ajustar según moneda: refugio se beneficia
+          if (ccy === 'USD' || ccy === 'JPY') {
+            adjustedGrowth += 0.03
+          }
         }
       }
     }
