@@ -22,16 +22,20 @@ interface ValidationResult {
 }
 
 interface DashboardResponse {
+  ok?: boolean
   data?: {
     indicators?: any[]
     regime?: any
     regimes?: Record<string, any>
     scenarios?: any
     tacticalPairs?: any[]
+    pairs?: any[]
     coverage?: Record<string, { total: number; withData: number; percentage: number }>
     lastUpdate?: string
+    [key: string]: any // Permitir otras propiedades
   }
   error?: string
+  message?: string
 }
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || process.argv.find(arg => arg.startsWith('--url='))?.split('=')[1] || 'http://localhost:3001'
@@ -42,7 +46,14 @@ async function fetchDashboard(): Promise<DashboardResponse> {
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
-    return await response.json()
+    const json = await response.json()
+    
+    // Handle response format: { ok: true, data: {...} } or just { data: {...} }
+    if (json.ok === false) {
+      throw new Error(json.error || json.message || 'Dashboard returned error')
+    }
+    
+    return json
   } catch (error) {
     console.error('❌ Error fetching dashboard:', error)
     throw error
