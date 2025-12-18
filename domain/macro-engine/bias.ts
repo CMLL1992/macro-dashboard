@@ -155,11 +155,11 @@ type BiasRawPayload = {
   latestObservations: LatestMacroObservations
   updatedAt: Date
   currencyRegimes?: {
-    USD?: { regime: string; probability: number; description: string }
-    EUR?: { regime: string; probability: number; description: string }
-    GBP?: { regime: string; probability: number; description: string }
-    JPY?: { regime: string; probability: number; description: string }
-    AUD?: { regime: string; probability: number; description: string }
+    USD?: { regime: string; probability: number; description: string; coverage?: number; missingKeys?: string[]; presentKeys?: string[] }
+    EUR?: { regime: string; probability: number; description: string; coverage?: number; missingKeys?: string[]; presentKeys?: string[] }
+    GBP?: { regime: string; probability: number; description: string; coverage?: number; missingKeys?: string[]; presentKeys?: string[] }
+    JPY?: { regime: string; probability: number; description: string; coverage?: number; missingKeys?: string[]; presentKeys?: string[] }
+    AUD?: { regime: string; probability: number; description: string; coverage?: number; missingKeys?: string[]; presentKeys?: string[] }
   }
 }
 
