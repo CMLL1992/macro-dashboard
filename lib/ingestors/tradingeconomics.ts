@@ -187,8 +187,9 @@ export interface TradingEconomicsOptions {
  * Mapea endpoint de data_sources.json a formato de Trading Economics API
  */
 function mapTradingEconomicsEndpoint(endpoint: string): string {
-  // Mapeo de endpoints conocidos
+  // Mapeo de endpoints conocidos a nombres exactos de Trading Economics
   const endpointMap: Record<string, string> = {
+    // United States
     "united-states/manufacturing-pmi": "manufacturing pmi",
     "united-states/services-pmi": "services pmi",
     "united-states/consumer-confidence": "consumer confidence",
@@ -198,7 +199,42 @@ function mapTradingEconomicsEndpoint(endpoint: string): string {
     "united-states/new-home-sales": "new home sales",
     "united-states/retail-sales": "retail sales",
     "united-states/industrial-production": "industrial production",
-    // Eurozone indicators - usar nombres exactos de TradingEconomics
+    // United Kingdom
+    "united-kingdom/gdp-growth": "gdp",
+    "united-kingdom/gdp-growth-annual": "gdp",
+    "united-kingdom/services-pmi": "services pmi",
+    "united-kingdom/manufacturing-pmi": "manufacturing pmi",
+    "united-kingdom/retail-sales-yoy": "retail sales yoy",
+    "united-kingdom/inflation-cpi": "inflation cpi",
+    "united-kingdom/core-inflation-rate": "core inflation rate",
+    "united-kingdom/producer-prices": "producer prices",
+    "united-kingdom/unemployment-rate": "unemployment rate",
+    "united-kingdom/wage-growth": "wage growth",
+    "united-kingdom/interest-rate": "interest rate",
+    // Japan
+    "japan/gdp-growth": "gdp",
+    "japan/gdp-growth-annual": "gdp",
+    "japan/industrial-production": "industrial production",
+    "japan/retail-sales-yoy": "retail sales yoy",
+    "japan/tankan-large-manufacturing-index": "tankan large manufacturing index",
+    "japan/services-pmi": "services pmi",
+    "japan/inflation-cpi": "inflation cpi",
+    "japan/core-inflation-rate": "core inflation rate",
+    "japan/producer-prices": "producer prices",
+    "japan/unemployment-rate": "unemployment rate",
+    "japan/jobs-to-applicants-ratio": "jobs to applicants ratio",
+    "japan/interest-rate": "interest rate",
+    // Australia
+    "australia/gdp-growth": "gdp",
+    "australia/gdp-growth-annual": "gdp",
+    "australia/services-pmi": "services pmi",
+    "australia/manufacturing-pmi": "manufacturing pmi",
+    "australia/retail-sales-yoy": "retail sales yoy",
+    "australia/inflation-cpi": "inflation cpi",
+    "australia/core-inflation-rate": "core inflation rate",
+    "australia/unemployment-rate": "unemployment rate",
+    "australia/interest-rate": "interest rate",
+    // Eurozone indicators
     "retail sales yoy": "retail sales yoy",
     "industrial production yoy": "industrial production yoy",
     "pmi composite": "pmi composite",
@@ -215,7 +251,13 @@ function mapTradingEconomicsEndpoint(endpoint: string): string {
   // Si no, intentar extraer el nombre del indicador
   const parts = endpoint.split("/");
   if (parts.length === 2) {
-    return parts[1].replace(/-/g, " ");
+    const indicatorPart = parts[1].toLowerCase();
+    // Si ya está mapeado, devolverlo
+    if (endpointMap[lowerEndpoint]) {
+      return endpointMap[lowerEndpoint];
+    }
+    // Convertir kebab-case a espacios (ej: "gdp-growth" -> "gdp growth")
+    return indicatorPart.replace(/-/g, " ");
   }
   
   // Si el endpoint ya está en formato correcto (con espacios y mayúsculas), devolverlo
@@ -223,8 +265,8 @@ function mapTradingEconomicsEndpoint(endpoint: string): string {
     return endpoint;
   }
   
-  // Convertir formato snake_case o kebab-case a "Title Case"
-  return endpoint.replace(/-/g, " ").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  // Convertir formato snake_case o kebab-case a espacios en minúsculas
+  return endpoint.replace(/-/g, " ").replace(/_/g, " ").toLowerCase();
 }
 
 /**
