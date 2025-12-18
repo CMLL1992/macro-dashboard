@@ -425,6 +425,7 @@ export const HIGH_IMPACT_WHITELIST: HighImpactEvent[] = [
       /bop\b/i,
       /international\s+investment\s+position/i,
       /iip\b/i,
+      /external\s+debt/i,
     ],
     canonicalEventName: 'Balance of Payments / IIP',
     country: 'DE',
@@ -438,6 +439,7 @@ export const HIGH_IMPACT_WHITELIST: HighImpactEvent[] = [
       /money\s+stock/i,
       /mfi\s+interest\s+rate\s+statistics/i,
       /securities\s+issues\s+statistics/i,
+      /consolidated\s+balance\s+sheet.*mfis/i,
     ],
     canonicalEventName: 'Money Stock / MFI Statistics',
     country: 'DE',
@@ -449,6 +451,7 @@ export const HIGH_IMPACT_WHITELIST: HighImpactEvent[] = [
   {
     matchTitleRegex: [
       /banks\s+reporting/i,
+      /^banks\b/i, // Título que empieza con "Banks"
       /credit/i,
       /lending/i,
     ],
@@ -462,6 +465,7 @@ export const HIGH_IMPACT_WHITELIST: HighImpactEvent[] = [
   {
     matchTitleRegex: [
       /maastricht\s+debt/i,
+      /german\s+maastricht/i,
       /government\s+finance/i,
     ],
     canonicalEventName: 'Government Finance',

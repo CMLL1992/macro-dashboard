@@ -530,8 +530,6 @@ export class HTMLProvider implements CalendarProvider {
     }
     
     return events
-    
-    return events
   }
 
   /**
