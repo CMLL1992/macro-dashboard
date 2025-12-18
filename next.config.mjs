@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Transpile packages outside app/ and lib/ for Next.js
+  transpilePackages: ['packages'],
   // Headers to prevent caching
   async headers() {
     return [
