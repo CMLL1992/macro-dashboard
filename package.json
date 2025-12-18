@@ -12,7 +12,7 @@
     ]
   },
   "engines": {
-    "node": "20.x"
+    "node": ">=20"
   },
   "scripts": {
     "preinstall": "echo 'Skipping interactive approve-builds in CI/Vercel' || true",
@@ -21,6 +21,8 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "ci": "pnpm run lint && pnpm run typecheck && pnpm run build",
     "test": "vitest run",
     "job:ingest": "curl -XPOST -H 'Authorization: Bearer ${CRON_TOKEN}' ${APP_URL:-http://localhost:3000}/api/jobs/ingest/macro",
     "job:ingest:fred": "curl -XPOST -H 'Authorization: Bearer ${CRON_TOKEN}' ${APP_URL:-http://localhost:3000}/api/jobs/ingest/fred",

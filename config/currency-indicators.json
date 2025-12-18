@@ -43,7 +43,7 @@
     "UK_PPI_OUTPUT_YOY": { "currency": "GBP", "group": "inflation" },
     "UK_UNEMPLOYMENT_RATE": { "currency": "GBP", "group": "labor" },
     "UK_AVG_EARNINGS_YOY": { "currency": "GBP", "group": "labor" },
-    "UK_BOE_RATE": { "currency": "GBP", "group": "inflation" },
+    "UK_BOE_RATE": { "currency": "GBP", "group": "monetary" },
     "JP_GDP_QOQ": { "currency": "JPY", "group": "growth" },
     "JP_GDP_YOY": { "currency": "JPY", "group": "growth" },
     "JP_INDUSTRIAL_PRODUCTION_YOY": { "currency": "JPY", "group": "growth" },
@@ -55,7 +55,7 @@
     "JP_PPI_YOY": { "currency": "JPY", "group": "inflation" },
     "JP_UNEMPLOYMENT_RATE": { "currency": "JPY", "group": "labor" },
     "JP_JOB_TO_APPLICANT_RATIO": { "currency": "JPY", "group": "labor" },
-    "JP_BOJ_RATE": { "currency": "JPY", "group": "inflation" }
+    "JP_BOJ_RATE": { "currency": "JPY", "group": "monetary" }
   }
 }
 
