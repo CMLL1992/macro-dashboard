@@ -507,32 +507,47 @@ export async function getBiasRaw(): Promise<BiasRawPayload> {
     })))
   }
 
-  // Convertir currencyRegimes del diagnosis al formato esperado
+  // Convertir currencyRegimes del diagnosis al formato esperado (incluyendo metadata de cobertura)
   const regimes: BiasRawPayload['currencyRegimes'] = currencyRegimes ? {
     USD: currencyRegimes.USD ? {
       regime: currencyRegimes.USD.regime,
       probability: currencyRegimes.USD.probability,
       description: currencyRegimes.USD.description,
+      coverage: currencyRegimes.USD.coverage,
+      missingKeys: currencyRegimes.USD.missingKeys,
+      presentKeys: currencyRegimes.USD.presentKeys,
     } : undefined,
     EUR: currencyRegimes.EUR ? {
       regime: currencyRegimes.EUR.regime,
       probability: currencyRegimes.EUR.probability,
       description: currencyRegimes.EUR.description,
+      coverage: currencyRegimes.EUR.coverage,
+      missingKeys: currencyRegimes.EUR.missingKeys,
+      presentKeys: currencyRegimes.EUR.presentKeys,
     } : undefined,
     GBP: currencyRegimes.GBP ? {
       regime: currencyRegimes.GBP.regime,
       probability: currencyRegimes.GBP.probability,
       description: currencyRegimes.GBP.description,
+      coverage: currencyRegimes.GBP.coverage,
+      missingKeys: currencyRegimes.GBP.missingKeys,
+      presentKeys: currencyRegimes.GBP.presentKeys,
     } : undefined,
     JPY: currencyRegimes.JPY ? {
       regime: currencyRegimes.JPY.regime,
       probability: currencyRegimes.JPY.probability,
       description: currencyRegimes.JPY.description,
+      coverage: currencyRegimes.JPY.coverage,
+      missingKeys: currencyRegimes.JPY.missingKeys,
+      presentKeys: currencyRegimes.JPY.presentKeys,
     } : undefined,
     AUD: currencyRegimes.AUD ? {
       regime: currencyRegimes.AUD.regime,
       probability: currencyRegimes.AUD.probability,
       description: currencyRegimes.AUD.description,
+      coverage: currencyRegimes.AUD.coverage,
+      missingKeys: currencyRegimes.AUD.missingKeys,
+      presentKeys: currencyRegimes.AUD.presentKeys,
     } : undefined,
   } : undefined
 

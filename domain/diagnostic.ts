@@ -645,7 +645,7 @@ function calcCurrencyRegimeWithCoverage(
   // Si hay cobertura suficiente, calcular régimen normalmente
   const regimeResult = calcCurrencyRegime(ccy, score, globalRegime)
 
-  // Añadir metadata de cobertura
+  // Añadir metadata de cobertura (siempre, incluso si es suficiente)
   return {
     ...regimeResult,
     coverage: pack.coverage,
