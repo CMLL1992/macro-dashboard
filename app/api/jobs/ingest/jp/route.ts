@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         if (indicator.source === 'trading_economics') {
           const apiKey = process.env.TE_API_KEY
           if (!apiKey) {
-            logger.warn(`TRADING_ECONOMICS_API_KEY not configured, skipping ${indicator.id}`, { job: jobId })
+            logger.warn(`TE_API_KEY not configured, skipping ${indicator.id}`, { job: jobId })
             ingestErrors.push({ indicatorId: indicator.id, error: 'TE_API_KEY not configured' })
             errors++
             continue
