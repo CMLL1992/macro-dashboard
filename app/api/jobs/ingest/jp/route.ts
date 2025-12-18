@@ -59,10 +59,10 @@ export async function POST(request: NextRequest) {
 
         // Japan indicators use Trading Economics
         if (indicator.source === 'trading_economics') {
-          const apiKey = process.env.TRADING_ECONOMICS_API_KEY
+          const apiKey = process.env.TE_API_KEY
           if (!apiKey) {
             logger.warn(`TRADING_ECONOMICS_API_KEY not configured, skipping ${indicator.id}`, { job: jobId })
-            ingestErrors.push({ indicatorId: indicator.id, error: 'TRADING_ECONOMICS_API_KEY not configured' })
+            ingestErrors.push({ indicatorId: indicator.id, error: 'TE_API_KEY not configured' })
             errors++
             continue
           }

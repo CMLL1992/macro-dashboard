@@ -59,18 +59,18 @@ export async function POST(request: NextRequest) {
 
         // UK indicators use Trading Economics
         if (indicator.source === 'trading_economics') {
-          const apiKey = process.env.TRADING_ECONOMICS_API_KEY
+          const apiKey = process.env.TE_API_KEY
           if (!apiKey) {
             // Debug: Log all env vars that start with TRADING
             const tradingVars = Object.keys(process.env).filter(k => k.includes('TRADING'))
-            logger.error(`TRADING_ECONOMICS_API_KEY not configured, skipping ${indicator.id}`, { 
+            logger.error(`TE_API_KEY not configured, skipping ${indicator.id}`, { 
               job: jobId,
               indicatorId: indicator.id,
               envVarsWithTrading: tradingVars,
               nodeEnv: process.env.NODE_ENV,
               vercel: !!process.env.VERCEL,
             })
-            ingestErrors.push({ indicatorId: indicator.id, error: 'TRADING_ECONOMICS_API_KEY not configured' })
+            ingestErrors.push({ indicatorId: indicator.id, error: 'TE_API_KEY not configured' })
             errors++
             continue
           }

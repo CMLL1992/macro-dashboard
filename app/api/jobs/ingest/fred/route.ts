@@ -206,9 +206,9 @@ export async function POST(request: NextRequest) {
       // Special handling for USPMI (PMI Manufacturing from Trading Economics, not FRED)
       if (series.id === 'USPMI') {
         const seriesStartTime = Date.now()
-        if (!process.env.TRADING_ECONOMICS_API_KEY) {
-          logger.warn('TRADING_ECONOMICS_API_KEY not configured, skipping USPMI ingestion', { job: jobId })
-          ingestErrors.push({ seriesId: 'USPMI', error: 'TRADING_ECONOMICS_API_KEY not configured' })
+        if (!process.env.TE_API_KEY) {
+          logger.warn('TE_API_KEY not configured, skipping USPMI ingestion', { job: jobId })
+          ingestErrors.push({ seriesId: 'USPMI', error: 'TE_API_KEY not configured' })
           seriesTimings.push({ seriesId: 'USPMI', durationMs: Date.now() - seriesStartTime, success: false })
         } else {
           try {
@@ -226,7 +226,7 @@ export async function POST(request: NextRequest) {
             logger.info('Attempting USPMI ingestion from Trading Economics', { job: jobId })
             const { fetchUSPMIFromTradingEconomics } = await import('@/lib/ingestors/tradingeconomics')
             
-            const pmiObservations = await fetchUSPMIFromTradingEconomics(process.env.TRADING_ECONOMICS_API_KEY)
+            const pmiObservations = await fetchUSPMIFromTradingEconomics(process.env.TE_API_KEY)
             
             if (pmiObservations.length > 0) {
               const pmiSeries: MacroSeries = {
@@ -553,7 +553,7 @@ export async function POST(request: NextRequest) {
           job: jobId,
           series_id: 'USPMI',
           error: finalError,
-          hasApiKey: !!process.env.TRADING_ECONOMICS_API_KEY,
+          hasApiKey: !!process.env.TE_API_KEY,
           note: 'Job completed successfully - PMI can be inserted manually via /api/admin/pmi/insert',
         })
       } else {

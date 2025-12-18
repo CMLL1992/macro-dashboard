@@ -516,7 +516,7 @@ export async function fetchUSPMIFromTradingEconomics(
   apiKey: string
 ): Promise<Observation[]> {
   if (!apiKey) {
-    throw new Error("TRADING_ECONOMICS_API_KEY missing");
+    throw new Error("TE_API_KEY missing");
   }
   
   // Use the generic fetchTradingEconomics function
