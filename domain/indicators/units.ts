@@ -3,7 +3,16 @@
  * Fuente de verdad única para unidades de indicadores
  */
 
-export type Unit = '%' | 'bps' | 'index' | 'level' | 'ratio' | 'usd' | 'eur' | ''
+export type Unit =
+  | '%'
+  | 'bps'
+  | 'index'
+  | 'level'
+  | 'ratio'
+  | 'usd'
+  | 'eur'
+  | 'thousands'
+  | ''
 
 /**
  * Mapeo de indicatorKey → unit
