@@ -475,11 +475,38 @@ export class HTMLProvider implements CalendarProvider {
             const subpageHtml = await subpageResponse.text()
             const $sub = cheerio.load(subpageHtml)
             
-            // Extraer título del h1
-            const title = $sub('h1').first().text().trim()
+            // Extraer título: buscar en múltiples lugares (h1, title, meta, etc.)
+            // Evitar "Service Navigation" y otros h1 genéricos
+            let title = $sub('h1').filter((_, el) => {
+              const text = $sub(el).text().trim()
+              return text.length > 10 && 
+                     !text.includes('Service Navigation') && 
+                     !text.includes('Logo') &&
+                     !text.toLowerCase().includes('search')
+            }).first().text().trim()
+            
+            // Fallback: buscar en title tag o en el primer heading grande
+            if (!title || title.length < 5) {
+              title = $sub('title').first().text().trim()
+            }
+            if (!title || title.length < 5) {
+              title = $sub('h2, h3').first().text().trim()
+            }
+            
+            // Extraer del URL si todo falla (último recurso)
+            if (!title || title.length < 5) {
+              const urlParts = subpageUrl.split('/').pop()?.split('-') || []
+              title = urlParts.slice(0, -1).join(' ').replace(/-/g, ' ')
+            }
+            
             if (!title || title.length < 5) continue
             
-            // Buscar fecha en formato dd.mm.yyyy en el primer bullet
+            // Debug: log título si está activado
+            if (DEBUG && rawFound < 5) {
+              console.log(`[CAL_DEBUG] Bundesbank title[${rawFound}]: "${title}"`)
+            }
+            
+            // Buscar fecha en formato dd.mm.yyyy en el primer bullet o en el texto
             const text = $sub('body').text()
             const dateMatch = text.match(/(\d{2}\.\d{2}\.\d{4})/)
             if (!dateMatch) continue
@@ -495,6 +522,9 @@ export class HTMLProvider implements CalendarProvider {
             
             // Verificar whitelist (o bypass si está activado)
             const whitelistMatch = isHighImpactEvent(title, feed.country)
+            if (DEBUG && inRangeFound <= 5) {
+              console.log(`[CAL_DEBUG] Bundesbank whitelist check: "${title}" -> ${whitelistMatch ? 'MATCH' : 'NO MATCH'}`)
+            }
             if (!BYPASS_WHITELIST && !whitelistMatch) continue
             whitelistPassed++
             
