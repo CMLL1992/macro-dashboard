@@ -393,8 +393,8 @@ export class HTMLProvider implements CalendarProvider {
         // Buscar en el contexto después de "Upcoming Dates"
         const context = text.substring(upcomingIndex, upcomingIndex + 2000)
         
-        // Buscar fechas en formato "Jan. 27-28" o "January 27-28, 2026"
-        const datePattern = /(\w+\.?\s+\d{1,2}(?:-\d{1,2})?(?:,\s+\d{4})?)/gi
+        // Buscar fechas en formato "Jan. 27-28" o "January 27-28, 2026" o "Jan. 27–28" (con en-dash)
+        const datePattern = /(\w+\.?\s+\d{1,2}(?:[–-]\d{1,2})?(?:,\s+\d{4})?)/gi
         let match
         
         while ((match = datePattern.exec(context)) !== null) {
@@ -418,7 +418,9 @@ export class HTMLProvider implements CalendarProvider {
             continue // Solo eventos FOMC relevantes
           }
           
-          const eventDate = this.parseDate(dateStr, 'America/New_York')
+          // Usar parser robusto para fechas Fed
+          const eventDate = this.parseFedMonthDay(dateStr, 'America/New_York')
+          if (!eventDate) continue
           
           // Filtrar por rango
           if (eventDate < from || eventDate > to) continue
@@ -584,6 +586,61 @@ export class HTMLProvider implements CalendarProvider {
     }
     
     return events
+  }
+
+  /**
+   * Parser robusto para fechas Fed (formato "Jan. 27–28" sin año)
+   * @param input - String de fecha (ej: "Jan. 27–28", "Jan. 8", "January 8")
+   * @param tz - Timezone (opcional)
+   */
+  private parseFedMonthDay(input: string, tz?: string): Date | null {
+    // input examples: "Jan. 27–28", "Jan. 8", "January 8"
+    const clean = input
+      .replace(/\u2013|\u2014/g, '-')   // en dash/em dash -> hyphen
+      .replace(/\./g, '')               // "Jan." -> "Jan"
+      .trim()
+
+    // keep only first day if it's a range "Jan 27-28" => "Jan 27"
+    const firstPart = clean.split('-')[0].trim()
+
+    // match "Jan 27" or "January 27"
+    const m = firstPart.match(/^([A-Za-z]+)\s+(\d{1,2})$/i)
+    if (!m) return null
+
+    const monthName = m[1].toLowerCase()
+    const day = Number(m[2])
+
+    const monthMap: Record<string, number> = {
+      jan: 0, january: 0,
+      feb: 1, february: 1,
+      mar: 2, march: 2,
+      apr: 3, april: 3,
+      may: 4,
+      jun: 5, june: 5,
+      jul: 6, july: 6,
+      aug: 7, august: 7,
+      sep: 8, sept: 8, september: 8,
+      oct: 9, october: 9,
+      nov: 10, november: 10,
+      dec: 11, december: 11,
+    }
+
+    const month = monthMap[monthName]
+    if (month === undefined) return null
+
+    const now = new Date()
+    const year0 = now.getUTCFullYear()
+
+    // Create as UTC midnight; timezone alignment happens elsewhere
+    let d = new Date(Date.UTC(year0, month, day, 0, 0, 0))
+
+    // If date looks too far in the past, it probably belongs to next year
+    const sixtyDaysMs = 60 * 24 * 60 * 60 * 1000
+    if (d.getTime() < now.getTime() - sixtyDaysMs) {
+      d = new Date(Date.UTC(year0 + 1, month, day, 0, 0, 0))
+    }
+
+    return d
   }
 
   /**

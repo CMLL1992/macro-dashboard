@@ -418,6 +418,59 @@ export const HIGH_IMPACT_WHITELIST: HighImpactEvent[] = [
     category: 'Growth',
     directionality: 'higher_is_positive',
   },
+  // Bundesbank - Patrones por familia de publicaciones
+  {
+    matchTitleRegex: [
+      /balance\s+of\s+payments/i,
+      /bop\b/i,
+      /international\s+investment\s+position/i,
+      /iip\b/i,
+    ],
+    canonicalEventName: 'Balance of Payments / IIP',
+    country: 'DE',
+    currency: 'EUR',
+    category: 'Trade',
+    indicatorKey: 'de_bop',
+    directionality: 'higher_is_positive',
+  },
+  {
+    matchTitleRegex: [
+      /money\s+stock/i,
+      /mfi\s+interest\s+rate\s+statistics/i,
+      /securities\s+issues\s+statistics/i,
+    ],
+    canonicalEventName: 'Money Stock / MFI Statistics',
+    country: 'DE',
+    currency: 'EUR',
+    category: 'Monetary',
+    indicatorKey: 'de_money_stock',
+    directionality: 'higher_is_positive',
+  },
+  {
+    matchTitleRegex: [
+      /banks\s+reporting/i,
+      /credit/i,
+      /lending/i,
+    ],
+    canonicalEventName: 'Banks / Credit Statistics',
+    country: 'DE',
+    currency: 'EUR',
+    category: 'Monetary',
+    indicatorKey: 'de_banks',
+    directionality: 'higher_is_positive',
+  },
+  {
+    matchTitleRegex: [
+      /maastricht\s+debt/i,
+      /government\s+finance/i,
+    ],
+    canonicalEventName: 'Government Finance',
+    country: 'DE',
+    currency: 'EUR',
+    category: 'Growth',
+    indicatorKey: 'de_gov_finance',
+    directionality: 'lower_is_positive',
+  },
 
   // ===== REINO UNIDO (GBP) =====
   {
@@ -425,8 +478,9 @@ export const HIGH_IMPACT_WHITELIST: HighImpactEvent[] = [
       /^CPI.*UK$/i,
       /^CPI.*United\s+Kingdom$/i,
       /^Consumer\s+Price\s+Index.*UK$/i,
-      /^Consumer\s+price\s+inflation.*UK/i, // ONS formato real
-      /^CPI\(H\).*UK/i, // ONS formato alternativo
+      /consumer\s+price\s+inflation.*uk/i, // ONS formato real (case insensitive)
+      /cpi\s*\(h\).*uk/i, // ONS formato alternativo
+      /cpi\b.*uk|uk.*\bcpi\b/i, // Más permisivo
     ],
     canonicalEventName: 'CPI',
     country: 'UK',
@@ -482,8 +536,9 @@ export const HIGH_IMPACT_WHITELIST: HighImpactEvent[] = [
   },
   {
     matchTitleRegex: [
-      /^Producer\s+price\s+inflation.*UK/i, // ONS formato real
+      /producer\s+price\s+inflation.*uk/i, // ONS formato real (case insensitive)
       /^PPI.*UK$/i,
+      /ppi\b.*uk|uk.*\bppi\b/i, // Más permisivo
     ],
     canonicalEventName: 'PPI',
     country: 'UK',
