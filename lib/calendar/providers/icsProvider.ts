@@ -12,12 +12,12 @@
  * Usa node-ical para parsear archivos ICS (mejor compatibilidad ESM)
  */
 
+import "server-only"
+
 import { CalendarProvider } from '../provider'
 import { ProviderCalendarEvent, ProviderRelease } from '../types'
 import { isHighImpactEvent } from '@/config/calendar-whitelist'
-import ical from 'node-ical'
-// node-ical puede ser importado de diferentes formas según el entorno
-import ical from 'node-ical'
+import * as ical from "node-ical"
 
 interface ICSConfig {
   name: string
