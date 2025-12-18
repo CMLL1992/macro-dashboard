@@ -15,6 +15,7 @@ import { CalendarProvider } from '../provider'
 import { ProviderCalendarEvent, ProviderRelease } from '../types'
 import { isHighImpactEvent } from '@/config/calendar-whitelist'
 import * as cheerio from 'cheerio'
+import { writeFileSync, mkdirSync } from 'node:fs'
 
 interface HTMLFeedConfig {
   name: string
@@ -118,6 +119,24 @@ export class HTMLProvider implements CalendarProvider {
 
       const htmlText = await response.text()
 
+      // Modo DEBUG: Log y snapshot del HTML recibido
+      const DEBUG = process.env.CAL_DEBUG === '1'
+      
+      if (DEBUG) {
+        console.log(`[CAL_DEBUG] ${feed.name} status=${response.status} len=${htmlText.length}`)
+        console.log(`[CAL_DEBUG] ${feed.name} first500=\n${htmlText.slice(0, 500)}\n---`)
+        
+        // Snapshot opcional del HTML completo
+        try {
+          mkdirSync('./tmp', { recursive: true })
+          const safeName = feed.name.replace(/[^a-zA-Z0-9]/g, '_')
+          writeFileSync(`./tmp/${safeName}.html`, htmlText, 'utf8')
+          console.log(`[CAL_DEBUG] ${feed.name} snapshot saved to ./tmp/${safeName}.html`)
+        } catch (snapshotError) {
+          console.warn(`[CAL_DEBUG] Failed to save snapshot for ${feed.name}:`, snapshotError)
+        }
+      }
+
       // Parsear HTML con cheerio (pasar headers para subpáginas e ICS)
       const events = await this.parseHTML(htmlText, feed, from, to, headers)
 
@@ -140,6 +159,13 @@ export class HTMLProvider implements CalendarProvider {
     headers?: HeadersInit
   ): Promise<ProviderCalendarEvent[]> {
     const events: ProviderCalendarEvent[] = []
+    const DEBUG = process.env.CAL_DEBUG === '1'
+    const BYPASS_WHITELIST = process.env.CAL_BYPASS_WHITELIST === '1'
+    
+    // Contadores de diagnóstico
+    let rawFound = 0
+    let inRangeFound = 0
+    let whitelistPassed = 0
     
     try {
       const $ = cheerio.load(htmlText)
@@ -153,6 +179,8 @@ export class HTMLProvider implements CalendarProvider {
         let match
         
         while ((match = dateTimeRegex.exec(text)) !== null) {
+          rawFound++
+          
           const dateStr = match[1] // DD/MM/YYYY
           const timeStr = match[2] // HH:MM
           const matchIndex = match.index
@@ -183,26 +211,29 @@ export class HTMLProvider implements CalendarProvider {
             parseInt(minutes)
           ))
           
-          if (eventDate >= from && eventDate <= to) {
-            const whitelistMatch = isHighImpactEvent(title, feed.country)
-            
-            if (whitelistMatch) {
-              events.push({
-                externalId: `ECB-${feed.name}-${Date.now()}-${events.length}`,
-                country: feed.country,
-                currency: feed.currency,
-                name: whitelistMatch.canonicalEventName || title,
-                category: whitelistMatch.category,
-                importance: 'high',
-                scheduledTimeUTC: eventDate.toISOString(),
-                previous: null,
-                consensus: null,
-                maybeSeriesId: whitelistMatch.seriesId,
-                maybeIndicatorKey: whitelistMatch.indicatorKey,
-                directionality: whitelistMatch.directionality,
-              })
-            }
-          }
+          // Filtrar por rango
+          if (eventDate < from || eventDate > to) continue
+          inRangeFound++
+          
+          // Verificar whitelist (o bypass si está activado)
+          const whitelistMatch = isHighImpactEvent(title, feed.country)
+          if (!BYPASS_WHITELIST && !whitelistMatch) continue
+          whitelistPassed++
+          
+          events.push({
+            externalId: `ECB-${feed.name}-${Date.now()}-${events.length}`,
+            country: feed.country,
+            currency: feed.currency,
+            name: whitelistMatch?.canonicalEventName || title,
+            category: whitelistMatch?.category || 'other',
+            importance: 'high',
+            scheduledTimeUTC: eventDate.toISOString(),
+            previous: null,
+            consensus: null,
+            maybeSeriesId: whitelistMatch?.seriesId,
+            maybeIndicatorKey: whitelistMatch?.indicatorKey,
+            directionality: whitelistMatch?.directionality,
+          })
         }
       } else if (feed.name === 'INE Calendar HTML') {
         // INE: Descubrir link ICS desde la página HTML dinámicamente
@@ -244,6 +275,8 @@ export class HTMLProvider implements CalendarProvider {
         
         // También parsear HTML directamente como fallback
         $('table tr, .calendar-row, [class*="calendario"]').each((_, element) => {
+          rawFound++
+          
           const $row = $(element)
           const text = $row.text().trim()
           
@@ -260,26 +293,29 @@ export class HTMLProvider implements CalendarProvider {
           
           const eventDate = this.parseDate(dateStr, 'Europe/Madrid')
           
-          if (eventDate >= from && eventDate <= to) {
-            const whitelistMatch = isHighImpactEvent(title, feed.country)
-            
-            if (whitelistMatch) {
-              events.push({
-                externalId: `INE-HTML-${Date.now()}-${events.length}`,
-                country: feed.country,
-                currency: feed.currency,
-                name: whitelistMatch.canonicalEventName || title,
-                category: whitelistMatch.category,
-                importance: 'high',
-                scheduledTimeUTC: eventDate.toISOString(),
-                previous: null,
-                consensus: null,
-                maybeSeriesId: whitelistMatch.seriesId,
-                maybeIndicatorKey: whitelistMatch.indicatorKey,
-                directionality: whitelistMatch.directionality,
-              })
-            }
-          }
+          // Filtrar por rango
+          if (eventDate < from || eventDate > to) return
+          inRangeFound++
+          
+          // Verificar whitelist (o bypass si está activado)
+          const whitelistMatch = isHighImpactEvent(title, feed.country)
+          if (!BYPASS_WHITELIST && !whitelistMatch) return
+          whitelistPassed++
+          
+          events.push({
+            externalId: `INE-HTML-${Date.now()}-${events.length}`,
+            country: feed.country,
+            currency: feed.currency,
+            name: whitelistMatch?.canonicalEventName || title,
+            category: whitelistMatch?.category || 'other',
+            importance: 'high',
+            scheduledTimeUTC: eventDate.toISOString(),
+            previous: null,
+            consensus: null,
+            maybeSeriesId: whitelistMatch?.seriesId,
+            maybeIndicatorKey: whitelistMatch?.indicatorKey,
+            directionality: whitelistMatch?.directionality,
+          })
         })
       } else if (feed.name === 'ONS Release Calendar') {
         // ONS: Estrategia robusta - buscar "Release date:" con regex
@@ -291,6 +327,8 @@ export class HTMLProvider implements CalendarProvider {
           // Buscar patrón: "Release date: DD Month YYYY HH:MM(am|pm)"
           const dateMatch = text.match(/Release date:\s*(\d{1,2}\s+\w+\s+\d{4})\s+(\d{1,2}:\d{2}(?:am|pm)?)/i)
           if (!dateMatch) return
+          
+          rawFound++
           
           const dateStr = dateMatch[1] // "DD Month YYYY"
           const timeStr = dateMatch[2] || '09:30' // "HH:MM" o default
@@ -316,26 +354,29 @@ export class HTMLProvider implements CalendarProvider {
           
           const eventDate = this.parseDateWithTime(dateStr, hour24, minutes || 0, 'Europe/London')
           
-          if (eventDate >= from && eventDate <= to) {
-            const whitelistMatch = isHighImpactEvent(title, feed.country)
-            
-            if (whitelistMatch) {
-              events.push({
-                externalId: `ONS-${Date.now()}-${events.length}`,
-                country: feed.country,
-                currency: feed.currency,
-                name: whitelistMatch.canonicalEventName || title,
-                category: whitelistMatch.category,
-                importance: 'high',
-                scheduledTimeUTC: eventDate.toISOString(),
-                previous: null,
-                consensus: null,
-                maybeSeriesId: whitelistMatch.seriesId,
-                maybeIndicatorKey: whitelistMatch.indicatorKey,
-                directionality: whitelistMatch.directionality,
-              })
-            }
-          }
+          // Filtrar por rango
+          if (eventDate < from || eventDate > to) return
+          inRangeFound++
+          
+          // Verificar whitelist (o bypass si está activado)
+          const whitelistMatch = isHighImpactEvent(title, feed.country)
+          if (!BYPASS_WHITELIST && !whitelistMatch) return
+          whitelistPassed++
+          
+          events.push({
+            externalId: `ONS-${Date.now()}-${events.length}`,
+            country: feed.country,
+            currency: feed.currency,
+            name: whitelistMatch?.canonicalEventName || title,
+            category: whitelistMatch?.category || 'other',
+            importance: 'high',
+            scheduledTimeUTC: eventDate.toISOString(),
+            previous: null,
+            consensus: null,
+            maybeSeriesId: whitelistMatch?.seriesId,
+            maybeIndicatorKey: whitelistMatch?.indicatorKey,
+            directionality: whitelistMatch?.directionality,
+          })
         })
       } else if (feed.name === 'Fed Upcoming Dates') {
         // Fed: Buscar bloque "Upcoming Dates" y extraer eventos FOMC
@@ -343,6 +384,9 @@ export class HTMLProvider implements CalendarProvider {
         const upcomingIndex = text.toLowerCase().indexOf('upcoming dates')
         if (upcomingIndex === -1) {
           // No se encontró "Upcoming Dates", continuar sin eventos de este feed
+          if (DEBUG) {
+            console.log(`[CAL_DEBUG] ${feed.name} raw=${rawFound} inRange=${inRangeFound} whitelist=${whitelistPassed} returned=${events.length}`)
+          }
           return events
         }
         
@@ -354,6 +398,8 @@ export class HTMLProvider implements CalendarProvider {
         let match
         
         while ((match = datePattern.exec(context)) !== null) {
+          rawFound++
+          
           const dateStr = match[1]
           
           // Buscar título en el contexto cercano (FOMC Meeting, FOMC Minutes, Press Conference)
@@ -374,26 +420,29 @@ export class HTMLProvider implements CalendarProvider {
           
           const eventDate = this.parseDate(dateStr, 'America/New_York')
           
-          if (eventDate >= from && eventDate <= to) {
-            const whitelistMatch = isHighImpactEvent(title, feed.country)
-            
-            if (whitelistMatch) {
-              events.push({
-                externalId: `Fed-${Date.now()}-${events.length}`,
-                country: feed.country,
-                currency: feed.currency,
-                name: whitelistMatch.canonicalEventName || title,
-                category: whitelistMatch.category,
-                importance: 'high',
-                scheduledTimeUTC: eventDate.toISOString(),
-                previous: null,
-                consensus: null,
-                maybeSeriesId: whitelistMatch.seriesId,
-                maybeIndicatorKey: whitelistMatch.indicatorKey,
-                directionality: whitelistMatch.directionality,
-              })
-            }
-          }
+          // Filtrar por rango
+          if (eventDate < from || eventDate > to) continue
+          inRangeFound++
+          
+          // Verificar whitelist (o bypass si está activado)
+          const whitelistMatch = isHighImpactEvent(title, feed.country)
+          if (!BYPASS_WHITELIST && !whitelistMatch) continue
+          whitelistPassed++
+          
+          events.push({
+            externalId: `Fed-${Date.now()}-${events.length}`,
+            country: feed.country,
+            currency: feed.currency,
+            name: whitelistMatch?.canonicalEventName || title,
+            category: whitelistMatch?.category || 'other',
+            importance: 'high',
+            scheduledTimeUTC: eventDate.toISOString(),
+            previous: null,
+            consensus: null,
+            maybeSeriesId: whitelistMatch?.seriesId,
+            maybeIndicatorKey: whitelistMatch?.indicatorKey,
+            directionality: whitelistMatch?.directionality,
+          })
         }
       } else if (feed.name === 'Bundesbank Release Calendar') {
         // Bundesbank: Extraer links a subpáginas y parsear cada una
@@ -434,28 +483,33 @@ export class HTMLProvider implements CalendarProvider {
             if (!dateMatch) continue
             
             const dateStr = dateMatch[1]
+            rawFound++
+            
             const eventDate = this.parseDate(dateStr, 'Europe/Berlin')
             
-            if (eventDate >= from && eventDate <= to) {
-              const whitelistMatch = isHighImpactEvent(title, feed.country)
-              
-              if (whitelistMatch) {
-                events.push({
-                  externalId: `Bundesbank-${subpageUrl.split('-').pop()}-${events.length}`,
-                  country: feed.country,
-                  currency: feed.currency,
-                  name: whitelistMatch.canonicalEventName || title,
-                  category: whitelistMatch.category,
-                  importance: 'high',
-                  scheduledTimeUTC: eventDate.toISOString(),
-                  previous: null,
-                  consensus: null,
-                  maybeSeriesId: whitelistMatch.seriesId,
-                  maybeIndicatorKey: whitelistMatch.indicatorKey,
-                  directionality: whitelistMatch.directionality,
-                })
-              }
-            }
+            // Filtrar por rango
+            if (eventDate < from || eventDate > to) continue
+            inRangeFound++
+            
+            // Verificar whitelist (o bypass si está activado)
+            const whitelistMatch = isHighImpactEvent(title, feed.country)
+            if (!BYPASS_WHITELIST && !whitelistMatch) continue
+            whitelistPassed++
+            
+            events.push({
+              externalId: `Bundesbank-${subpageUrl.split('-').pop()}-${events.length}`,
+              country: feed.country,
+              currency: feed.currency,
+              name: whitelistMatch?.canonicalEventName || title,
+              category: whitelistMatch?.category || 'other',
+              importance: 'high',
+              scheduledTimeUTC: eventDate.toISOString(),
+              previous: null,
+              consensus: null,
+              maybeSeriesId: whitelistMatch?.seriesId,
+              maybeIndicatorKey: whitelistMatch?.indicatorKey,
+              directionality: whitelistMatch?.directionality,
+            })
           } catch (subpageError) {
             console.warn(`[HTMLProvider] Error fetching Bundesbank subpage ${subpageUrl}:`, subpageError)
             // Continuar con siguiente subpágina
@@ -466,6 +520,11 @@ export class HTMLProvider implements CalendarProvider {
       console.error(`[HTMLProvider] Error parsing HTML with cheerio:`, error)
       // Fallback a parser básico si cheerio falla
       return this.parseHTMLBasic(htmlText, feed, from, to)
+    }
+    
+    // Log de diagnóstico al final de cada feed
+    if (DEBUG) {
+      console.log(`[CAL_DEBUG] ${feed.name} raw=${rawFound} inRange=${inRangeFound} whitelist=${whitelistPassed} returned=${events.length}`)
     }
     
     return events
