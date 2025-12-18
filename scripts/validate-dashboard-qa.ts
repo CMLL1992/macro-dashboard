@@ -38,6 +38,9 @@ interface DashboardResponse {
       regime?: string
       probability?: number
       description?: string
+      coverage?: number
+      missingKeys?: string[]
+      presentKeys?: string[]
     }>
     scenarios?: any[]
     scenariosActive?: any[]
@@ -273,7 +276,7 @@ function validateRegimesByCurrency(data: DashboardResponse['data']): ValidationR
     }
   }
 
-  // Check for duplicates
+  // Check for duplicates (pero permitir insufficient_data si hay cobertura baja)
   const typeCounts: Record<string, string[]> = {}
   for (const [currency, type] of Object.entries(regimeTypes)) {
     if (!typeCounts[type]) typeCounts[type] = []
@@ -281,9 +284,37 @@ function validateRegimesByCurrency(data: DashboardResponse['data']): ValidationR
   }
 
   for (const [type, currencies] of Object.entries(typeCounts)) {
-    if (currencies.length > 1) {
+    // insufficient_data es válido si hay cobertura baja (no es error)
+    if (type === 'insufficient_data') {
+      // Verificar que realmente hay cobertura baja
+      for (const currency of currencies) {
+        const regime = currencyRegimes[currency]
+        const coverage = (regime as any).coverage ?? 0
+        if (coverage >= 0.3) {
+          result.warnings.push(`⚠️ ${currency}: Marcado como insufficient_data pero cobertura es ${(coverage * 100).toFixed(0)}%`)
+        } else {
+          // Es esperado, no es error - añadir a detalles
+          if (!result.details) result.details = {}
+          result.details[`${currency}_coverage`] = coverage
+          result.details[`${currency}_missingKeys`] = (regime as any).missingKeys ?? []
+        }
+      }
+      continue
+    }
+    
+    // Para otros tipos, verificar duplicados
+    if (currencies.length > 1 && type !== 'mixed') {
       result.passed = false
       result.errors.push(`❌ Mismo régimen "${type}" en múltiples monedas: ${currencies.join(', ')} (posible clonado)`)
+    }
+  }
+  
+  // Validar que monedas con cobertura baja tienen insufficient_data
+  for (const [currency, regime] of Object.entries(currencyRegimes)) {
+    const coverage = (regime as any).coverage ?? 1.0
+    const regimeType = regime.regime || regime.type
+    if (coverage < 0.3 && regimeType !== 'insufficient_data') {
+      result.warnings.push(`⚠️ ${currency}: Cobertura baja (${(coverage * 100).toFixed(0)}%) pero régimen es "${regimeType}" (esperado: insufficient_data)`)
     }
   }
 

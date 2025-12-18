@@ -296,15 +296,15 @@ export async function getMacroDiagnosis() {
   // Calcular scores por moneda
   const currencyScores = computeCurrencyScores(items, WEIGHTS, CURRENCY_INDICATORS)
   
-  // Calcular regímenes macro por moneda con features específicos
+  // Calcular regímenes macro por moneda con validación de cobertura
   // Cada moneda debe calcularse independientemente para evitar clonados
   // Pasar el régimen global para contexto adicional
   const currencyRegimes: Record<Currency, RegimeResult> = {
-    USD: calcCurrencyRegime('USD', currencyScores.USD, regime),
-    EUR: calcCurrencyRegime('EUR', currencyScores.EUR, regime),
-    GBP: calcCurrencyRegime('GBP', currencyScores.GBP, regime),
-    JPY: calcCurrencyRegime('JPY', currencyScores.JPY, regime),
-    AUD: calcCurrencyRegime('AUD', currencyScores.AUD, regime),
+    USD: calcCurrencyRegimeWithCoverage('USD', currencyScores.USD, items, regime),
+    EUR: calcCurrencyRegimeWithCoverage('EUR', currencyScores.EUR, items, regime),
+    GBP: calcCurrencyRegimeWithCoverage('GBP', currencyScores.GBP, items, regime),
+    JPY: calcCurrencyRegimeWithCoverage('JPY', currencyScores.JPY, items, regime),
+    AUD: calcCurrencyRegimeWithCoverage('AUD', currencyScores.AUD, items, regime),
   }
 
   // Debug: Log features por moneda (solo en dev)
@@ -444,6 +444,7 @@ export type MacroRegime =
   | 'recession'       // Crecimiento débil + Inflación baja
   | 'goldilocks'      // Crecimiento fuerte + Inflación baja
   | 'mixed'           // Señales mixtas
+  | 'insufficient_data' // Datos insuficientes para calcular régimen
 
 /**
  * Resultado de clasificación de régimen
@@ -452,6 +453,9 @@ export interface RegimeResult {
   regime: MacroRegime
   probability: number // 0–1
   description: string // Descripción legible
+  coverage?: number // 0..1 (opcional, para regímenes con validación de cobertura)
+  missingKeys?: string[] // Keys de indicadores faltantes (opcional)
+  presentKeys?: string[] // Keys de indicadores presentes (opcional)
 }
 
 /**
@@ -533,6 +537,121 @@ export function getRegime(growthScore: number, inflationScore: number): RegimeRe
   const probability = Math.min(1, Math.max(0.3, magnitude / 0.5)) // Mínimo 30% para evitar 0
 
   return { regime, probability, description }
+}
+
+/**
+ * Tipo para pack de features con cobertura
+ */
+type CurrencyFeaturePack = {
+  features: {
+    growth: number
+    inflation: number
+    labor: number
+    monetary: number
+    sentiment: number
+    total: number
+  }
+  coverage: number // 0..1
+  missing: string[] // indicator keys faltantes
+  present: string[] // indicator keys presentes
+}
+
+/**
+ * Construye pack de features con cobertura para una moneda
+ */
+function buildCurrencyFeaturePack(
+  ccy: Currency,
+  items: Array<{ key: string; value: number | null | undefined }>,
+  currencyIndicators: Record<string, CurrencyIndicatorMeta>,
+  score: CurrencyScore
+): CurrencyFeaturePack {
+  // Obtener todos los indicadores requeridos para esta moneda
+  const requiredKeys: string[] = []
+  for (const [seriesId, meta] of Object.entries(currencyIndicators)) {
+    if (meta.currency === ccy) {
+      // Buscar el key interno que mapea a este series_id
+      const internalKey = Object.entries(MAP_KEY_TO_WEIGHT_KEY).find(
+        ([_, mappedId]) => mappedId === seriesId
+      )?.[0]
+      if (internalKey) {
+        requiredKeys.push(internalKey)
+      }
+    }
+  }
+
+  const present: string[] = []
+  const missing: string[] = []
+
+  // Verificar qué indicadores tienen datos válidos
+  for (const key of requiredKeys) {
+    const item = items.find((i: any) => i.key === key || i.originalKey === key)
+    const v = item?.value
+    const ok = v !== null && v !== undefined && !Number.isNaN(v)
+    if (ok) {
+      present.push(key)
+    } else {
+      missing.push(key)
+    }
+  }
+
+  const coverage = requiredKeys.length === 0 ? 0 : present.length / requiredKeys.length
+
+  // Construir features (usando los valores disponibles)
+  const features = {
+    growth: score.growthScore,
+    inflation: score.inflationScore,
+    labor: score.laborScore,
+    monetary: score.monetaryScore,
+    sentiment: score.sentimentScore,
+    total: score.totalScore,
+  }
+
+  return { features, coverage, missing, present }
+}
+
+/**
+ * Calcula el régimen de una moneda con validación de cobertura
+ * Si la cobertura es insuficiente, devuelve "insufficient_data"
+ */
+function calcCurrencyRegimeWithCoverage(
+  ccy: Currency,
+  score: CurrencyScore,
+  items: Array<{ key: string; value: number | null | undefined }>,
+  globalRegime?: string
+): RegimeResult {
+  // Constantes de validación
+  const MIN_COVERAGE = 0.3 // Mínimo 30% de indicadores con datos
+  const MIN_PRESENT = 3 // Mínimo 3 indicadores presentes (evita 1/2 señales sueltas)
+
+  // Construir pack de features con cobertura
+  const pack = buildCurrencyFeaturePack(ccy, items, CURRENCY_INDICATORS, score)
+
+  // Gate de cobertura: si no hay suficientes datos, devolver insufficient_data
+  if (pack.coverage < MIN_COVERAGE || pack.present.length < MIN_PRESENT) {
+    const missingCount = pack.missing.length
+    const presentCount = pack.present.length
+    const totalCount = pack.present.length + pack.missing.length
+
+    return {
+      regime: 'insufficient_data',
+      probability: 0,
+      description: `Sin datos suficientes (${(pack.coverage * 100).toFixed(0)}% cobertura, ${presentCount}/${totalCount} indicadores)`,
+      coverage: pack.coverage,
+      missingKeys: pack.missing.slice(0, 8), // Limitar para UI
+      presentKeys: pack.present.slice(0, 8),
+    }
+  }
+
+  // Si hay cobertura suficiente, calcular régimen normalmente
+  const regimeResult = calcCurrencyRegime(ccy, score, globalRegime)
+
+  // Añadir metadata de cobertura
+  return {
+    ...regimeResult,
+    coverage: pack.coverage,
+    missingKeys: pack.missing.slice(0, 8),
+    presentKeys: pack.present.slice(0, 8),
+  }
 }
 
 /**
@@ -651,6 +770,7 @@ export function getRegimeLabel(regime: MacroRegime): string {
     recession: 'Recesión',
     goldilocks: 'Goldilocks',
     mixed: 'Mixto',
+    insufficient_data: 'Sin datos suficientes',
   }
   return labels[regime] || 'Desconocido'
 }
