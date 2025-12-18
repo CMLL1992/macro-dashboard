@@ -315,8 +315,11 @@ export async function getMacroDiagnosis() {
         inflationScore: score.inflationScore,
         laborScore: score.laborScore,
         monetaryScore: score.monetaryScore,
+        sentimentScore: score.sentimentScore,
+        totalScore: score.totalScore,
         regime: regime.regime,
         probability: regime.probability,
+        description: regime.description,
       })
     }
   }
@@ -556,19 +559,40 @@ function calcCurrencyRegime(ccy: Currency, score: CurrencyScore): RegimeResult {
   let adjustedGrowth = features.growth
   let adjustedInflation = features.inflation
   
-  // Si ambas señales son muy pequeñas, amplificar usando otros scores
+  // Si ambas señales son muy pequeñas (< 0.05), usar otros scores para diferenciar
   if (growthMagnitude < 0.05 && inflationMagnitude < 0.05) {
-    // Usar labor y monetary como proxy de growth/inflation
-    const laborWeight = 0.3
-    const monetaryWeight = 0.2
-    const sentimentWeight = 0.1
+    // Estrategia: usar totalScore como proxy si está disponible y es significativo
+    const totalMagnitude = Math.abs(features.total)
     
-    adjustedGrowth = features.growth + (features.labor * laborWeight) + (features.sentiment * sentimentWeight)
-    adjustedInflation = features.inflation + (features.monetary * monetaryWeight)
-    
-    // Asegurar que no excedan [-1, 1]
-    adjustedGrowth = Math.max(-1, Math.min(1, adjustedGrowth))
-    adjustedInflation = Math.max(-1, Math.min(1, adjustedInflation))
+    if (totalMagnitude > 0.05) {
+      // Si totalScore tiene señal, usarlo para diferenciar
+      // Proyectar totalScore en growth/inflation según la dirección
+      if (features.total > 0) {
+        adjustedGrowth = Math.max(0.05, features.total * 0.6) // Proyectar 60% a growth
+        adjustedInflation = features.total * 0.4 // Proyectar 40% a inflation
+      } else {
+        adjustedGrowth = Math.min(-0.05, features.total * 0.6)
+        adjustedInflation = features.total * 0.4
+      }
+    } else {
+      // Si totalScore también es pequeño, usar labor/monetary/sentiment como diferenciadores
+      const laborWeight = 0.4
+      const monetaryWeight = 0.3
+      const sentimentWeight = 0.2
+      
+      adjustedGrowth = features.growth + (features.labor * laborWeight) + (features.sentiment * sentimentWeight)
+      adjustedInflation = features.inflation + (features.monetary * monetaryWeight)
+      
+      // Asegurar que no excedan [-1, 1] pero tengan al menos una mínima señal
+      adjustedGrowth = Math.max(-1, Math.min(1, adjustedGrowth))
+      adjustedInflation = Math.max(-1, Math.min(1, adjustedInflation))
+      
+      // Si aún están muy cerca de 0, forzar una mínima diferenciación basada en totalScore
+      if (Math.abs(adjustedGrowth) < 0.03 && Math.abs(adjustedInflation) < 0.03 && Math.abs(features.total) > 0.01) {
+        adjustedGrowth = features.total * 0.5
+        adjustedInflation = features.total * 0.3
+      }
+    }
   }
 
   // Usar getRegime con scores ajustados
