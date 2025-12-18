@@ -504,3 +504,21 @@ export async function fetchTradingEconomicsMultiple(
   
   return results;
 }
+
+/**
+ * Fetch US ISM Manufacturing PMI from Trading Economics
+ * Wrapper around fetchTradingEconomics for USPMI specifically
+ * 
+ * @param apiKey Trading Economics API key
+ * @returns Array of observations with normalized dates (YYYY-MM-01) and values
+ */
+export async function fetchUSPMIFromTradingEconomics(
+  apiKey: string
+): Promise<Observation[]> {
+  if (!apiKey) {
+    throw new Error("TRADING_ECONOMICS_API_KEY missing");
+  }
+  
+  // Use the generic fetchTradingEconomics function
+  return fetchTradingEconomics("ISM Manufacturing PMI", apiKey, "United States");
+}

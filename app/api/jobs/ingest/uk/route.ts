@@ -14,7 +14,7 @@ import { logger } from '@/lib/obs/logger'
 import { getUnifiedDB, isUsingTurso } from '@/lib/db/unified-db'
 import { upsertMacroSeries } from '@/lib/db/upsert'
 import type { MacroSeries } from '@/lib/types/macro'
-import { fetchTradingEconomics } from '@/packages/ingestors/tradingEconomics'
+import { fetchTradingEconomics } from '@/packages/ingestors/tradingeconomics'
 import fs from 'node:fs'
 import path from 'node:path'
 
