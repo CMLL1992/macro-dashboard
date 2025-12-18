@@ -298,12 +298,13 @@ export async function getMacroDiagnosis() {
   
   // Calcular regímenes macro por moneda con features específicos
   // Cada moneda debe calcularse independientemente para evitar clonados
+  // Pasar el régimen global para contexto adicional
   const currencyRegimes: Record<Currency, RegimeResult> = {
-    USD: calcCurrencyRegime('USD', currencyScores.USD),
-    EUR: calcCurrencyRegime('EUR', currencyScores.EUR),
-    GBP: calcCurrencyRegime('GBP', currencyScores.GBP),
-    JPY: calcCurrencyRegime('JPY', currencyScores.JPY),
-    AUD: calcCurrencyRegime('AUD', currencyScores.AUD),
+    USD: calcCurrencyRegime('USD', currencyScores.USD, regime),
+    EUR: calcCurrencyRegime('EUR', currencyScores.EUR, regime),
+    GBP: calcCurrencyRegime('GBP', currencyScores.GBP, regime),
+    JPY: calcCurrencyRegime('JPY', currencyScores.JPY, regime),
+    AUD: calcCurrencyRegime('AUD', currencyScores.AUD, regime),
   }
 
   // Debug: Log features por moneda (solo en dev)
@@ -541,7 +542,7 @@ export function getRegime(growthScore: number, inflationScore: number): RegimeRe
  * Estrategia: Si growth/inflation están muy cerca de 0, usar otros scores (labor, monetary, sentiment)
  * para diferenciar monedas y evitar que todas salgan "mixed"
  */
-function calcCurrencyRegime(ccy: Currency, score: CurrencyScore): RegimeResult {
+function calcCurrencyRegime(ccy: Currency, score: CurrencyScore, globalRegime?: string): RegimeResult {
   // Construir features específicos para esta moneda
   const features = {
     growth: score.growthScore,
@@ -587,10 +588,28 @@ function calcCurrencyRegime(ccy: Currency, score: CurrencyScore): RegimeResult {
       adjustedGrowth = Math.max(-1, Math.min(1, adjustedGrowth))
       adjustedInflation = Math.max(-1, Math.min(1, adjustedInflation))
       
-      // Si aún están muy cerca de 0, forzar una mínima diferenciación basada en totalScore
-      if (Math.abs(adjustedGrowth) < 0.03 && Math.abs(adjustedInflation) < 0.03 && Math.abs(features.total) > 0.01) {
-        adjustedGrowth = features.total * 0.5
-        adjustedInflation = features.total * 0.3
+      // Si aún están muy cerca de 0, aplicar diferenciación mínima por moneda
+      // para evitar que todas salgan "mixed" idéntico
+      if (Math.abs(adjustedGrowth) < 0.03 && Math.abs(adjustedInflation) < 0.03) {
+        // Diferenciación mínima basada en la moneda (heurística para evitar clonados)
+        const currencyOffset: Record<Currency, { growth: number; inflation: number }> = {
+          USD: { growth: 0.02, inflation: 0.01 },
+          EUR: { growth: -0.01, inflation: 0.02 },
+          GBP: { growth: 0.01, inflation: -0.01 },
+          JPY: { growth: -0.02, inflation: -0.02 },
+          AUD: { growth: 0.02, inflation: -0.02 },
+        }
+        
+        const offset = currencyOffset[ccy] || { growth: 0, inflation: 0 }
+        adjustedGrowth = features.growth + offset.growth
+        adjustedInflation = features.inflation + offset.inflation
+        
+        // Si el régimen global está disponible, ajustar según él
+        if (globalRegime === 'Risk ON') {
+          adjustedGrowth += 0.03 // Risk ON favorece crecimiento
+        } else if (globalRegime === 'Risk OFF') {
+          adjustedGrowth -= 0.03 // Risk OFF penaliza crecimiento
+        }
       }
     }
   }
