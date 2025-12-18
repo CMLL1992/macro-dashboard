@@ -39,7 +39,8 @@
     "verify:local": "NODE_OPTIONS=\"--conditions=react-server\" tsx scripts/verificar-local-completo.ts",
     "db:migrate:turso": "tsx scripts/migrate-turso.ts",
     "test:calendar": "tsx scripts/test-calendar-providers.ts",
-    "validate:qa": "tsx scripts/validate-dashboard-qa.ts"
+    "validate:qa": "tsx scripts/validate-dashboard-qa.ts",
+    "analyze:currency-coverage": "tsx scripts/analyze-currency-indicators-coverage.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",
