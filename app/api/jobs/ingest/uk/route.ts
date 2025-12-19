@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       status: string
       firstDate?: string
       lastDate?: string
-      sample?: Array<{ date: string; value: number }>
+      sample?: Array<{ date: string; value: number | null }>
       url?: string
     }> = []
 
