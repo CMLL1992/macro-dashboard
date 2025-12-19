@@ -206,12 +206,20 @@ export async function POST(request: NextRequest) {
                   indicatorId: indicator.id,
                   error: errorMessage,
                 })
-                ingestErrors.push({ 
+                const errorEntry = { 
                   indicatorId: indicator.id, 
                   error: `source_not_allowed: Trading Economics plan does not include Australia data`,
                   errorType: 'source_not_allowed'
-                })
+                }
+                ingestErrors.push(errorEntry)
                 errors++
+                if (dryRun) {
+                  dryRunResults.push({
+                    indicatorId: indicator.id,
+                    source: 'trading_economics',
+                    status: 'error',
+                  })
+                }
                 continue
               } else {
                 throw new Error(`Trading Economics error: ${errorMessage}`)
