@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
                 unit: indicator.unit,
                 data: observations.map(obs => ({
                   date: obs.date,
-                  value: obs.value,
+                  value: obs.value ?? null,
                 })),
               }
               sourceUsed = 'estat'
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
                 unit: indicator.unit,
                 data: observations.map(obs => ({
                   date: obs.date,
-                  value: obs.value,
+                  value: obs.value ?? null,
                 })),
               }
               sourceUsed = 'trading_economics'
