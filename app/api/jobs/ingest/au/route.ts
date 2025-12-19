@@ -121,12 +121,20 @@ export async function POST(request: NextRequest) {
             
             // If it's a mapping error, don't try TE fallback (it will also fail)
             if (errorType === 'source_mapping_error' && indicator.source === 'abs') {
-              ingestErrors.push({ 
+              const errorEntry = { 
                 indicatorId: indicator.id, 
                 error: `ABS mapping error: ${errorMsg}`,
                 errorType: 'source_mapping_error'
-              })
+              }
+              ingestErrors.push(errorEntry)
               errors++
+              if (dryRun) {
+                dryRunResults.push({
+                  indicatorId: indicator.id,
+                  source: 'abs',
+                  status: 'error',
+                })
+              }
               continue
             }
             // Fall through to Trading Economics if ABS fails
@@ -215,6 +223,14 @@ export async function POST(request: NextRequest) {
         }
 
         if (!macroSeries) {
+          if (dryRun) {
+            dryRunResults.push({
+              indicatorId: indicator.id,
+              source: 'none',
+              status: 'error',
+            })
+            continue
+          }
           throw new Error('Failed to fetch macro series')
         }
 

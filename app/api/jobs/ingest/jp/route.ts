@@ -83,12 +83,20 @@ export async function POST(request: NextRequest) {
                 job: jobId,
                 indicatorId: indicator.id,
               })
-              ingestErrors.push({ 
+              const errorEntry = { 
                 indicatorId: indicator.id, 
                 error: 'ESTAT_APP_ID not configured',
                 errorType: 'source_not_configured'
-              })
+              }
+              ingestErrors.push(errorEntry)
               errors++
+              if (dryRun) {
+                dryRunResults.push({
+                  indicatorId: indicator.id,
+                  source: 'estat',
+                  status: 'error',
+                })
+              }
               continue
             }
             
@@ -138,12 +146,20 @@ export async function POST(request: NextRequest) {
             
             // If it's a mapping error, don't try TE fallback (it will also fail)
             if (errorType === 'source_mapping_error' && indicator.source === 'estat') {
-              ingestErrors.push({ 
+              const errorEntry = { 
                 indicatorId: indicator.id, 
                 error: `e-Stat mapping error: ${errorMsg}`,
                 errorType: 'source_mapping_error'
-              })
+              }
+              ingestErrors.push(errorEntry)
               errors++
+              if (dryRun) {
+                dryRunResults.push({
+                  indicatorId: indicator.id,
+                  source: 'estat',
+                  status: 'error',
+                })
+              }
               continue
             }
             // Fall through to Trading Economics if e-Stat fails
@@ -232,6 +248,14 @@ export async function POST(request: NextRequest) {
         }
 
         if (!macroSeries) {
+          if (dryRun) {
+            dryRunResults.push({
+              indicatorId: indicator.id,
+              source: 'none',
+              status: 'error',
+            })
+            continue
+          }
           throw new Error('Failed to fetch macro series')
         }
 
