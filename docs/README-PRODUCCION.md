@@ -133,6 +133,19 @@
 
 ---
 
+## 🔒 Módulos congelados (v1)
+
+- **Macro Overview v1** — FROZEN (2026-01-28)  
+  - Single source of truth: `GET /api/overview?tf=d|w|m`  
+  - No cambiar semántica ni contrato sin subir versión.
+
+- **Macro Bits v1** — FROZEN (2026-01-28)  
+  - Single source of truth: `GET /api/overview?tf=m` (Overview mensual).  
+  - Universo PROD: `USD, EUR, GBP, JPY`.  
+  - Solo contexto descriptivo (sin probabilidades ni señales).
+
+---
+
 ## 📞 Soporte
 
 Si encuentras problemas no cubiertos en la documentación:
@@ -162,6 +175,7 @@ Una vez completado todo el proceso, el dashboard **CM11 Trading** debe:
 
 **Última actualización:** Enero 2025  
 **Versión del proyecto:** CM11 Trading Dashboard v1.0
+
 
 
 

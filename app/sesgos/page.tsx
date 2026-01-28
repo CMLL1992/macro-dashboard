@@ -1,12 +1,11 @@
+/**
+ * Macro Bits v1 — FROZEN (2026-01-28)
+ * Uses Macro Overview monthly (/api/overview?tf=m) as single source of truth.
+ * Do not change semantics or PROD universe (USD/EUR/GBP/JPY) without a version bump.
+ */
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-import getTradingBiasState, {
-  type AssetTradingBias,
-  type TradingBiasSide,
-} from '@/domain/macro-engine/trading-bias'
-import { calculateExposureOverlap } from '@/domain/macro-engine/exposure'
-import { calculateHistoricalConfidenceBatch } from '@/domain/macro-engine/historical-confidence'
 import { Badge } from '@/components/ui/badge'
 import {
   Card,
@@ -15,266 +14,351 @@ import {
   CardDescription,
   CardContent,
 } from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { cn } from '@/lib/utils'
-import { Accordion } from '@/components/ui/accordion'
-import ExposureOverlap from '@/components/ExposureOverlap'
-import HistoricalConfidenceBadge from '@/components/HistoricalConfidenceBadge'
+import { cn } from '@/components/ui/utils'
+import InfoTooltip from '@/components/InfoTooltip'
+import { headers } from 'next/headers'
 
-function sideLabel(side: TradingBiasSide) {
-  switch (side) {
-    case 'Long':
-      return 'Sólo compras'
-    case 'Short':
-      return 'Sólo ventas'
-    default:
-      return 'Neutral'
+type OverviewMonthly = {
+  regimeGlobal: {
+    risk: 'Risk ON' | 'Risk OFF' | 'Neutral'
+    usdDirection: 'Fuerte' | 'Débil' | 'Neutral'
+    growthTrend: 'acelerando' | 'desacelerando' | 'estable'
+    inflationTrend: 'acelerando' | 'desacelerando' | 'estable'
+    confidence: 'Alta' | 'Media' | 'Baja'
+    topDrivers: Array<{ key: string; label: string; reason: string }>
   }
+  currencyScoreboard: Array<{ currency: string; score: number; status: 'Fuerte' | 'Neutro' | 'Débil' }>
+  coreIndicators: Array<{
+    key: string
+    label: string
+    category: 'Crecimiento' | 'Empleo' | 'Inflación' | 'Tipos/Condiciones'
+    trend: 'acelera' | 'desacelera' | 'estable'
+    importance: 'Alta' | 'Media' | 'Baja'
+  }>
 }
 
-function sideBadgeVariant(side: TradingBiasSide): 'default' | 'outline' {
-  switch (side) {
-    case 'Long':
-      return 'default'
-    case 'Short':
-      return 'default'
-    default:
-      return 'outline'
+const PROD_CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY'] as const
+
+function arrowFromTrend(trend: 'acelera' | 'desacelera' | 'estable'): '↑' | '↓' | '→' {
+  if (trend === 'acelera') return '↑'
+  if (trend === 'desacelera') return '↓'
+  return '→'
+}
+
+function getCardBorderByStatus(status: 'Fuerte' | 'Neutro' | 'Débil' | '—') {
+  if (status === 'Fuerte') return 'border-green-500/40'
+  if (status === 'Débil') return 'border-red-500/40'
+  return 'border-gray-500/30'
+}
+
+function pickCurrencyDrivers(
+  core: OverviewMonthly['coreIndicators'],
+  currency: (typeof PROD_CURRENCIES)[number],
+): Array<{ label: string; arrow: '↑' | '↓' | '→'; reason?: string }> {
+  const prefix =
+    currency === 'USD' ? '' : currency === 'EUR' ? 'eu_' : currency === 'GBP' ? 'uk_' : 'jp_'
+
+  const relevant = core.filter((c) => {
+    const k = String(c.key || '').toLowerCase()
+    if (currency === 'USD') return !k.startsWith('eu_') && !k.startsWith('uk_') && !k.startsWith('jp_')
+    return k.startsWith(prefix)
+  })
+
+  const importanceRank = (imp: 'Alta' | 'Media' | 'Baja') => (imp === 'Alta' ? 3 : imp === 'Media' ? 2 : 1)
+
+  const sorted = [...relevant]
+    .sort((a, b) => importanceRank(b.importance) - importanceRank(a.importance))
+
+  const nonStable = sorted.filter((x) => x.trend !== 'estable')
+  const pickFrom = nonStable.length > 0 ? nonStable : sorted
+
+  return pickFrom.slice(0, 3).map((d) => ({
+    label: d.label,
+    arrow: arrowFromTrend(d.trend),
+  }))
+}
+
+/**
+ * Macro Bits v1 — FROZEN (2026-01-28)
+ * Helper to fetch the monthly overview used by Macro Bits.
+ * Single source of truth: /api/overview?tf=m.
+ */
+async function fetchOverviewMonthly(): Promise<OverviewMonthly> {
+  const h = headers()
+  const host = h.get('host')
+  const proto = h.get('x-forwarded-proto') || 'http'
+  const baseUrl = host ? `${proto}://${host}` : 'http://127.0.0.1:3000'
+
+  const res = await fetch(`${baseUrl}/api/overview?tf=m`, { cache: 'no-store' })
+  if (!res.ok) {
+    throw new Error(`Failed to fetch /api/overview?tf=m (${res.status})`)
   }
+  return (await res.json()) as OverviewMonthly
 }
 
-function convictionColor(conviction: string) {
-  const c = conviction.toLowerCase()
-  if (c.includes('alta')) return 'text-emerald-600 dark:text-emerald-400'
-  if (c.includes('baja')) return 'text-amber-600 dark:text-amber-400'
-  return 'text-muted-foreground'
-}
+export default async function MacroBiasPage() {
+  let overview: OverviewMonthly | null = null
+  let overviewError: string | null = null
+  try {
+    overview = await fetchOverviewMonthly()
+  } catch (e) {
+    overviewError = e instanceof Error ? e.message : String(e)
+  }
+  const isProd = process.env.NODE_ENV === 'production'
 
-export default async function SesgosPage() {
-  const tradingBiasState = await getTradingBiasState()
-  const { regime, biases, metadata, updatedAt } = tradingBiasState
-  const hasBiases = Array.isArray(biases) && biases.length > 0
+  const scoreboardMajors = overview
+    ? overview.currencyScoreboard.filter((c) => (PROD_CURRENCIES as readonly string[]).includes(c.currency))
+    : []
+  const scoreboardOther = overview
+    ? overview.currencyScoreboard.filter((c) => !(PROD_CURRENCIES as readonly string[]).includes(c.currency))
+    : []
 
-  // Calcular confianza histórica para todos los símbolos
-  const symbols = hasBiases ? biases.map((b) => b.symbol) : []
-  const historicalConfidenceMap = await calculateHistoricalConfidenceBatch(symbols)
-
-  // Calcular solapamiento de exposición (por ahora vacío, el usuario puede añadir trades)
-  // TODO: En el futuro, esto podría venir de una API o input del usuario
-  const exposureOverlap = await calculateExposureOverlap([])
+  const driversGlobal = overview && Array.isArray(overview.regimeGlobal?.topDrivers)
+    ? overview.regimeGlobal.topDrivers.slice(0, 5)
+    : []
 
   return (
     <main className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
-      {/* Explicación de la página Sesgos */}
-      <Accordion 
-        title="🧩 ¿Qué muestra esta página?"
-        description="Guía completa para entender los sesgos tácticos y cómo usarlos"
-      >
-        <div className="space-y-4 text-sm text-foreground">
-          <div>
-            <h3 className="font-semibold mb-2">1️⃣ ¿Qué es un Sesgo Táctico?</h3>
-            <p className="mb-2">
-              Un sesgo táctico es la dirección macro sugerida para un activo basada en:
-            </p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li>El régimen macro global (Risk ON/OFF, USD direction, cuadrante)</li>
-              <li>Los scores macro de cada moneda del par</li>
-              <li>Las correlaciones históricas con el benchmark (DXY)</li>
-              <li>El impacto de los últimos eventos económicos</li>
-            </ul>
-          </div>
-          <div>
-            <h3 className="font-semibold mb-2">2️⃣ Columnas de la Tabla</h3>
-            <ul className="list-disc pl-6 space-y-1">
-              <li><strong>Activo:</strong> El par de divisas analizado (ej: EURUSD, GBPUSD)</li>
-              <li><strong>Sesgo:</strong> Long (Alcista), Short (Bajista), o Neutral</li>
-              <li><strong>Convicción:</strong> Alta/Media/Baja - qué tan fuerte es la señal macro</li>
-              <li><strong>Narrativa macro:</strong> Explicación del razonamiento detrás del sesgo</li>
-              <li><strong>Correlación:</strong> Relación histórica con DXY (benchmark)</li>
-              <li><strong>Flags de riesgo:</strong> Alertas que pueden afectar el sesgo</li>
-            </ul>
-          </div>
-          <div>
-            <h3 className="font-semibold mb-2">3️⃣ Cómo Interpretar los Sesgos</h3>
-            <ul className="list-disc pl-6 space-y-1">
-              <li><strong>Sólo compras (Long):</strong> El contexto macro favorece movimientos alcistas. Busca setups alcistas.</li>
-              <li><strong>Sólo ventas (Short):</strong> El contexto macro favorece movimientos bajistas. Busca setups bajistas.</li>
-              <li><strong>Neutral:</strong> Señales mixtas. Prioriza análisis técnico y trading táctico.</li>
-            </ul>
-          </div>
-          <div>
-            <h3 className="font-semibold mb-2">4️⃣ Niveles de Convicción</h3>
-            <ul className="list-disc pl-6 space-y-1">
-              <li><strong>Alta:</strong> Múltiples factores macro alineados, correlaciones fuertes → mayor confianza</li>
-              <li><strong>Media:</strong> Sesgo presente pero con menos fuerza → considerar factores adicionales</li>
-              <li><strong>Baja:</strong> Sesgo débil o mixto → usar con precaución, combinar con análisis técnico</li>
-            </ul>
-          </div>
-          <div>
-            <h3 className="font-semibold mb-2">5️⃣ Flags de Riesgo</h3>
-            <p className="mb-2">
-              Alertas que indican situaciones que requieren atención:
-            </p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li><strong>Correlation Break:</strong> La correlación histórica se ha roto</li>
-              <li><strong>Liquidez ajustada:</strong> Condiciones de liquidez restringidas</li>
-              <li><strong>Sesgo desactualizado:</strong> No se ha actualizado tras eventos recientes</li>
-              <li><strong>Confianza baja:</strong> Señales débiles o contradictorias</li>
-            </ul>
-            <p className="mt-2 text-xs text-muted-foreground">
-              <strong>Severidad:</strong> Alto (rojo), Medio (amarillo), Bajo (gris)
-            </p>
-          </div>
-          <div>
-            <h3 className="font-semibold mb-2">6️⃣ Cómo Usar los Sesgos</h3>
-            <ol className="list-decimal pl-6 space-y-1">
-              <li>Identifica el régimen global (arriba de la página)</li>
-              <li>Selecciona activos con sesgo claro y alta convicción</li>
-              <li>Lee la narrativa macro para entender el razonamiento</li>
-              <li>Verifica flags de riesgo antes de operar</li>
-              <li>Combina con análisis técnico para timing de entrada</li>
-            </ol>
-          </div>
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mt-4">
-            <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-300 mb-2">⚠️ Importante</p>
-            <p className="text-xs text-yellow-800 dark:text-yellow-200">
-              Los sesgos <strong>NO son señales de entrada</strong>. Son contexto macro que debes combinar con análisis técnico, 
-              gestión de riesgo y criterio personal. Tú decides tus operaciones.
-            </p>
-          </div>
-        </div>
-      </Accordion>
-
-      {/* Solapamiento de Exposición */}
-      <ExposureOverlap exposure={exposureOverlap} />
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+          Macro Bits
+          <InfoTooltip text="Macro Bits ofrece contexto macroeconómico descriptivo. No es una recomendación de inversión ni una herramienta operativa." />
+        </h1>
+        <p className="text-sm text-muted-foreground mt-2">
+          Contexto macroeconómico por moneda basado en crecimiento, inflación, empleo y política monetaria.
+        </p>
+      </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Sesgos operativos de trading</CardTitle>
-          <CardDescription>
-            Sesgos Long/Short/Neutral por activo, basados en el régimen macro actual y en las narrativas tácticas.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>
-            Régimen global: <strong>{regime.overall}</strong> · Riesgo{' '}
-            <strong>{regime.risk}</strong> · USD{' '}
-            <strong>{regime.usd_direction}</strong> · Quad{' '}
-            <strong>{regime.quad}</strong> · Liquidez{' '}
-            <strong>{regime.liquidity}</strong>
-          </p>
-          <p>
-            Benchmark de correlaciones: <strong>{metadata.benchmark}</strong> · Ventanas:{' '}
-            {metadata.windows.join(', ')} · Última actualización:{' '}
-            <strong>{updatedAt.toLocaleString('es-ES')}</strong>
-          </p>
+        <CardContent className="pt-6">
+          <details className="group">
+            <summary className="cursor-pointer list-none flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <span className="text-base">📘</span>
+              <span>¿Qué es Macro Bits?</span>
+              <svg
+                className="w-4 h-4 transition-transform group-open:rotate-180"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+
+            <div className="mt-4 space-y-4 text-sm text-muted-foreground whitespace-pre-line">
+{`📘 ¿Qué es Macro Bits?
+Macro Bits ofrece una lectura clara y resumida del contexto macroeconómico actual, basada en datos reales y oficiales.
+Su objetivo es ayudarte a entender en qué entorno económico estás operando, sin generar recomendaciones operativas ni recomendaciones de inversión.
+
+🧠 ¿Qué representa Macro Bits?
+Macro Bits traduce el estado macroeconómico en un formato fácil de interpretar:
+No predice el mercado
+No genera recomendaciones de acción
+No intenta anticipar movimientos de corto plazo
+👉 Su función es describir el entorno macro actual para que tú tomes decisiones con contexto.
+
+🌍 1. Resumen Global
+El bloque de Resumen Global muestra el estado general de la economía usando datos mensuales:
+Régimen macro: Risk ON / Risk OFF / Neutral
+Confianza: nivel de consistencia de los datos
+Crecimiento: acelerando, desacelerando o estable
+Inflación: tendencia actual
+USD: fortaleza relativa de la divisa
+Este resumen representa el marco macro de referencia, no el movimiento diario del mercado.
+
+💱 2. Macro Bits por moneda
+Cada tarjeta resume el contexto macro de una divisa principal:
+Estado macro: Fuerte / Neutro / Débil
+Drivers principales: indicadores que más influyen actualmente
+Tendencia económica: basada en crecimiento, inflación y política monetaria
+Solo se muestran:
+🇺🇸 USD
+🇪🇺 EUR
+🇬🇧 GBP
+🇯🇵 JPY
+📌 El análisis es descriptivo, no operativo.
+
+📊 3. Drivers principales (globales)
+Este bloque muestra los indicadores que más están influyendo en el entorno macro actual, por ejemplo:
+PIB
+Inflación
+Empleo
+Actividad económica
+Los drivers se seleccionan según:
+relevancia económica
+magnitud del cambio
+impacto en el ciclo macro
+
+⏱️ ¿Por qué se usa el marco mensual?
+Macro Bits utiliza datos mensuales porque:
+El ciclo macroeconómico cambia lentamente
+Los datos oficiales se publican mensualmente
+Evita ruido de corto plazo
+Refleja mejor el entorno real del mercado
+👉 El objetivo es mostrar contexto estructural, no volatilidad diaria.
+
+ℹ️ Notas importantes
+“N/A” significa que el dato no aplica o no está disponible
+“—” indica que no hay comparación válida
+Las flechas muestran dirección del cambio; no implican acción
+Los datos provienen de fuentes oficiales (BLS, BEA, ECB, etc.)
+
+⚠️ Aviso importante
+Macro Bits no es un sistema de señales.
+Es una herramienta de análisis macroeconómico para:
+entender el entorno
+contextualizar movimientos del mercado
+apoyar decisiones, no tomarlas por ti`}
+            </div>
+          </details>
         </CardContent>
       </Card>
 
+      {overviewError && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Estado</CardTitle>
+            <CardDescription>No se pudo cargar el Overview mensual</CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {overviewError}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
-          <CardTitle>Sesgos por activo</CardTitle>
+          <CardTitle>Resumen Global</CardTitle>
           <CardDescription>
-            Cada fila representa un activo con su sesgo operativo, nivel de convicción, narrativa macro y flags de riesgo relevantes.
+            Resumen mensual (base) del entorno macro global
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {!hasBiases ? (
-            <p className="text-sm text-muted-foreground">
-              No hay sesgos disponibles. Asegúrate de que los jobs de bias y correlaciones se han ejecutado recientemente.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Activo</TableHead>
-                    <TableHead>Sesgo</TableHead>
-                    <TableHead>Convicción</TableHead>
-                    <TableHead>Confianza histórica</TableHead>
-                    <TableHead>Narrativa macro</TableHead>
-                    <TableHead>Correlación</TableHead>
-                    <TableHead>Flags de riesgo</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {biases.map((b: AssetTradingBias) => {
-                    const corrText =
-                      b.corr12m != null
-                        ? `${b.corrRef} 12m ${b.corr12m.toFixed(2)}`
-                        : '—'
+        <CardContent className="text-sm">
+          <ul className="space-y-1 text-muted-foreground">
+            <li>
+              <span className="font-medium text-foreground">Régimen (Mensual):</span>{' '}
+              {overview?.regimeGlobal?.risk ?? '—'} (Confianza: {overview?.regimeGlobal?.confidence ?? '—'})
+            </li>
+            <li>
+              <span className="font-medium text-foreground">Crecimiento:</span>{' '}
+              {overview?.regimeGlobal?.growthTrend ?? '—'}
+            </li>
+            <li>
+              <span className="font-medium text-foreground">Inflación:</span>{' '}
+              {overview?.regimeGlobal?.inflationTrend ?? '—'}
+            </li>
+            <li>
+              <span className="font-medium text-foreground">USD:</span>{' '}
+              {overview?.regimeGlobal?.usdDirection ?? '—'}
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
 
-                    return (
-                      <TableRow key={b.symbol}>
-                        <TableCell className="font-mono text-xs">
-                          {b.symbol}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={sideBadgeVariant(b.side)}>
-                            {sideLabel(b.side)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className={cn('text-sm font-medium', convictionColor(b.conviction))}>
-                            {b.conviction}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <HistoricalConfidenceBadge
-                            confidence={historicalConfidenceMap.get(b.symbol) || null}
-                          />
-                        </TableCell>
-                        <TableCell className="max-w-xl">
-                          <p className="text-sm text-muted-foreground line-clamp-3">
-                            {b.macroNarrative}
-                          </p>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-xs text-muted-foreground">
-                            {corrText}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {b.riskFlags && b.riskFlags.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {b.riskFlags.map((f) => (
-                                <Badge
-                                  key={f.id}
-                                  variant="outline"
-                                  className={cn(
-                                    'text-[10px]',
-                                    f.severity === 'High' && 'border-red-500 text-red-600 dark:text-red-300',
-                                    f.severity === 'Medium' && 'border-amber-500 text-amber-600 dark:text-amber-300',
-                                    f.severity === 'Low' && 'border-slate-400 text-slate-600 dark:text-slate-300'
-                                  )}
-                                >
-                                  {f.label}
-                                </Badge>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">
-                              Sin flags relevantes
-                            </span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {PROD_CURRENCIES.map((ccy) => {
+          const row = scoreboardMajors.find((r) => r.currency === ccy)
+          const status: 'Fuerte' | 'Neutro' | 'Débil' | '—' = row?.status ?? '—'
+          const drivers = overview ? pickCurrencyDrivers(overview.coreIndicators, ccy) : []
+          return (
+            <Card key={ccy} className={cn('border', getCardBorderByStatus(status))}>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between">
+                  <span className="font-mono">{ccy}</span>
+                  <Badge variant="outline">{status}</Badge>
+                </CardTitle>
+                <CardDescription>Bits por moneda (mensual)</CardDescription>
+              </CardHeader>
+              <CardContent className="text-sm space-y-2">
+                <div className="text-muted-foreground">
+                  <span className="font-medium text-foreground">Estado macro:</span> {status}
+                </div>
+                <div className="text-muted-foreground">
+                  <span className="font-medium text-foreground">Drivers principales:</span>
+                  {drivers.length === 0 ? (
+                    <span> Sin drivers disponibles</span>
+                  ) : (
+                    <ul className="mt-1 space-y-1">
+                      {drivers.map((d, idx) => (
+                        <li key={`${ccy}-d-${idx}`} className="flex items-start gap-2">
+                          <span className="text-muted-foreground">{d.arrow}</span>
+                          <span className="text-muted-foreground">{d.label}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground pt-2 border-t">
+                  Nota: contexto descriptivo (no operativo).
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            Drivers principales (globales)
+            <InfoTooltip text="Lista corta basada en los drivers del Overview mensual. Describe qué está influyendo más en el entorno macro global." />
+          </CardTitle>
+          <CardDescription>Top drivers del Overview mensual</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {driversGlobal.length === 0 ? (
+            <div className="text-sm text-muted-foreground">Sin drivers disponibles.</div>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {driversGlobal.map((d) => (
+                <li key={d.key} className="rounded-md border p-3">
+                  <div className="font-medium">{d.label}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{d.reason}</div>
+                </li>
+              ))}
+            </ul>
           )}
         </CardContent>
       </Card>
+
+      {!isProd && scoreboardOther.length > 0 && (
+        <Card>
+          <CardContent className="pt-6">
+            <details className="group">
+              <summary className="cursor-pointer list-none flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+                <span>Experimental (solo desarrollo)</span>
+                <Badge variant="outline" className="text-yellow-700 border-yellow-400/50 bg-yellow-500/10">
+                  DEBUG/Experimental
+                </Badge>
+                <svg
+                  className="w-4 h-4 transition-transform group-open:rotate-180"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </summary>
+              <div className="mt-3 text-sm text-muted-foreground">
+                <p className="mb-3">
+                  En PROD solo se muestran USD/EUR/GBP/JPY. El resto se mantiene fuera de la vista principal.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {scoreboardOther.map((c) => (
+                    <Badge key={c.currency} variant="outline">
+                      {c.currency}: {c.status}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </details>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="text-xs text-muted-foreground">
+        Macro Bits ofrece contexto. No es una recomendación de inversión.
+      </div>
     </main>
   )
 }
-
