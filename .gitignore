@@ -17,3 +17,5 @@ backups
 data/manual/*.csv
 !data/manual/*.example
 !data/manual/README.md
+
+.pnpm-store/
