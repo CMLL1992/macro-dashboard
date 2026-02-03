@@ -35,7 +35,7 @@ export async function dashboardToSnapshot(
   }
 ): Promise<MacroSnapshot | null> {
   try {
-    logger.debug('snapshot.build.start', {
+    logger.info('snapshot.build.start', {
       source: 'dashboard',
     })
     
@@ -48,7 +48,7 @@ export async function dashboardToSnapshot(
       // Usar estados pre-fetched (más rápido, evita duplicar llamadas)
       biasState = options.biasState
       correlationState = options.correlationState
-      logger.debug('snapshot.build.reusing_prefetched_states', {
+      logger.info('snapshot.build.reusing_prefetched_states', {
         source: 'dashboard',
       })
     } else {
@@ -130,7 +130,7 @@ export async function dashboardToSnapshot(
  */
 export async function dashboardToSnapshotFallback(dashboardData: DashboardData): Promise<MacroSnapshot | null> {
   try {
-    logger.debug('snapshot.build.fallback.start', {
+    logger.info('snapshot.build.fallback.start', {
       source: 'dashboard',
     })
     
