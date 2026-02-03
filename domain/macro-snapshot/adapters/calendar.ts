@@ -106,7 +106,7 @@ export async function extractUpcomingDates(days: number = 14): Promise<UpcomingD
       })
     }
     
-    logger.debug('snapshot.calendar.extracted', {
+    logger.info('snapshot.calendar.extracted', {
       count: upcomingDates.length,
       days,
     })
