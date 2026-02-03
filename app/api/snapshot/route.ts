@@ -24,6 +24,27 @@ import { saveSnapshotToCache, getPreviousSnapshot } from '@/lib/db/snapshot-cach
 import { logger } from '@/lib/obs/logger'
 import { macroSignalEngine } from '@/domain/macro-signals/engine'
 import { checkSignalAlerts } from '@/lib/notifications/signal-alerts'
+import type { Snapshot } from '@/lib/quality/invariants'
+
+function correlationsToRecord(
+  correlations: Array<{
+    symbol: string
+    corr12m: number | null
+    corr6m: number | null
+    corr3m: number | null
+    benchmark: string
+  }> | undefined
+): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (!correlations) return out
+  for (const c of correlations) {
+    const v = c.corr12m ?? c.corr6m ?? c.corr3m
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      out[`${c.benchmark}:${c.symbol}`] = v
+    }
+  }
+  return out
+}
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -140,18 +161,23 @@ export async function GET(request: NextRequest) {
         previousSnapshot = await getPreviousSnapshot()
       }
 
-      // Run invariants if requested
+      // Run invariants if requested (normalize correlations to Record for domain Snapshot type)
       let invariants: Array<{ id: string; level: string; message: string; ctx?: Record<string, unknown> }> | undefined
       if (includeInvariants) {
-        const invariantResults = runInvariants(validatedSnapshot)
+        const snapshotForInvariants = {
+          ...validatedSnapshot,
+          correlations: correlationsToRecord(validatedSnapshot.correlations),
+        } as unknown as Snapshot
+
+        const invariantResults = runInvariants(snapshotForInvariants)
         invariants = invariantResults.map(r => ({
           id: r.id,
           level: r.level,
           message: r.message,
           ctx: r.ctx,
         }))
-        
-        logger.debug('api.snapshot.invariants_computed', {
+
+        logger.info('api.snapshot.invariants_computed', {
           requestId: ctx.requestId,
           route: '/api/snapshot',
           count: invariants.length,
