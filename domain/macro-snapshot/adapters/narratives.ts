@@ -32,7 +32,7 @@ export async function extractNarrative(): Promise<Narrative | undefined> {
     try {
       extensiveNarrative = await getWeeklyExtensiveNarrative()
     } catch (error) {
-      logger.debug('snapshot.narrative.extensive_failed', {
+      logger.info('snapshot.narrative.extensive_failed', {
         error: error instanceof Error ? error.message : String(error),
       })
       // Continue without extensive narrative
@@ -64,7 +64,7 @@ export async function extractNarrative(): Promise<Narrative | undefined> {
       tags: tags.length > 0 ? tags : undefined,
     }
     
-    logger.debug('snapshot.narrative.extracted', {
+    logger.info('snapshot.narrative.extracted', {
       headline,
       bulletsCount: bullets.length,
       confidence,
