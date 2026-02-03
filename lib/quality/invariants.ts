@@ -336,3 +336,8 @@ export function evaluateAllInvariants(snapshot: Snapshot) {
   return { counts: { pass: sum.pass, warn: sum.warn, fail: sum.fail }, issues: results.map((r) => ({ severity: r.level, code: r.name, message: r.message })), staleDrivers: fresh.staleDrivers, outliers: pl.outliers }
 }
 
+/** Alias for evaluateAllInvariants (used by snapshot API and build-snapshot-direct) */
+export function runInvariants(snapshot: Snapshot) {
+  return evaluateAllInvariants(snapshot)
+}
+

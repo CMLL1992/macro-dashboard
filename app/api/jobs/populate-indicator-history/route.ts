@@ -52,8 +52,6 @@ export async function POST(request: NextRequest) {
             indicatorKey: ind.key,
             value: ind.value,
             date: ind.date,
-            valuePrevious: ind.value_previous ?? null,
-            datePrevious: ind.date_previous ?? null,
           })
           saved++
         } else {
