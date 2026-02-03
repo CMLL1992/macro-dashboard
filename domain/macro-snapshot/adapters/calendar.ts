@@ -72,7 +72,7 @@ export async function extractUpcomingDates(days: number = 14): Promise<UpcomingD
         
         // Filter past events (safety check)
         if (date < now) {
-          logger.debug('snapshot.calendar.past_event_filtered', {
+          logger.info('snapshot.calendar.past_event_filtered', {
             name: row.name,
             date: dateStr,
           })
