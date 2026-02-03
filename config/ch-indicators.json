@@ -1,0 +1,119 @@
+{
+  "description": "Indicadores macroeconómicos de Suiza (CHF) para el motor macro relativo",
+  "indicators": [
+    {
+      "id": "CH_GDP_YOY",
+      "name": "GDP Year-on-Year",
+      "source": "fred",
+      "series": "CLVMNACSAB1GQCH",
+      "seriesId": "CLVMNACSAB1GQCH",
+      "frequency": "Q",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "CH_SERVICES_PMI",
+      "name": "Services PMI",
+      "source": "trading_economics",
+      "series": "switzerland/services-pmi",
+      "frequency": "M",
+      "unit": "Índice",
+      "needsYoY": false
+    },
+    {
+      "id": "CH_MANUFACTURING_PMI",
+      "name": "Manufacturing PMI",
+      "source": "trading_economics",
+      "series": "switzerland/manufacturing-pmi",
+      "frequency": "M",
+      "unit": "Índice",
+      "needsYoY": false
+    },
+    {
+      "id": "CH_RETAIL_SALES_YOY",
+      "name": "Retail Sales YoY",
+      "source": "trading_economics",
+      "series": "switzerland/retail-sales-yoy",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "CH_INDUSTRIAL_PRODUCTION_YOY",
+      "name": "Industrial Production YoY",
+      "source": "trading_economics",
+      "series": "switzerland/industrial-production",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "CH_CPI_YOY",
+      "name": "CPI YoY",
+      "source": "fred",
+      "series": "CHECPIALLMINMEI",
+      "seriesId": "CHECPIALLMINMEI",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "CH_CORE_CPI_YOY",
+      "name": "Core CPI YoY",
+      "source": "oecd",
+      "series": "CHE.CPALTT01.IXOB.IDX2015.M",
+      "seriesId": "CHE.CPALTT01.IXOB.IDX2015.M",
+      "oecdDataset": "MEI",
+      "oecdFilter": "CHE.CPALTT01.IXOB.IDX2015.M",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "CH_PPI_YOY",
+      "name": "PPI YoY",
+      "source": "trading_economics",
+      "series": "switzerland/producer-prices",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "CH_UNEMPLOYMENT_RATE",
+      "name": "Unemployment Rate",
+      "source": "fred",
+      "series": "LMUNRRTTCHM156S",
+      "seriesId": "LMUNRRTTCHM156S",
+      "frequency": "M",
+      "unit": "%",
+      "needsYoY": false
+    },
+    {
+      "id": "CH_EMPLOYMENT_CHANGE",
+      "name": "Employment Change",
+      "source": "trading_economics",
+      "series": "switzerland/employment-change",
+      "frequency": "M",
+      "unit": "Thousands",
+      "needsYoY": false
+    },
+    {
+      "id": "CH_WAGE_GROWTH",
+      "name": "Wage Growth",
+      "source": "trading_economics",
+      "series": "switzerland/wage-growth",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "CH_SNB_RATE",
+      "name": "Swiss National Bank Policy Rate",
+      "source": "trading_economics",
+      "series": "switzerland/interest-rate",
+      "frequency": "B",
+      "unit": "%",
+      "needsYoY": false
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+{
+  "description": "Indicadores macroeconómicos de Nueva Zelanda (NZD) para el motor macro relativo",
+  "indicators": [
+    {
+      "id": "NZ_GDP_QOQ",
+      "name": "GDP Quarter-on-Quarter",
+      "source": "oecd",
+      "series": "NZL.GDP.TOT.SA.Q",
+      "seriesId": "NZL.GDP.TOT.SA.Q",
+      "oecdDataset": "MEI",
+      "oecdFilter": "NZL.GDP.TOT.SA.Q",
+      "frequency": "Q",
+      "unit": "% QoQ",
+      "needsYoY": false
+    },
+    {
+      "id": "NZ_GDP_YOY",
+      "name": "GDP Year-on-Year",
+      "source": "fred",
+      "series": "NZLGDPNADSMEI",
+      "seriesId": "NZLGDPNADSMEI",
+      "frequency": "A",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "NZ_SERVICES_PMI",
+      "name": "Services PMI",
+      "source": "trading_economics",
+      "series": "new-zealand/services-pmi",
+      "frequency": "M",
+      "unit": "Índice",
+      "needsYoY": false
+    },
+    {
+      "id": "NZ_MANUFACTURING_PMI",
+      "name": "Manufacturing PMI",
+      "source": "trading_economics",
+      "series": "new-zealand/manufacturing-pmi",
+      "frequency": "M",
+      "unit": "Índice",
+      "needsYoY": false
+    },
+    {
+      "id": "NZ_RETAIL_SALES_YOY",
+      "name": "Retail Sales YoY",
+      "source": "trading_economics",
+      "series": "new-zealand/retail-sales-yoy",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "NZ_INDUSTRIAL_PRODUCTION_YOY",
+      "name": "Industrial Production YoY",
+      "source": "trading_economics",
+      "series": "new-zealand/industrial-production",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "NZ_CPI_YOY",
+      "name": "CPI YoY",
+      "source": "fred",
+      "series": "NZLCPIALLQINMEI",
+      "seriesId": "NZLCPIALLQINMEI",
+      "frequency": "Q",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "NZ_CORE_CPI_YOY",
+      "name": "Core CPI YoY",
+      "source": "oecd",
+      "series": "NZL.CPALTT01.IXOB.IDX2015.Q",
+      "seriesId": "NZL.CPALTT01.IXOB.IDX2015.Q",
+      "oecdDataset": "MEI",
+      "oecdFilter": "NZL.CPALTT01.IXOB.IDX2015.Q",
+      "frequency": "Q",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "NZ_UNEMPLOYMENT_RATE",
+      "name": "Unemployment Rate",
+      "source": "fred",
+      "series": "LRUNTTTTNZQ156S",
+      "seriesId": "LRUNTTTTNZQ156S",
+      "frequency": "Q",
+      "unit": "%",
+      "needsYoY": false
+    },
+    {
+      "id": "NZ_EMPLOYMENT_CHANGE",
+      "name": "Employment Change",
+      "source": "trading_economics",
+      "series": "new-zealand/employment-change",
+      "frequency": "Q",
+      "unit": "Thousands",
+      "needsYoY": false
+    },
+    {
+      "id": "NZ_WAGE_GROWTH",
+      "name": "Wage Growth",
+      "source": "trading_economics",
+      "series": "new-zealand/wage-growth",
+      "frequency": "Q",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "NZ_RBNZ_RATE",
+      "name": "Reserve Bank of New Zealand Cash Rate",
+      "source": "trading_economics",
+      "series": "new-zealand/interest-rate",
+      "frequency": "B",
+      "unit": "%",
+      "needsYoY": false
+    }
+  ]
+}

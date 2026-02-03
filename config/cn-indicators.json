@@ -1,0 +1,35 @@
+{
+  "description": "Indicadores macroeconómicos de China (CNY/CNH) para el motor macro relativo - Driver para AUD/NZD",
+  "indicators": [
+    {
+      "id": "CN_GDP_YOY",
+      "name": "China GDP (YoY)",
+      "displayName": "PIB China (YoY)",
+      "source": "oecd",
+      "seriesId": null,
+      "fredSeriesId": null,
+      "oecdDataset": "MEI",
+      "oecdFilter": "CHN.GDP.TOT.SA.Q",
+      "frequency": "Q",
+      "unit": "% YoY",
+      "needsYoY": true,
+      "importance": "Alta",
+      "category": "GROWTH",
+      "fallback": {
+        "trading_economics": "china/gdp-growth-annual"
+      }
+    },
+    {
+      "id": "CN_LPR_1Y",
+      "name": "China LPR (1Y)",
+      "displayName": "Tasa de Préstamo Prime China (LPR 1Y)",
+      "source": "trading_economics",
+      "series": "china/loan-prime-rate",
+      "frequency": "M",
+      "unit": "%",
+      "needsYoY": false,
+      "importance": "Alta",
+      "category": "RATES"
+    }
+  ]
+}

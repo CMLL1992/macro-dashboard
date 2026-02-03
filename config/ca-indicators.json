@@ -1,0 +1,132 @@
+{
+  "description": "Indicadores macroeconómicos de Canadá (CAD) para el motor macro relativo",
+  "indicators": [
+    {
+      "id": "CA_GDP_QOQ",
+      "name": "GDP Quarter-on-Quarter",
+      "source": "fred",
+      "series": "NGDPRSAXDCCAQ",
+      "seriesId": "NGDPRSAXDCCAQ",
+      "frequency": "Q",
+      "unit": "% QoQ",
+      "needsYoY": false
+    },
+    {
+      "id": "CA_GDP_YOY",
+      "name": "GDP Year-on-Year",
+      "source": "fred",
+      "series": "NGDPRXDCCAA",
+      "seriesId": "NGDPRXDCCAA",
+      "frequency": "Q",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "CA_SERVICES_PMI",
+      "name": "Services PMI",
+      "source": "trading_economics",
+      "series": "canada/services-pmi",
+      "frequency": "M",
+      "unit": "Índice",
+      "needsYoY": false
+    },
+    {
+      "id": "CA_MANUFACTURING_PMI",
+      "name": "Manufacturing PMI",
+      "source": "trading_economics",
+      "series": "canada/manufacturing-pmi",
+      "frequency": "M",
+      "unit": "Índice",
+      "needsYoY": false
+    },
+    {
+      "id": "CA_RETAIL_SALES_YOY",
+      "name": "Retail Sales YoY",
+      "source": "trading_economics",
+      "series": "canada/retail-sales-yoy",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "CA_INDUSTRIAL_PRODUCTION_YOY",
+      "name": "Industrial Production YoY",
+      "source": "trading_economics",
+      "series": "canada/industrial-production",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "CA_CPI_YOY",
+      "name": "CPI YoY",
+      "source": "fred",
+      "series": "CPALTT01CAQ659N",
+      "seriesId": "CPALTT01CAQ659N",
+      "frequency": "Q",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "CA_CORE_CPI_YOY",
+      "name": "Core CPI YoY",
+      "source": "oecd",
+      "series": "CAN.CPALTT01.IXOB",
+      "seriesId": "CAN.CPALTT01.IXOB",
+      "oecdDataset": "MEI",
+      "oecdFilter": "CAN.CPALTT01.IXOB",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false,
+      "fredSeriesId": null,
+      "availability": "not_available_in_source",
+      "availabilityNote": "OECD endpoint returns 500 for this filter. Needs validation of correct dataset/key or alternative source. Fallback attempts all failed."
+    },
+    {
+      "id": "CA_PPI_YOY",
+      "name": "PPI YoY",
+      "source": "trading_economics",
+      "series": "canada/producer-prices",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "CA_UNEMPLOYMENT_RATE",
+      "name": "Unemployment Rate",
+      "source": "fred",
+      "series": "LRUNTTTTCAM156S",
+      "seriesId": "LRUNTTTTCAM156S",
+      "frequency": "M",
+      "unit": "%",
+      "needsYoY": false
+    },
+    {
+      "id": "CA_EMPLOYMENT_CHANGE",
+      "name": "Employment Change",
+      "source": "trading_economics",
+      "series": "canada/employment-change",
+      "frequency": "M",
+      "unit": "Thousands",
+      "needsYoY": false
+    },
+    {
+      "id": "CA_WAGE_GROWTH",
+      "name": "Wage Growth",
+      "source": "trading_economics",
+      "series": "canada/wage-growth",
+      "frequency": "M",
+      "unit": "% YoY",
+      "needsYoY": false
+    },
+    {
+      "id": "CA_BOC_RATE",
+      "name": "Bank of Canada Policy Rate",
+      "source": "trading_economics",
+      "series": "canada/interest-rate",
+      "frequency": "B",
+      "unit": "%",
+      "needsYoY": false
+    }
+  ]
+}
