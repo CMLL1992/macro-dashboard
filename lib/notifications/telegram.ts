@@ -8,6 +8,8 @@ interface SendOptions {
   dryRun?: boolean
   bypassRateLimit?: boolean
   noParseMode?: boolean
+  /** Override destination chat (e.g. for /api/settings/telegram/test). */
+  overrideChatId?: string | number
 }
 
 // Rate limiting (10 messages per minute - MVP simple)
@@ -94,7 +96,9 @@ export async function sendTelegramMessage(
   const testsEnabled = process.env.ENABLE_TELEGRAM_TESTS === 'true'
   let chatId: string | undefined
 
-  if (testsEnabled || test) {
+  if (options?.overrideChatId != null) {
+    chatId = typeof options.overrideChatId === 'number' ? String(options.overrideChatId) : options.overrideChatId
+  } else if (testsEnabled || test) {
     // Test mode: use test chat
     chatId = process.env.TELEGRAM_TEST_CHAT_ID
   } else {
