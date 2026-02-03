@@ -19,3 +19,26 @@ data/manual/*.csv
 !data/manual/README.md
 
 .pnpm-store/
+
+# local docs / audits / tmp
+AUDITORIA-*.md
+ANALISIS-*.md
+RESUMEN-*.md
+RESULTADOS-*.md
+CHECKLIST-*.md
+CONFIRMACION-*.md
+FIX-*.md
+INFORME-*.md
+GUARDRAILES-*.md
+GUIA-*.md
+VERIFICAR-*.md
+DEPLOY-*.md
+
+tmp/
+audit/
+docs-placeholder.tmp
+.pnpm-store/
+
+# local debug routes (do not deploy)
+app/api/debug/
+app/api/jobs/audit/
