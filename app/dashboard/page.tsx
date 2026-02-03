@@ -16,6 +16,20 @@ export default async function DashboardPage({ searchParams }: { searchParams?: R
 
   return (
     <main className="p-6">
+      {/* Banner verde para confirmar que se renderiza código nuevo */}
+      <div style={{
+        position: 'fixed',
+        top: 10,
+        right: 10,
+        zIndex: 999999,
+        background: 'lime',
+        color: 'black',
+        padding: '8px 12px',
+        fontWeight: 800,
+        borderRadius: 8
+      }}>
+        NEW DASHBOARD /dashboard
+      </div>
       {/* Marcador temporal para verificar commit desplegado */}
       <div style={{ position: 'fixed', bottom: 8, right: 8, zIndex: 9999, fontSize: 12, opacity: 0.7, background: 'rgba(0,0,0,0.5)', color: 'white', padding: '4px 8px', borderRadius: 4 }}>
         BUILD: {buildCommit}
