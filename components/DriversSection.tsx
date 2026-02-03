@@ -22,9 +22,15 @@ export default function DriversSection({
   requestId,
   className = '',
 }: DriversSectionProps) {
-  // Check for invariant errors
-  const hasErrors = invariants.some(i => i.level === 'error')
-  const hasWarnings = invariants.some(i => i.level === 'warn')
+  // Check for invariant errors (tolerante a distintos enums / strings)
+  const level = (v: any) => String(v ?? '').toLowerCase()
+
+  const hasErrors = invariants.some(i =>
+    ['error', 'fail', 'critical'].includes(level((i as any).level)),
+  )
+  const hasWarnings = invariants.some(i =>
+    ['warn', 'warning'].includes(level((i as any).level)),
+  )
 
   // Sort by weight (descending) and take top 5
   const topDrivers = [...drivers]
