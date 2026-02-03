@@ -316,7 +316,7 @@ export async function GET(request: NextRequest) {
         value: ind.value ?? null,
         previous: ind.previous ?? null,
         date: ind.date ?? null,
-        date_previous: ind.date_previous ?? null,
+        date_previous: ("date_previous" in ind ? (ind as any).date_previous : null),
         trend,
         importance,
         unit: ind.unit || undefined,
