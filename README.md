@@ -11,3 +11,4 @@
 - **Aprobación de binarios:** automática en preinstall
 # Deployment trigger Thu Nov 13 17:59:15 CET 2025
 
+<!-- redeploy -->
