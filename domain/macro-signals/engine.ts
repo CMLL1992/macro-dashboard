@@ -182,7 +182,7 @@ function extractRiskFlags(
   const flags: RiskFlag[] = []
 
   // 1. Check for errors in invariants (HIGHEST PRIORITY)
-  const errorInvariants = invariants.filter(i => i.level === 'error')
+  const errorInvariants = invariants.filter(i => i.level === 'FAIL')
   if (errorInvariants.length > 0) {
     flags.push({
       id: 'invariant_errors',
@@ -235,7 +235,7 @@ function extractRiskFlags(
   }
 
   // 5. Check for warnings in invariants (MEDIUM)
-  const warnInvariants = invariants.filter(i => i.level === 'warn')
+  const warnInvariants = invariants.filter(i => i.level === 'WARN')
   if (warnInvariants.length > 2) {
     flags.push({
       id: 'invariant_warnings',
@@ -702,7 +702,7 @@ export function macroSignalEngine(
   
   // Check for NO_TRADE conditions (prioritarios)
   const { noTradeWindow, reason: noTradeReason } = checkNoTradeWindow(snapshot, 4)
-  const hasInvariantErrors = invariants.some(i => i.level === 'error')
+  const hasInvariantErrors = invariants.some(i => i.level === 'FAIL')
   const hasNearEvents = noTradeWindow
   
   // Determine action (NO_TRADE tiene precedencia)

@@ -136,14 +136,14 @@ export async function evaluateTelegramAlerts(chatId: string, macroUpdates: Macro
   // Validate Telegram config first
   const validation = await validateTelegramConfig()
   if (!validation.valid || !validation.bot_ok || !validation.chat_ok) {
-    logger.debug('[telegram-alerts] Skipped - invalid config', { chatId, validation })
+    logger.info('[telegram-alerts] Skipped - invalid config', { chatId, validation })
     return result
   }
 
   // Check user preferences
   const alertsEnabled = await getUserAlertPreferences(chatId)
   if (!alertsEnabled) {
-    logger.debug('[telegram-alerts] Skipped - user disabled', { chatId })
+    logger.info('[telegram-alerts] Skipped - user disabled', { chatId })
     return result
   }
 

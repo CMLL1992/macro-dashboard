@@ -6,7 +6,7 @@
  */
 
 import type { MacroSnapshot } from '@/domain/macro-snapshot/schema'
-import type { InvariantResult } from '@/lib/quality/invariants'
+import type { InvariantResult, Snapshot } from '@/lib/quality/invariants'
 import { dashboardToSnapshot } from '@/domain/macro-snapshot/adapters/dashboard'
 import { MacroSnapshotSchema } from '@/domain/macro-snapshot/schema'
 import { getDashboardData, type DashboardData } from '@/lib/dashboard-data'
@@ -44,6 +44,26 @@ export interface BuildSnapshotError {
 
 export type BuildSnapshotResponse = BuildSnapshotResult | BuildSnapshotError
 
+function correlationsToRecord(
+  correlations: Array<{
+    symbol: string
+    corr12m: number | null
+    corr6m: number | null
+    corr3m: number | null
+    benchmark: string
+  }> | undefined
+): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (!correlations) return out
+  for (const c of correlations) {
+    const v = c.corr12m ?? c.corr6m ?? c.corr3m
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      out[`${c.benchmark}:${c.symbol}`] = v
+    }
+  }
+  return out
+}
+
 /**
  * Build snapshot directly (no HTTP fetch)
  * 
@@ -63,7 +83,7 @@ export async function buildSnapshotDirect(
   const startTime = Date.now()
 
   try {
-    logger.debug('snapshot.build.start', {
+    logger.info('snapshot.build.start', {
       requestId: reqId,
       route: 'buildSnapshotDirect',
       hasDashboardData: !!dashboardData,
@@ -154,22 +174,26 @@ export async function buildSnapshotDirect(
       previousSnapshot = await getPreviousSnapshot()
     }
 
-    // Run invariants if requested
+    // Run invariants if requested (normalize correlations to Record for domain Snapshot type)
     let invariants: InvariantResult[] | undefined
     if (includeInvariants) {
-      const invariantResults = runInvariants(validatedSnapshot)
-      invariants = invariantResults.map(r => ({
-        id: r.id,
-        level: r.level,
+      const snapshotForInvariants = {
+        ...validatedSnapshot,
+        correlations: correlationsToRecord(validatedSnapshot.correlations),
+      } as unknown as Snapshot
+
+      const invariantResults = runInvariants(snapshotForInvariants)
+      invariants = invariantResults.issues.map((r) => ({
+        name: r.code,
+        level: r.severity,
         message: r.message,
-        ctx: r.ctx,
       }))
 
-      logger.debug('snapshot.build.invariants_computed', {
+      logger.info('snapshot.build.invariants_computed', {
         requestId: reqId,
         count: invariants.length,
-        countError: invariants.filter(i => i.level === 'error').length,
-        countWarn: invariants.filter(i => i.level === 'warn').length,
+        countError: invariants.filter((i) => i.level === 'FAIL').length,
+        countWarn: invariants.filter((i) => i.level === 'WARN').length,
       })
     }
 

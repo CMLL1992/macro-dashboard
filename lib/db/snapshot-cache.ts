@@ -44,7 +44,7 @@ export async function saveSnapshotToCache(snapshot: MacroSnapshot): Promise<void
         .get(snapshotHash) as { id: number } | undefined
 
       if (existing) {
-        logger.debug('snapshot.cache.skip', { requestId, snapshotHash, reason: 'duplicate' })
+        logger.info('snapshot.cache.skip', { requestId, snapshotHash, reason: 'duplicate' })
         return
       }
 
@@ -69,7 +69,7 @@ export async function saveSnapshotToCache(snapshot: MacroSnapshot): Promise<void
         .get(snapshotHash) as { id: number } | undefined
 
       if (existing) {
-        logger.debug('snapshot.cache.skip', { requestId, snapshotHash, reason: 'duplicate' })
+        logger.info('snapshot.cache.skip', { requestId, snapshotHash, reason: 'duplicate' })
         return
       }
 
@@ -89,7 +89,7 @@ export async function saveSnapshotToCache(snapshot: MacroSnapshot): Promise<void
       `).run()
     }
 
-    logger.debug('snapshot.cache.saved', { requestId, snapshotHash })
+    logger.info('snapshot.cache.saved', { requestId, snapshotHash })
   } catch (error) {
     logger.warn('snapshot.cache.save_failed', {
       requestId,

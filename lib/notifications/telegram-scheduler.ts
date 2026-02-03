@@ -97,7 +97,7 @@ export async function sendDailySummaryToUser(chatId: string): Promise<{ success:
 
   // Check idempotency
   if (await wasDailySummarySentToday(chatId)) {
-    logger.debug('[telegram-scheduler] Daily summary already sent today', { chatId })
+    logger.info('[telegram-scheduler] Daily summary already sent today', { chatId })
     return { success: false, error: 'Already sent today' }
   }
 

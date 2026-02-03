@@ -117,7 +117,7 @@ export function recordSuccess(source: string = 'oecd'): void {
     state.failures = 0
     state.isOpen = false
     circuitBreakers.set(source, state)
-    logger.debug('oecd.circuit_breaker.success', { source })
+    logger.info('oecd.circuit_breaker.success', { source })
   }
 }
 
@@ -188,7 +188,7 @@ export async function withBackoff<T>(
 
       // Calculate backoff delay
       const delay = getBackoffDelay(attempt)
-      logger.debug('oecd.backoff', {
+      logger.info('oecd.backoff', {
         source,
         attempt: attempt + 1,
         maxRetries,

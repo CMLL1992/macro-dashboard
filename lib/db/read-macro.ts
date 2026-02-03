@@ -56,7 +56,7 @@ export const KEY_TO_SERIES_ID: Record<string, string> = {
  * Get all observations for a series from macro_observations
  * Works with both Turso (async) and better-sqlite3 (sync)
  */
-async function getSeriesObservations(seriesId: string): Promise<SeriesPoint[]> {
+export async function getSeriesObservations(seriesId: string): Promise<SeriesPoint[]> {
   if (isUsingTurso()) {
     const db = getUnifiedDB()
     try {

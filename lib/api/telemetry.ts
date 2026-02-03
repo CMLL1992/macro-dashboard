@@ -53,7 +53,7 @@ export async function withApiTelemetry<T = unknown>(
     route,
   }
 
-  logger.debug('api.request', {
+  logger.info('api.request', {
     requestId,
     route,
     method: request.method,

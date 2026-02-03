@@ -84,7 +84,7 @@ async function recordAlert(alertHash: string, alertType: string, message: string
       `).run(alertHash, alertType, message)
     }
 
-    logger.debug('signal.alerts.recorded', { requestId, alertHash, alertType })
+    logger.info('signal.alerts.recorded', { requestId, alertHash, alertType })
   } catch (error) {
     logger.warn('signal.alerts.record_failed', {
       requestId,

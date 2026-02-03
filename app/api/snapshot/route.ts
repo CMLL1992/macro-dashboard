@@ -170,24 +170,25 @@ export async function GET(request: NextRequest) {
         } as unknown as Snapshot
 
         const invariantResults = runInvariants(snapshotForInvariants)
-        invariants = invariantResults.map(r => ({
-          id: r.id,
-          level: r.level,
+        const levelToApi = (s: string) => (s === 'FAIL' ? 'error' : s === 'WARN' ? 'warn' : 'info')
+        invariants = invariantResults.issues.map((r) => ({
+          id: r.code,
+          level: levelToApi(r.severity),
           message: r.message,
-          ctx: r.ctx,
         }))
 
         logger.info('api.snapshot.invariants_computed', {
           requestId: ctx.requestId,
           route: '/api/snapshot',
           count: invariants.length,
-          countError: invariants.filter(i => i.level === 'error').length,
-          countWarn: invariants.filter(i => i.level === 'warn').length,
+          countError: invariants.filter((i) => i.level === 'error').length,
+          countWarn: invariants.filter((i) => i.level === 'warn').length,
         })
       }
 
-      // Calculate signals for alerts (non-blocking)
-      const invariantResultsForSignal = invariants?.map(i => ({ id: i.id, level: i.level as 'info' | 'warn' | 'error' | 'skip', message: i.message, ctx: i.ctx })) || []
+      // Calculate signals for alerts (macroSignalEngine expects InvariantResult: name, level 'PASS'|'WARN'|'FAIL', message)
+      const apiLevelToQuality = (l: string): 'PASS' | 'WARN' | 'FAIL' => (l === 'error' ? 'FAIL' : l === 'warn' ? 'WARN' : 'PASS')
+      const invariantResultsForSignal = invariants?.map((i) => ({ name: i.id, level: apiLevelToQuality(i.level), message: i.message })) || []
       const currentSignal = macroSignalEngine(validatedSnapshot, invariantResultsForSignal)
       const previousSignal = previousSnapshot
         ? macroSignalEngine(previousSnapshot, []) // No invariants for previous

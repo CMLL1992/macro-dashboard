@@ -6,7 +6,11 @@
  * without relying solely on TradingEconomics (which requires paid plans).
  */
 
-import type { MacroSeries } from '@/lib/types/macro'
+import type { MacroSeries, Frequency } from '@/lib/types/macro'
+
+function toFrequency(f: 'A' | 'Q' | 'M' | 'W' | 'D' | 'B' | undefined): Frequency {
+  return f === 'B' ? 'D' : (f ?? 'M')
+}
 import { fetchFredSeries } from '@/lib/fred'
 import { fetchOECDSeries, type OECDSeriesParams } from '@/lib/datasources/oecd'
 import { logger } from '@/lib/obs/logger'
@@ -66,7 +70,7 @@ export async function resolveIndicatorFromMultipleSources(
   // Try FRED first (if configured)
   if (config.source === 'fred' && config.fredSeriesId) {
     try {
-      logger.debug('multi-source-resolver: trying FRED', {
+      logger.info('multi-source-resolver: trying FRED', {
         runId: config.runId,
         requestId,
         indicator_key: indicatorId,
@@ -90,7 +94,7 @@ export async function resolveIndicatorFromMultipleSources(
           indicator: indicatorId,
           nativeId: config.fredSeriesId,
           name: indicatorName,
-          frequency,
+          frequency: toFrequency(frequency),
           unit,
           data: observations.map(obs => ({
             date: obs.date,
@@ -139,7 +143,7 @@ export async function resolveIndicatorFromMultipleSources(
   // Try OECD second (if configured)
   if (config.source === 'oecd' && config.oecdDataset && config.oecdFilter) {
     try {
-      logger.debug('multi-source-resolver: trying OECD', {
+      logger.info('multi-source-resolver: trying OECD', {
         requestId,
         indicatorId,
         oecdDataset: config.oecdDataset,
@@ -151,7 +155,6 @@ export async function resolveIndicatorFromMultipleSources(
         filter: config.oecdFilter,
         startPeriod: '2010-01',
         endPeriod: new Date().toISOString().slice(0, 7), // YYYY-MM
-        runId: config.runId,
       }
 
       let macroSeries: MacroSeries | null = null
@@ -182,7 +185,7 @@ export async function resolveIndicatorFromMultipleSources(
             transformType
           )
           
-          logger.debug('multi-source-resolver: applied transformation', {
+          logger.info('multi-source-resolver: applied transformation', {
             requestId,
             indicatorId,
             transformType,
@@ -198,7 +201,7 @@ export async function resolveIndicatorFromMultipleSources(
           id: indicatorId,
           indicator: indicatorId,
           name: indicatorName,
-          frequency: frequency || macroSeries.frequency,
+          frequency: toFrequency((frequency ?? macroSeries.frequency) as 'A' | 'Q' | 'M' | 'W' | 'D' | 'B' | undefined),
           unit,
           data: transformedData,
           lastUpdated: transformedData.length > 0 
