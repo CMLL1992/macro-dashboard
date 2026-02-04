@@ -21,7 +21,25 @@ export const REGION_FLAGS: Record<Region, string> = {
  * Mapeo de indicadores a regiones basado en el key del indicador
  */
 const INDICATOR_TO_REGION: Record<string, Region> = {
-  // USA
+  // USA – IDs FRED / core-indicators (overview)
+  'cpiaucsl': 'USA',
+  'cpilfesl': 'USA',
+  'pcepilfe': 'USA',
+  'ppiaco': 'USA',
+  'gdpc1': 'USA',
+  'gdpc1_yoy': 'USA',
+  'indpro': 'USA',
+  'rsafs': 'USA',
+  'payems': 'USA',
+  'unrate': 'USA',
+  'icsa': 'USA',
+  'fedfunds': 'USA',
+  'current_account_usd': 'USA',
+  'trade_balance_usd': 'USA',
+  'vix': 'USA',
+  'vixcls': 'USA',
+
+  // USA (keys amigables)
   'cpi_yoy': 'USA',
   'corecpi_yoy': 'USA',
   'pce_yoy': 'USA',
@@ -32,9 +50,7 @@ const INDICATOR_TO_REGION: Record<string, Region> = {
   'indpro_yoy': 'USA',
   'retail_yoy': 'USA',
   'payems_delta': 'USA',
-  'unrate': 'USA',
   'claims_4w': 'USA',
-  'fedfunds': 'USA',
   't10y2y': 'USA',
   'pmi_mfg': 'USA',
   'jolts_openings': 'USA',

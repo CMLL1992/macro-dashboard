@@ -5,7 +5,25 @@
  */
 
 export const INDICATOR_LABELS: Record<string, string> = {
-  // USA
+  // USA – IDs FRED / core-indicators (overview)
+  'cpiaucsl': 'CPI YoY',
+  'cpilfesl': 'Core CPI YoY',
+  'pcepilfe': 'Core PCE YoY',
+  'ppiaco': 'PPI YoY',
+  'gdpc1': 'PIB Trimestral (GDP QoQ Anualizado)',
+  'gdpc1_yoy': 'PIB Interanual (GDP YoY)',
+  'indpro': 'Producción Industrial (YoY)',
+  'rsafs': 'Ventas Minoristas (YoY)',
+  'payems': 'Nóminas No Agrícolas (NFP Δ)',
+  'unrate': 'Tasa de Desempleo (U3)',
+  'icsa': 'Solicitudes Iniciales de Subsidio (4W MA)',
+  'fedfunds': 'Tasa Efectiva de Fondos Federales',
+  'current_account_usd': 'Cuenta Corriente (USD)',
+  'trade_balance_usd': 'Balanza Comercial (USD)',
+  'vix': 'VIX (Riesgo)',
+  'vixcls': 'VIX (Riesgo)',
+
+  // USA (keys amigables)
   'cpi_yoy': 'Inflación CPI (YoY)',
   'corecpi_yoy': 'Inflación Core CPI (YoY)',
   'pce_yoy': 'Inflación PCE (YoY)',
@@ -16,13 +34,11 @@ export const INDICATOR_LABELS: Record<string, string> = {
   'indpro_yoy': 'Producción Industrial (YoY)',
   'retail_yoy': 'Ventas Minoristas (YoY)',
   'payems_delta': 'Nóminas No Agrícolas (NFP Δ miles)',
-  'unrate': 'Tasa de Desempleo (U3)',
   'claims_4w': 'Solicitudes Iniciales de Subsidio por Desempleo (Media 4 semanas)',
   'pmi_mfg': 'PMI manufacturero (ISM)',
   'jolts_openings': 'Ofertas de empleo JOLTS',
   't10y2y': 'Curva 10Y–2Y (spread %)',
-  'fedfunds': 'Tasa Efectiva de Fondos Federales',
-  
+
   // European Indicators
   'eu_gdp_qoq': 'PIB Eurozona (QoQ)',
   'eu_gdp_yoy': 'PIB Eurozona (YoY)',

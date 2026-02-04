@@ -11,10 +11,10 @@ import { getOverviewCache } from '@/lib/cache/overview-cache'
 import type { ProcessedIndicator } from '@/lib/dashboard-time-horizon'
 import { safeArray, isRecord } from '@/lib/utils/guards'
 import type { CoreIndicator } from './CoreIndicatorsTable'
+import OverviewIndicatorsByGroup from './OverviewIndicatorsByGroup'
+import type { OverviewGroup } from '@/lib/utils/overview-meta'
 
 // OPTIMIZATION: Dynamic import de componentes pesados que no están "above the fold"
-// CoreIndicatorsTable se carga solo cuando se necesita (tab activo)
-// Esto reduce el bundle inicial del dashboard
 const CoreIndicatorsTable = dynamic(() => import('./CoreIndicatorsTable'), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-muted h-64 rounded-lg" />,
@@ -51,7 +51,32 @@ interface OverviewData {
     score: number
     status: 'Fuerte' | 'Neutro' | 'Débil'
   }>
-  coreIndicators: CoreIndicator[]
+  indicators?: Array<{
+    key: string
+    label: string
+    currency: string
+    group: string
+    section: string
+    value: number | null
+    date: string | null
+    valuePrevious?: number | null
+    datePrevious?: string | null
+    change?: number | null
+    changePct?: number | null
+    unit?: string
+    trend?: 'acelera' | 'desacelera' | 'estable'
+    importance?: 'Alta' | 'Media' | 'Baja'
+    weeklyMomentum?: number | null
+    hasNewPublication?: boolean
+    monthlyTrend?: 'acelerando' | 'desacelerando' | 'estable'
+  }>
+  meta?: {
+    source: string
+    timeframe?: 'D' | 'W' | 'M'
+    groupsOrder: OverviewGroup[]
+    currenciesOrder: string[]
+  }
+  coreIndicators?: CoreIndicator[]
   performance?: {
     totalMs: number
     queriesMs: number
@@ -91,19 +116,17 @@ export default function MacroOverviewDashboard({
       setError(null)
       try {
         const tf = activeTab === 'weekly' ? 'w' : activeTab === 'monthly' ? 'm' : 'd'
-        
-        // OPTIMIZATION: Reutilizar cache del prefetch si está disponible
-        const cachedData = getOverviewCache(tf)
+        const audit = typeof window !== 'undefined' && window.location.search.includes('audit=1')
+        const query = `tf=${tf}${audit ? '&audit=1' : ''}`
+
+        const cachedData = !audit ? getOverviewCache(tf) : null
         if (cachedData) {
           setOverviewData(cachedData)
           setLoading(false)
           return
         }
-        
-        // Si no hay cache in-memory, hacer fetch normal
-        // Usar 'default' para aprovechar HTTP cache del navegador (Cache-Control del endpoint)
-        // Esto complementa el cache in-memory: si se recarga la página, el navegador puede reutilizar
-        const response = await fetch(`/api/overview?tf=${tf}`, {
+
+        const response = await fetch(`/api/overview?${query}`, {
           cache: 'default', // Usar HTTP cache del navegador (complementa cache in-memory)
         })
         
@@ -183,9 +206,9 @@ export default function MacroOverviewDashboard({
 
   // Convertir indicadores procesados a formato CoreIndicator (TODOS los permitidos, sin límite)
   const coreIndicators: CoreIndicator[] = useMemo(() => {
-    // If using endpoint data, return it directly (already in CoreIndicator format)
+    // Si el endpoint devuelve el nuevo formato (indicators + meta), no usamos coreIndicators para la tabla
     if (useEndpointData && overviewData) {
-      return overviewData.coreIndicators
+      return overviewData.coreIndicators ?? []
     }
     
     return processedIndicators.map((ind) => {
@@ -252,6 +275,15 @@ export default function MacroOverviewDashboard({
       }
     })
   }, [processedIndicators, activeTab])
+
+  // Debug localhost: listado exacto de indicadores que se renderizan en la tabla
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    if (!isLocalhost || coreIndicators.length === 0) return
+    const keys = coreIndicators.map((i) => i.key ?? (i as any).indicatorKey ?? (i as any).id)
+    console.log('OVERVIEW INDICATORS (LOCALHOST):', keys)
+  }, [coreIndicators])
 
   // Convertir currency regimes a formato de scoreboard con score -3..+3
   const currencyScores = useMemo(() => {
@@ -439,8 +471,17 @@ export default function MacroOverviewDashboard({
           horizon={activeTab}
         />
 
-        {/* B. Macro Drivers */}
-        <CoreIndicatorsTable indicators={coreIndicators} horizon={activeTab} />
+        {/* B. Macro Drivers (multi-región por grupo cuando hay indicators; si vacío o error → tabla legacy) */}
+        {useEndpointData && overviewData?.indicators?.length && overviewData?.meta ? (
+          <OverviewIndicatorsByGroup
+            indicators={overviewData.indicators}
+            groupsOrder={overviewData.meta.groupsOrder}
+            currenciesOrder={overviewData.meta.currenciesOrder}
+            horizon={activeTab}
+          />
+        ) : (
+          <CoreIndicatorsTable indicators={coreIndicators} horizon={activeTab} />
+        )}
 
         {/* C. Currency Strength (solo USD/EUR/GBP/JPY) */}
         {currencyScores.length > 0 && (

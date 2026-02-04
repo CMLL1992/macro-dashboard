@@ -18,13 +18,37 @@ import { measureAsync } from '@/lib/utils/performance-logger'
 import type { TimeHorizon, ProcessedIndicator } from '@/lib/dashboard-time-horizon'
 import { safeArray, isRecord } from '@/lib/utils/guards'
 import { buildCurrencyScoreboard } from '@/lib/utils/currency-scoreboard'
-import coreIndicatorsConfig from '@/config/core-indicators.json'
+import currencyIndicatorsConfig from '@/config/currency-indicators.json'
+import { getIndicatorLabel } from '@/lib/utils/indicator-labels'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// CRITICAL: No warmup at module load - this causes slow startup
-// Modules will be loaded on-demand when the endpoint is called
+// Contrato multi-región: fuente config/currency-indicators.json
+export type OverviewGroup = 'inflation' | 'growth' | 'labor' | 'monetary' | 'sentiment'
+export type OverviewSection = 'EUROZONA' | 'GLOBAL'
+export type Currency = 'USD' | 'EUR' | 'GBP' | 'JPY' | 'AUD' | string
+
+export interface OverviewIndicator {
+  key: string
+  label: string
+  currency: Currency
+  group: OverviewGroup
+  section: OverviewSection
+  value: number | null
+  date: string | null
+  valuePrevious?: number | null
+  datePrevious?: string | null
+  change?: number | null
+  changePct?: number | null
+  unit?: string
+  trend?: 'acelera' | 'desacelera' | 'estable'
+  importance?: 'Alta' | 'Media' | 'Baja'
+  changeRaw?: number | null
+  weeklyMomentum?: number | null
+  hasNewPublication?: boolean
+  monthlyTrend?: 'acelerando' | 'desacelerando' | 'estable'
+}
 
 interface OverviewResponse {
   regimeGlobal: {
@@ -41,6 +65,13 @@ interface OverviewResponse {
     score: number // -3..+3
     status: 'Fuerte' | 'Neutro' | 'Débil'
   }>
+  indicators: OverviewIndicator[]
+  meta: {
+    source: 'currency-indicators'
+    timeframe?: 'D' | 'W' | 'M'
+    groupsOrder: OverviewGroup[]
+    currenciesOrder: Currency[]
+  }
   // Campo opcional de debug: solo se rellena cuando DEBUG_DASHBOARD=true
   currencyScoreboardDebug?: Array<{
     currency: string
@@ -50,23 +81,6 @@ interface OverviewResponse {
     presentKeys?: string[]
     score: number
     status: 'Fuerte' | 'Neutro' | 'Débil'
-  }>
-  coreIndicators: Array<{
-    key: string
-    label: string
-    category: 'Crecimiento' | 'Empleo' | 'Inflación' | 'Tipos/Condiciones'
-    value: number | null
-    previous: number | null
-    date: string | null
-    date_previous?: string | null
-    trend: 'acelera' | 'desacelera' | 'estable'
-    importance: 'Alta' | 'Media' | 'Baja'
-    unit?: string
-    change?: number | null
-    surprise?: number | null
-    weeklyMomentum?: number | null
-    hasNewPublication?: boolean
-    monthlyTrend?: 'acelerando' | 'desacelerando' | 'estable'
   }>
   countryCoverage?: Array<{
     country: string
@@ -90,10 +104,10 @@ export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
   const startTime = Date.now()
   
-  // Get time horizon from query param (d|w|m)
   const { searchParams } = new URL(request.url)
   const tfParam = searchParams.get('tf') || 'd'
   const horizon: TimeHorizon = tfParam === 'w' ? 'weekly' : tfParam === 'm' ? 'monthly' : 'daily'
+  const auditMode = searchParams.get('audit') === '1'
   
   try {
     // Measure TTFB (Time To First Byte) - time until first data fetch completes
@@ -122,30 +136,26 @@ export async function GET(request: NextRequest) {
     // We set it to 0 here as a placeholder (actual count comes from logs)
     // In production, you could extract it from dashboardData if available
     
-    // Validate dashboardData structure
-    if (!dashboardData) {
-      throw new Error('dashboardData is null or undefined')
-    }
-    if (!dashboardData.regime) {
-      throw new Error('dashboardData.regime is missing')
-    }
-    if (!Array.isArray(dashboardData.indicators)) {
-      throw new Error(`dashboardData.indicators is not an array: ${typeof dashboardData.indicators}`)
-    }
-    if (!biasState) {
-      throw new Error('biasState is null or undefined')
-    }
-    
-    // OPTIMIZATION: Import estático para dashboard-time-horizon (siempre se usa)
-    // Esto mejora la primera request porque el módulo ya está en memoria
-    const { processIndicatorsByHorizon, getTopDrivers, calculateRegimeConfidence } = await import('@/lib/dashboard-time-horizon')
-    
-    // Process indicators by horizon
-    const processingStart = Date.now()
-    // Guard: asegurar siempre un array de indicadores procesados y tipados
-    const processedIndicators = safeArray<ProcessedIndicator>(
-      processIndicatorsByHorizon(dashboardData.indicators, horizon)
+    // FIX 1: Validación tolerante — no lanzar para no devolver 500
+    const indicatorsFromSnapshot = Array.isArray(dashboardData?.indicators) ? dashboardData.indicators : []
+    const snapshotKeysSet = new Set(
+      indicatorsFromSnapshot.map((i: any) => String(i?.originalKey ?? i?.key ?? '').trim().toLowerCase()).filter(Boolean)
     )
+
+    const { processIndicatorsByHorizon, getTopDrivers, calculateRegimeConfidence } = await import('@/lib/dashboard-time-horizon')
+
+    const processingStart = Date.now()
+    let processedIndicators: ProcessedIndicator[] = []
+    try {
+      processedIndicators = safeArray<ProcessedIndicator>(
+        processIndicatorsByHorizon(indicatorsFromSnapshot, horizon)
+      )
+    } catch (processErr) {
+      logger.warn('overview.processIndicatorsByHorizon_failed', {
+        requestId,
+        error: processErr instanceof Error ? processErr.message : String(processErr),
+      })
+    }
     
     // FIX 1: Instrumentación para verificar prev/curr en una pequeña muestra
     const sampleIndicators = processedIndicators
@@ -186,65 +196,43 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Build core indicators (single source of truth: config/core-indicators.json)
-    // Soporta tanto coreKeys[] como indicators[].key (el JSON tiene indicators con key)
-    const rawCoreKeys = Array.isArray((coreIndicatorsConfig as any)?.coreKeys)
-      ? ((coreIndicatorsConfig as any).coreKeys as string[])
-      : Array.isArray((coreIndicatorsConfig as any)?.indicators)
-        ? ((coreIndicatorsConfig as any).indicators as Array<{ key?: string }>).map((i) => i?.key)
-        : []
-    const coreKeys = rawCoreKeys.map((k) => String(k || '').trim()).filter(Boolean)
-    const expectedMissing = new Set(
-      Array.isArray((coreIndicatorsConfig as any)?.expectedMissing)
-        ? ((coreIndicatorsConfig as any).expectedMissing as string[]).map((k) => String(k || '').trim()).filter(Boolean)
-        : [],
-    )
+    // Build indicators from config/currency-indicators.json (multi-region)
+    const indicatorsMap = (currencyIndicatorsConfig as any)?.indicators ?? {}
+    const allCurrencyKeys = Object.keys(indicatorsMap).filter((k) => typeof k === 'string' && k.trim())
+    // Modo auditoría (?audit=1): incluir todos los definidos aunque no tengan datos; si no, solo con datos en snapshot
+    const currencyKeys = auditMode ? allCurrencyKeys : allCurrencyKeys.filter((k) => snapshotKeysSet.has(k.toLowerCase()))
+    const GROUPS_ORDER: OverviewGroup[] = ['inflation', 'labor', 'monetary', 'growth', 'sentiment']
+    const CURRENCIES_ORDER: Currency[] = ['USD', 'EUR', 'GBP', 'JPY', 'AUD']
 
-    const coreIndicators = coreKeys.map((coreKey) => {
+    const indicators: OverviewIndicator[] = currencyKeys.map((key: string) => {
       const ind = processedIndicators.find((p) => {
         const k = String((p as any)?.originalKey || (p as any)?.key || '').trim()
-        return k === coreKey || String((p as any)?.key || '').trim() === coreKey
+        return k === key || k.toLowerCase() === key.toLowerCase()
       })
+      const def = indicatorsMap[key] as { currency?: string; group?: string } | undefined
+      const currency: Currency = (def?.currency ?? 'USD') as Currency
+      const group = (def?.group ?? 'growth') as OverviewGroup
+      const section: OverviewSection = key.toLowerCase().startsWith('eu_') ? 'EUROZONA' : 'GLOBAL'
+      const preferredLabel = getIndicatorLabel(key) || key
 
-      // Gate “no mentir”: si está en expectedMissing, NO exponemos valores viejos (forzamos null)
-      if (expectedMissing.has(coreKey)) {
-        return {
-          key: coreKey,
-          label: ind?.label || coreKey || 'Indicador',
-          category: 'Inflación' as const,
-          value: null,
-          previous: null,
-          date: null,
-          date_previous: null,
-          trend: 'estable' as const,
-          importance: 'Media' as const,
-          unit: ind?.unit || undefined,
-          change: null,
-          surprise: null,
-          weeklyMomentum: null,
-          hasNewPublication: false,
-          monthlyTrend: undefined,
-        }
-      }
 
       // Si no tenemos el indicador, devolvemos stub nulo (evita que “desaparezca”)
       if (!ind) {
         return {
-          key: coreKey,
-          label: coreKey || 'Indicador',
-          category: 'Crecimiento' as const,
+          key,
+          label: preferredLabel,
+          currency,
+          group,
+          section,
           value: null,
-          previous: null,
           date: null,
-          date_previous: null,
+          valuePrevious: undefined,
+          datePrevious: undefined,
+          change: undefined,
+          changePct: undefined,
+          unit: undefined,
           trend: 'estable' as const,
           importance: 'Baja' as const,
-          unit: undefined,
-          change: null,
-          surprise: null,
-          weeklyMomentum: null,
-          hasNewPublication: false,
-          monthlyTrend: undefined,
         }
       }
 
@@ -313,24 +301,44 @@ export async function GET(request: NextRequest) {
       if (weight >= 0.08) importance = 'Alta'
       else if (weight >= 0.04) importance = 'Media'
 
+      const value = ind?.value ?? null
+      const valuePrevious = ind?.previous ?? null
+      const date = ind?.date ?? null
+      const datePrevious = 'date_previous' in ind && ind ? (ind as any).date_previous : null
+      const change = value != null && valuePrevious != null ? value - valuePrevious : null
+      const changePct =
+        value != null && valuePrevious != null && valuePrevious !== 0
+          ? (value - valuePrevious) / valuePrevious * 100
+          : null
+
       return {
-        key: coreKey,
-        label: ind.label || coreKey || 'Indicador',
-        category,
-        value: ind.value ?? null,
-        previous: ind.previous ?? null,
-        date: ind.date ?? null,
-        date_previous: ("date_previous" in ind ? (ind as any).date_previous : null),
+        key,
+        label: preferredLabel,
+        currency,
+        group,
+        section,
+        value,
+        date,
+        valuePrevious: valuePrevious ?? undefined,
+        datePrevious: datePrevious ?? undefined,
+        change: change ?? undefined,
+        changePct: changePct ?? undefined,
+        unit: ind?.unit ?? undefined,
         trend,
         importance,
-        unit: ind.unit || undefined,
-        change: ind.change ?? null,
-        surprise: ind.surprise ?? null,
-        weeklyMomentum: ind.weeklyMomentum ?? null,
-        hasNewPublication: ind.hasNewPublication ?? false,
-        monthlyTrend: ind.monthlyTrend ?? undefined,
+        changeRaw: ind?.change ?? undefined,
+        weeklyMomentum: ind?.weeklyMomentum ?? undefined,
+        hasNewPublication: ind?.hasNewPublication ?? undefined,
+        monthlyTrend: ind?.monthlyTrend ?? undefined,
       }
-    }) as OverviewResponse['coreIndicators']
+    })
+
+    const meta = {
+      source: 'currency-indicators' as const,
+      timeframe: (tfParam === 'w' ? 'W' : tfParam === 'm' ? 'M' : 'D') as 'D' | 'W' | 'M',
+      groupsOrder: GROUPS_ORDER,
+      currenciesOrder: CURRENCIES_ORDER,
+    }
     
     // Calculate growth and inflation trends
     const growthIndicators = processedIndicators.filter(i => {
@@ -368,15 +376,13 @@ export async function GET(request: NextRequest) {
     const topDrivers = getTopDrivers(processedIndicators, horizon)
     const confidenceData = calculateRegimeConfidence(processedIndicators, horizon)
     
-    // FIX: Validar y normalizar currencyRegimes antes de construir el scoreboard
     const currencyRegimes = isRecord(biasState?.currencyRegimes) ? (biasState.currencyRegimes as any) : {}
     const currencyScoreboard = buildCurrencyScoreboard(currencyRegimes)
     
     const processingDuration = Date.now() - processingStart
     const totalDuration = Date.now() - startTime
     
-    // Mapear usd_direction del backend (puede venir como 'Bullish'/'Bearish') a lenguaje macro
-    const rawUsdDirection = dashboardData.regime?.usd_direction || 'Neutral'
+    const rawUsdDirection = dashboardData?.regime?.usd_direction || 'Neutral'
     const usdDirection: 'Fuerte' | 'Débil' | 'Neutral' = 
       rawUsdDirection === 'Bullish' || rawUsdDirection === 'Fuerte' ? 'Fuerte' :
       rawUsdDirection === 'Bearish' || rawUsdDirection === 'Débil' ? 'Débil' :
@@ -434,10 +440,9 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Build response first (with safe fallbacks)
     const response: OverviewResponse = {
       regimeGlobal: {
-        risk: (dashboardData.regime?.risk || 'Neutral') as 'Risk ON' | 'Risk OFF' | 'Neutral',
+        risk: (dashboardData?.regime?.risk || 'Neutral') as 'Risk ON' | 'Risk OFF' | 'Neutral',
         usdDirection,
         growthTrend,
         inflationTrend,
@@ -446,7 +451,8 @@ export async function GET(request: NextRequest) {
         topDrivers,
       },
       currencyScoreboard,
-      coreIndicators,
+      indicators,
+      meta,
       countryCoverage, // Include country coverage data
       performance: {
         totalMs: totalDuration,
@@ -461,13 +467,31 @@ export async function GET(request: NextRequest) {
     }
 
     const payloadSize = JSON.stringify(response).length
-    
+
+    // Diagnóstico cobertura: definidos en config vs mostrados en UI (quitar tras 1 deploy)
+    const definedKeys = allCurrencyKeys
+    const shownKeys = indicators.map((i) => i.key)
+    const missingKeys = definedKeys.filter((k) => !shownKeys.includes(k))
+    const missingBecauseNoData = missingKeys.filter((k) => !snapshotKeysSet.has(k.toLowerCase()))
+    const inSnapshotNotInConfig = [...snapshotKeysSet].filter(
+      (sk) => !definedKeys.some((dk) => dk.toLowerCase() === sk)
+    )
+    logger.info('overview.coverage', {
+      requestId,
+      horizon,
+      defined: definedKeys.length,
+      shown: shownKeys.length,
+      missing: missingKeys.length,
+      missingSample: missingKeys.slice(0, 50),
+      missingBecauseNoData: missingBecauseNoData.length,
+      inSnapshotNotInConfig: inSnapshotNotInConfig.length,
+      inSnapshotNotInConfigSample: inSnapshotNotInConfig.slice(0, 20),
+    })
+
     // Detect cache hit (heuristic: if queries are very fast, likely cache hit)
-    // Note: Next.js/Vercel cache is transparent, so we infer from performance
     const likelyCacheHit = queriesDuration < 100 && totalDuration < 200
-    
+
     // Log performance metrics (PROTOCOL: 5 cargas seguidas de /macro-overview?tf=d|w|m)
-    // Formato para reporte: tf=d #1 ttfb=__ms queries=__ms proc=__ms total=__ms payload=__KB cacheHit=Y/N fallback=0
     logger.info('overview.performance', {
       requestId,
       horizon,
@@ -475,7 +499,7 @@ export async function GET(request: NextRequest) {
       queriesMs: queriesDuration, // Tiempo total de queries (getDashboardData + getBiasState)
       processingMs: processingDuration, // Tiempo de procesamiento de indicadores
       totalMs: totalDuration, // Tiempo total de la request
-      indicatorsCount: coreIndicators.length,
+      indicatorsCount: indicators.length,
       currenciesCount: currencyScoreboard.length,
       payloadSizeBytes: payloadSize,
       cacheHit: likelyCacheHit, // Heurística: queries < 100ms y total < 200ms
@@ -498,7 +522,7 @@ export async function GET(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const errorStack = error instanceof Error ? error.stack : undefined
     const durationMs = Date.now() - startTime
-    
+
     logger.error('overview.error', {
       requestId,
       horizon,
@@ -506,22 +530,33 @@ export async function GET(request: NextRequest) {
       error: errorMessage,
       stack: errorStack,
     })
-    
-    // Log to console for immediate debugging
-    console.error('[overview] Error:', {
-      requestId,
-      horizon,
-      error: errorMessage,
-      stack: errorStack,
-    })
-    
+    console.error('[overview] Error:', { requestId, horizon, error: errorMessage, stack: errorStack })
+
+    // FIX 1: NUNCA devolver 500 — la UI debe poder cargar y mostrar fallback
+    const GROUPS_ORDER: OverviewGroup[] = ['inflation', 'labor', 'monetary', 'growth', 'sentiment']
+    const CURRENCIES_ORDER: Currency[] = ['USD', 'EUR', 'GBP', 'JPY', 'AUD']
     return NextResponse.json(
-      { 
-        error: 'Failed to fetch overview data', 
-        details: errorMessage,
-        requestId, // Include requestId for debugging
+      {
+        regimeGlobal: {
+          risk: 'Neutral',
+          usdDirection: 'Neutral',
+          growthTrend: 'estable',
+          inflationTrend: 'estable',
+          confidence: 'Baja',
+          confidenceExplanation: 'Overview no disponible temporalmente.',
+          topDrivers: [],
+        },
+        currencyScoreboard: [],
+        indicators: [],
+        meta: {
+          source: 'currency-indicators',
+          error: 'overview_failed',
+          groupsOrder: GROUPS_ORDER,
+          currenciesOrder: CURRENCIES_ORDER,
+        },
+        performance: { totalMs: durationMs, queriesMs: 0, processingMs: 0 },
       },
-      { status: 500 }
+      { status: 200 }
     )
   }
 }
