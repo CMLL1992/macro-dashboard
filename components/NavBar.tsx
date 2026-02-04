@@ -26,7 +26,7 @@ export default function NavBar() {
               <span className="text-muted-foreground">Pre-market</span>
               <span className="text-muted-foreground">Liquidez</span>
               <span className="text-muted-foreground">Correlaciones</span>
-              <span className="text-muted-foreground">Dashboard</span>
+              <span className="text-muted-foreground">Macro Market Overview</span>
               <span className="text-muted-foreground">Programación</span>
               <span className="text-muted-foreground">Telegram</span>
             </div>
@@ -45,7 +45,7 @@ export default function NavBar() {
     { href: '/pre-market', label: 'Pre-market' },
     { href: '/liquidez', label: 'Liquidez' },
     { href: '/correlations', label: 'Correlaciones' },
-    { href: '/dashboard', label: 'Dashboard' },
+    { href: '/dashboard', label: 'Macro Market Overview' },
     { href: '/programacion', label: 'Programación' },
     { href: '/settings/telegram', label: 'Telegram' },
   ] as const

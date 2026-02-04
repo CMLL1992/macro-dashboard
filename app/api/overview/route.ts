@@ -187,9 +187,13 @@ export async function GET(request: NextRequest) {
     }
     
     // Build core indicators (single source of truth: config/core-indicators.json)
-    const coreKeys = Array.isArray((coreIndicatorsConfig as any)?.coreKeys)
-      ? ((coreIndicatorsConfig as any).coreKeys as string[]).map((k) => String(k || '').trim()).filter(Boolean)
-      : []
+    // Soporta tanto coreKeys[] como indicators[].key (el JSON tiene indicators con key)
+    const rawCoreKeys = Array.isArray((coreIndicatorsConfig as any)?.coreKeys)
+      ? ((coreIndicatorsConfig as any).coreKeys as string[])
+      : Array.isArray((coreIndicatorsConfig as any)?.indicators)
+        ? ((coreIndicatorsConfig as any).indicators as Array<{ key?: string }>).map((i) => i?.key)
+        : []
+    const coreKeys = rawCoreKeys.map((k) => String(k || '').trim()).filter(Boolean)
     const expectedMissing = new Set(
       Array.isArray((coreIndicatorsConfig as any)?.expectedMissing)
         ? ((coreIndicatorsConfig as any).expectedMissing as string[]).map((k) => String(k || '').trim()).filter(Boolean)

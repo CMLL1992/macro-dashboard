@@ -12,28 +12,8 @@ import MacroOverviewInfoPanel from '@/components/MacroOverviewInfoPanel'
 export default async function DashboardPage({ searchParams }: { searchParams?: Record<string, string> }) {
   void searchParams
 
-  const buildCommit = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'local'
-
   return (
     <main className="p-6">
-      {/* Banner verde para confirmar que se renderiza código nuevo */}
-      <div style={{
-        position: 'fixed',
-        top: 10,
-        right: 10,
-        zIndex: 999999,
-        background: 'lime',
-        color: 'black',
-        padding: '8px 12px',
-        fontWeight: 800,
-        borderRadius: 8
-      }}>
-        NEW DASHBOARD /dashboard
-      </div>
-      {/* Marcador temporal para verificar commit desplegado */}
-      <div style={{ position: 'fixed', bottom: 8, right: 8, zIndex: 9999, fontSize: 12, opacity: 0.7, background: 'rgba(0,0,0,0.5)', color: 'white', padding: '4px 8px', borderRadius: 4 }}>
-        BUILD: {buildCommit}
-      </div>
       <DashboardPerformanceMonitor />
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">

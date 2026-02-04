@@ -163,7 +163,7 @@
     },
     "growth": {
       "name": "Crecimiento",
-      "indicators": ["GDPC1", "GDPC1_YOY", "INDPRO", "RSXFS"]
+      "indicators": ["GDPC1", "GDPC1_YOY", "INDPRO", "RSAFS"]
     },
     "employment": {
       "name": "Empleo",
