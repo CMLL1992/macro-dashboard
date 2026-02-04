@@ -23,17 +23,12 @@ export default function NavBar() {
           <div className="flex items-center gap-6">
             <span className="text-base font-semibold tracking-tight">CM11 Trading</span>
             <div className="hidden md:flex items-center gap-4">
-              <span className="text-muted-foreground">Dashboard</span>
               <span className="text-muted-foreground">Pre-market</span>
               <span className="text-muted-foreground">Liquidez</span>
-              <span className="text-muted-foreground">Programación</span>
-              <span className="text-muted-foreground">Calendario</span>
               <span className="text-muted-foreground">Correlaciones</span>
-              <span className="text-muted-foreground">Narrativas</span>
-              <span className="text-muted-foreground">Sesgos</span>
-              <span className="text-muted-foreground">Notificaciones</span>
+              <span className="text-muted-foreground">Dashboard</span>
+              <span className="text-muted-foreground">Programación</span>
               <span className="text-muted-foreground">Telegram</span>
-              <span className="text-muted-foreground">Ayuda</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -45,20 +40,14 @@ export default function NavBar() {
     )
   }
 
-  // After hydration, render the actual navigation
+  // Menú único: dashboard nuevo (sin legacy Calendario/Narrativas/Sesgos/Análisis/Notificaciones/Ayuda)
   const baseNavItems = [
-    { href: '/dashboard', label: 'Dashboard' },
     { href: '/pre-market', label: 'Pre-market' },
     { href: '/liquidez', label: 'Liquidez' },
-    { href: '/programacion', label: 'Programación' },
-    { href: '/calendario', label: 'Calendario' },
     { href: '/correlations', label: 'Correlaciones' },
-    { href: '/narrativas', label: 'Narrativas' },
-    { href: '/sesgos', label: 'Sesgos' },
-    { href: '/analisis', label: 'Análisis diario' },
-    { href: '/notificaciones', label: 'Notificaciones' },
+    { href: '/dashboard', label: 'Dashboard' },
+    { href: '/programacion', label: 'Programación' },
     { href: '/settings/telegram', label: 'Telegram' },
-    { href: '/ayuda', label: 'Ayuda' },
   ] as const
 
   // Build nav items dynamically (client-side only, after mount)
